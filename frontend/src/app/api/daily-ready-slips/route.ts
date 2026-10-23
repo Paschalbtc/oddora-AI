@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { generateMathematicalAccumulatorSlip } from "@/lib/sportybet";
 import { getSyncBucket } from "@/lib/apiFootball";
+import { persistDailyReadySlips } from "@/lib/platformHistory";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -124,6 +125,9 @@ export async function GET(request: NextRequest) {
     } catch {
       // Non-blocking
     }
+
+    // Persist real slips to platform history for Midnight Autopsy
+    persistDailyReadySlips(todayDate, resultData.slips, syncBucket).catch(() => {});
 
     return NextResponse.json(resultData);
   } catch (err: unknown) {

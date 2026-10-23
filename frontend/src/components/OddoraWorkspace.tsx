@@ -219,12 +219,12 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
 
   // Telemetry stats
   const [summaryStats, setSummaryStats] = useState({
-    total_graded_predictions: 192,
-    won_predictions: 158,
-    win_rate_percentage: 82.3,
-    win_rate_delta: "+2.4%",
-    total_self_learning_lessons: 1422,
-    evolution_level: "Gen-4.8 • 1422 Autopsies Learned",
+    total_graded_predictions: 0,
+    won_predictions: 0,
+    win_rate_percentage: 0,
+    win_rate_delta: "0.0%",
+    total_self_learning_lessons: 1420,
+    evolution_level: "Gen-4.8 • Calibrating Real Feed",
   });
 
   // ---------------------------------------------------------------------------
@@ -753,14 +753,18 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-black text-cyan-400">
-                {summaryStats.win_rate_percentage.toFixed(1)}%
+                {summaryStats.total_graded_predictions > 0
+                  ? `${summaryStats.win_rate_percentage.toFixed(1)}%`
+                  : "Calibrating"}
               </span>
               <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
                 {summaryStats.win_rate_delta || "+2.4%"}
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              {summaryStats.won_predictions}/{summaryStats.total_graded_predictions} Picks Graded • Real Scores
+              {summaryStats.total_graded_predictions > 0
+                ? `${summaryStats.won_predictions}/${summaryStats.total_graded_predictions} Picks Graded • Real Scores`
+                : "Awaiting 00:00 UTC Graded Outcomes"}
             </p>
           </div>
 
@@ -1245,23 +1249,19 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
               ))}
             </div>
           ) : filteredPicks.length === 0 ? (
-            /* Empty State */
-            <div className="p-8 text-center rounded-3xl bg-[#0c1427]/50 border border-white/10 space-y-3">
+            /* Clean Real-Time Empty State */
+            <div className="p-10 text-center rounded-3xl bg-[#0c1427]/50 border border-white/10 space-y-3">
               <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
-              <h3 className="text-base font-bold text-white">No Fixtures Match This Filter</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                No active matches found for the {picksTimeframe} window under this market filter. Try selecting 'All
-                Picks' or '3-Day Weekend'.
+              <h3 className="text-base font-bold text-white">No Remaining Unplayed Fixtures</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                No remaining unplayed fixtures for today. Next daily API-Football sync runs at 00:00.
               </p>
               <button
-                onClick={() => {
-                  setFilterRisk("ALL");
-                  fetchLiveMatches(picksTimeframe, "ALL");
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-black hover:bg-emerald-400"
+                onClick={() => handleForceRefresh()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-black hover:bg-emerald-400 transition-all shadow-md active:scale-95"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Show All Live Matches</span>
+                <span>Sync Live Data Now</span>
               </button>
             </div>
           ) : (
@@ -2443,13 +2443,17 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                   <div key={n} className="p-5 rounded-3xl bg-[#0c1427]/60 border border-white/10 animate-pulse h-48" />
                 ))}
               </div>
-            ) : (yesterdayGradedSlips.length > 0 ? yesterdayGradedSlips : dailyReadySlips).length === 0 ? (
-              <div className="p-6 rounded-3xl bg-[#0c1427]/60 border border-white/10 text-center space-y-2">
-                <p className="text-xs text-slate-400">Loading yesterday's graded algorithm slips...</p>
+            ) : yesterdayGradedSlips.length === 0 ? (
+              <div className="p-8 text-center rounded-3xl bg-[#0c1427]/60 border border-white/10 space-y-2">
+                <AlertCircle className="w-8 h-8 text-cyan-400 mx-auto opacity-70" />
+                <p className="text-sm font-semibold text-white">No Slips Recorded for Yesterday Yet</p>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  No slips or audited fixtures recorded for yesterday yet. Matches will be graded automatically after 00:00 UTC once fixtures conclude.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {(yesterdayGradedSlips.length > 0 ? yesterdayGradedSlips : dailyReadySlips).map((item) => {
+                {yesterdayGradedSlips.map((item) => {
                   const isWon = item.status === "WON";
                   return (
                     <div
@@ -2524,8 +2528,17 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
               <span className="text-xs font-mono text-cyan-400">Real Final Scores & Root Causes</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {autopsies.slice(0, 8).map((item) => {
+            {autopsies.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-white/10 space-y-2">
+                <AlertCircle className="w-8 h-8 text-cyan-400 mx-auto opacity-70" />
+                <p className="text-sm font-semibold text-white">No Audited Matches Recorded for Yesterday Yet</p>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Yesterday's analyzed matches will be audited here against real final scores after 00:00 UTC.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {autopsies.slice(0, 8).map((item) => {
                 const isWon = item.outcome_status === "WON";
 
                 return (
@@ -2575,7 +2588,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                 );
               })}
             </div>
-          </div>
+          )}
+        </div>
 
           {/* 3. Dynamic Model Weights Calibration Panel */}
           {autopsyWeights && (

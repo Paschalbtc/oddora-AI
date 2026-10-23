@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+supabase
+requests
+python-dotenv
+groq
+google-generativeai
+duckduckgo-search
+feedparser
+beautifulsoup4
+pydantic
+

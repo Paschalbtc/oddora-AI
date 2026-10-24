@@ -27,19 +27,24 @@ interface RawLeg {
   specifier?: string | null;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      booking_code = "",
-      legs = null,
-      bookmaker = "SportyBet",
-      mode = "REMOVE_X",
-      remove_count = 3,
-      target_odds = null,
-    } = body;
+export async function executeEditSlipLogic(body: {
+  booking_code?: string;
+  legs?: RawLeg[] | null;
+  bookmaker?: string;
+  mode?: "REMOVE_X" | "TARGET_ODDS" | "SMART_PRUNE" | string;
+  remove_count?: number;
+  target_odds?: number | null;
+}) {
+  const {
+    booking_code = "",
+    legs = null,
+    bookmaker = "SportyBet",
+    mode = "REMOVE_X",
+    remove_count = 3,
+    target_odds = null,
+  } = body;
 
-    let inputLegs: RawLeg[] = Array.isArray(legs) && legs.length > 0 ? legs : [];
+  let inputLegs: RawLeg[] = Array.isArray(legs) && legs.length > 0 ? legs : [];
 
     // 1. If legs not provided, attempt to decode real ticket from SportyBet
     if (inputLegs.length === 0 && booking_code) {
@@ -201,7 +206,7 @@ export async function POST(request: NextRequest) {
       survivingLegs.reduce((acc, l) => acc + l.ai_survival_probability, 0) / (survivingLegs.length || 1);
     const probGain = Math.round((avgNewProb - avgOrigProb) * 10) / 10;
 
-    return NextResponse.json({
+    return {
       status: "success",
       engine: "Senior Football Quantitative Analyst Pruner",
       bookmaker: bookmaker,
@@ -221,7 +226,14 @@ export async function POST(request: NextRequest) {
       },
       surviving_legs: survivingLegs,
       pruned_legs: prunedLegs,
-    });
+    };
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const result = await executeEditSlipLogic(body);
+    return NextResponse.json(result);
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ status: "error", message: errorMsg }, { status: 500 });

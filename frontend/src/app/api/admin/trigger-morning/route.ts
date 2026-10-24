@@ -13,6 +13,10 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false },
 });
 
+export async function GET(request: NextRequest) {
+  return POST(request);
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: any = {};

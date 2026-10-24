@@ -504,7 +504,7 @@ export async function getOrComputeMidnightAutopsy(force = false) {
   const apiKey =
     process.env.API_FOOTBALL_KEY ||
     process.env.NEXT_PUBLIC_API_FOOTBALL_KEY ||
-    "";
+    "78bffc192cbd94efc7163ee4a80b4a35";
 
   let realYesterdayMatches: any[] = [];
   if (apiKey) {

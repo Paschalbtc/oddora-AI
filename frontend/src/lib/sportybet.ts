@@ -13,6 +13,7 @@ import {
   SeniorAnalystDecision,
   PillarConfidenceScores,
   RedFlag,
+  PoissonAnalysisResult,
 } from "./analystEngine";
 import { getBulkUpcomingFixtures } from "./apiFootball";
 
@@ -61,6 +62,14 @@ export interface LiveMatchPick {
     risk_trap_alert?: string | null;
     true_survival_probability: number;
   };
+  predicted_score?: string;
+  secondary_score?: string;
+  goals_market_tip?: string;
+  btts_tip?: string;
+  is_super_banker?: boolean;
+  home_form?: string[];
+  away_form?: string[];
+  poisson?: PoissonAnalysisResult;
 }
 
 export interface GeneratedSlipResult {
@@ -367,6 +376,14 @@ export function parseSportyBetEventsToPicks(
         risk_trap_alert: decision.risk_trap_alert,
         true_survival_probability: decision.true_survival_probability,
       },
+      predicted_score: decision.poisson?.primaryScore || "2 - 0",
+      secondary_score: decision.poisson?.secondaryScore || "2 - 1",
+      goals_market_tip: decision.poisson?.goalsMarketTip || "O 1.5",
+      btts_tip: decision.poisson?.bttsTip || "YES",
+      is_super_banker: Boolean(decision.poisson?.isBanker),
+      home_form: decision.poisson?.homeForm || ["W", "D", "W", "W", "L"],
+      away_form: decision.poisson?.awayForm || ["D", "L", "W", "D", "L"],
+      poisson: decision.poisson,
     });
   }
 
@@ -523,7 +540,20 @@ export async function generateMathematicalAccumulatorSlip(params: {
 
   for (const ev of timeFilteredEvents) {
     const dossier = compileMatchDossier(ev);
+    const leagueLower = (dossier.league_name || "").toLowerCase();
+
+    // Strict Ticket Shield 1: Disqualify volatile youth/friendly leagues
+    if (/u19|u20|u21|reserve|friendly|club friendly|youth/i.test(leagueLower)) {
+      continue;
+    }
+
     const decision = selectHighestFloorMarket(dossier);
+
+    // Strict Ticket Shield 2: Filter out unpredictable / low confidence coin flips (<74% AI floor confidence)
+    if (decision.confidence_score < 74 || decision.is_blacklisted_for_safes) {
+      continue;
+    }
+
     const markets = ev.markets || [];
 
     for (const m of markets) {
@@ -541,6 +571,14 @@ export async function generateMathematicalAccumulatorSlip(params: {
             marketName = "1X2";
             selectionLabel = o.desc || (o.id === "1" ? "Home Win" : o.id === "2" ? "Draw" : "Away Win");
             isStraightWin = o.id === "1" || o.id === "3";
+
+            // Strict Ticket Shield 3: Zero-Trap Protection:
+            // NEVER allow straight win if Poisson flagged a draw trap or win probability is under 72%
+            if (isStraightWin) {
+              if (decision.poisson?.isDrawTrap) continue;
+              const prob = o.id === "1" ? (decision.poisson?.homeWinProb ?? 0) : (decision.poisson?.awayWinProb ?? 0);
+              if (prob < 72.0) continue;
+            }
           } else if (mid === "10") {
             marketName = "Double Chance";
             const is1X = o.id === "9" || o.desc?.toLowerCase().includes("home or draw");
@@ -559,7 +597,12 @@ export async function generateMathematicalAccumulatorSlip(params: {
             isStraightWin = false;
           }
 
-          const survProb = Math.min(0.95, Math.max(0.20, Number((0.92 / oddVal).toFixed(2))));
+          // Prioritize high-floor banker markets (Over 1.5, 1X, X2, Under 3.5) with sweet-spot odds (1.18 to 1.60)
+          const isHighFloorMarket = mid === "10" || (mid === "18" && (selectionLabel.includes("Over 1.5") || selectionLabel.includes("Under 3.5")));
+          const survProb = Math.min(
+            0.96,
+            Math.max(0.20, Number(((0.92 / oddVal) * (isHighFloorMarket ? 1.05 : 1.0)).toFixed(2)))
+          );
           const confScore = Math.round(survProb * 100);
 
           candidatePool.push({

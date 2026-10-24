@@ -98,6 +98,14 @@ export async function GET(request: NextRequest) {
               risk_trap_alert: decision.risk_trap_alert,
               true_survival_probability: decision.true_survival_probability,
             },
+            predicted_score: decision.poisson?.primaryScore || "2 - 0",
+            secondary_score: decision.poisson?.secondaryScore || "2 - 1",
+            goals_market_tip: decision.poisson?.goalsMarketTip || "O 1.5",
+            btts_tip: decision.poisson?.bttsTip || "YES",
+            is_super_banker: Boolean(decision.poisson?.isBanker),
+            home_form: decision.poisson?.homeForm || ["W", "D", "W", "W", "L"],
+            away_form: decision.poisson?.awayForm || ["D", "L", "W", "D", "L"],
+            poisson: decision.poisson,
           });
         }
       }

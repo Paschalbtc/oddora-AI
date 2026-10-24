@@ -500,28 +500,16 @@ export async function getOrComputeMidnightAutopsy(force = false) {
     };
   }
 
-  // 5. Query API-Football for real final scores of yesterday's matches
-  const apiKey =
-    process.env.API_FOOTBALL_KEY ||
-    process.env.NEXT_PUBLIC_API_FOOTBALL_KEY ||
-    "78bffc192cbd94efc7163ee4a80b4a35";
-
+  // 5. Query API-Football for real final scores of yesterday's matches (strictly 1 single request via Gatekeeper)
   let realYesterdayMatches: any[] = [];
-  if (apiKey) {
-    try {
-      const res = await fetch(`https://v3.football.api-sports.io/fixtures?date=${auditedDate}`, {
-        headers: { "x-apisports-key": apiKey },
-        next: { revalidate: 3600 },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.response)) {
-          realYesterdayMatches = json.response;
-        }
-      }
-    } catch (e) {
-      console.warn("API-Football yesterday scores fetch notice:", e);
+  try {
+    const { safeFetchApiFootball } = await import("@/lib/apiFootballGatekeeper");
+    const json = await safeFetchApiFootball(`fixtures?date=${auditedDate}`);
+    if (json && Array.isArray(json.response)) {
+      realYesterdayMatches = json.response;
     }
+  } catch (e) {
+    console.warn("API-Football yesterday scores fetch notice:", e);
   }
 
   // Score resolver using API-Football real scores

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, Suspense, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -21,36 +21,39 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Bot,
+  Compass,
+  BookOpen,
+  HelpCircle,
+  Flame,
+  Trophy,
 } from "lucide-react";
 import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "../lib/supabase";
 
-interface NavItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-}
-
-const NAV_LINKS: NavItem[] = [
-  { name: "AI Dashboard", href: "/", icon: Layers },
-  { name: "Edit Slip AI", href: "/edit-slip", icon: SlidersHorizontal, badge: "NEW" },
-  { name: "20,000x Slip AI", href: "/slip-builder", icon: Sparkles, badge: "HOT" },
-  { name: "Midnight Autopsy", href: "/autopsy", icon: Activity },
-  { name: "Pricing & VIP", href: "/pricing", icon: Crown },
-  { name: "Affiliate Hub", href: "/affiliates", icon: Users, badge: "40%" },
+const TOP_LEAGUES_NAV = [
+  { name: "Premier League", country: "England" },
+  { name: "La Liga", country: "Spain" },
+  { name: "Serie A", country: "Italy" },
+  { name: "Bundesliga", country: "Germany" },
+  { name: "Ligue 1", country: "France" },
+  { name: "UEFA Champions League", country: "Europe" },
+  { name: "UEFA Europa League", country: "Europe" },
+  { name: "CAF Champions League", country: "Africa" },
 ];
 
 const NavbarContent: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams?.get("tab");
-  const isCopilotActive = pathname === "/" && currentTab === "copilot";
 
   const { user, profile, signOut, switchPlanDemo } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSwitchingPlan, setIsSwitchingPlan] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isLeaguesMenuOpen, setIsLeaguesMenuOpen] = useState(false);
+  const [isGuideMenuOpen, setIsGuideMenuOpen] = useState(false);
+
+  const leaguesMenuRef = useRef<HTMLDivElement>(null);
+  const guideMenuRef = useRef<HTMLDivElement>(null);
 
   const planTier = profile?.plan_tier || "FREE";
 
@@ -59,6 +62,34 @@ const NavbarContent: React.FC = () => {
     await switchPlanDemo(newPlan);
     setIsSwitchingPlan(false);
   };
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (leaguesMenuRef.current && !leaguesMenuRef.current.contains(event.target as Node)) {
+        setIsLeaguesMenuOpen(false);
+      }
+      if (guideMenuRef.current && !guideMenuRef.current.contains(event.target as Node)) {
+        setIsGuideMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Determine active tab
+  const isHomeActive = pathname === "/" && (!currentTab || currentTab === "home");
+  const isMatchesActive = pathname === "/" && currentTab === "all_matches";
+  const isBankersActive = pathname === "/" && currentTab === "bankers";
+  const isBuilderActive = pathname === "/slip-builder" || (pathname === "/" && currentTab === "slip_builder");
+  const isEditSlipActive = pathname === "/edit-slip" || (pathname === "/" && currentTab === "edit_slip");
+  const isCopilotActive = pathname === "/" && currentTab === "copilot";
+  const isGuideActive =
+    pathname === "/autopsy" ||
+    pathname === "/pricing" ||
+    pathname === "/affiliates" ||
+    (pathname === "/" &&
+      (currentTab === "autopsy" || currentTab === "bet_markets_guide" || currentTab === "how_it_works"));
 
   // Plan Badge Render Helper
   const renderPlanBadge = (isMobile = false) => {
@@ -99,163 +130,253 @@ const NavbarContent: React.FC = () => {
   return (
     <>
       {/* =========================================================================
-          1. TOP NAVIGATION BAR (Consolidated Desktop Header + Mobile Header)
+          1. TOP NAVIGATION BAR (6 Primary Tabs + 2 Dropdowns + Account Switcher)
          ========================================================================= */}
-      <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-[#090d16]/90 border-b border-white/[0.08] transition-all duration-200">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between gap-4 h-16">
-          {/* Left (shrink-0): Compact Oddora AI Logo + Title */}
+      <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-[#090d16]/95 border-b border-white/[0.08] transition-all duration-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex items-center justify-between gap-3 h-16">
+          {/* Left: Compact Oddora AI Logo */}
           <div className="shrink-0 flex items-center">
-            <OddoraLogo size="sm" showBadge={false} />
+            <Link href="/">
+              <OddoraLogo size="sm" showBadge={false} />
+            </Link>
           </div>
 
-          {/* Center Navigation (Consolidated & Compact: 4 Primary Tabs + More Dropdown) */}
-          <nav className="hidden md:flex items-center space-x-1 lg:space-x-1.5 min-w-0">
-            {/* 1. Predictions */}
+          {/* Center Navigation: 6 Primary Tabs + 2 Dropdown Menus */}
+          <nav className="hidden lg:flex items-center space-x-1 min-w-0">
+            {/* 1. Home */}
             <Link
               href="/"
-              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold transition-all duration-200 shrink-0 ${
-                pathname === "/" && !isCopilotActive
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
+                isHomeActive
                   ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
                   : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
               }`}
             >
-              <Layers
-                className={`w-3.5 h-3.5 ${
-                  pathname === "/" && !isCopilotActive ? "text-emerald-400" : "text-slate-400"
-                }`}
-              />
-              <span>Predictions</span>
-              {pathname === "/" && !isCopilotActive && (
-                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-emerald-400 to-amber-400 rounded-full" />
+              <Compass className={`w-3.5 h-3.5 ${isHomeActive ? "text-emerald-400" : "text-slate-400"}`} />
+              <span>Home</span>
+              {isHomeActive && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-emerald-400 rounded-full" />
               )}
             </Link>
 
-            {/* 2. Slip Studio (Odds Generator & Edit Slip AI) */}
+            {/* 2. All Matches */}
+            <Link
+              href="/?tab=all_matches"
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
+                isMatchesActive
+                  ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+              }`}
+            >
+              <Layers className={`w-3.5 h-3.5 ${isMatchesActive ? "text-emerald-400" : "text-slate-400"}`} />
+              <span>All Matches</span>
+              {isMatchesActive && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-emerald-400 rounded-full" />
+              )}
+            </Link>
+
+            {/* 3. Bankers */}
+            <Link
+              href="/?tab=bankers"
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
+                isBankersActive
+                  ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+              }`}
+            >
+              <Flame className={`w-3.5 h-3.5 ${isBankersActive ? "text-amber-400" : "text-amber-500"}`} />
+              <span>Bankers</span>
+              <span className="text-[9px] font-mono px-1 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
+                2-3x
+              </span>
+              {isBankersActive && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-amber-400 rounded-full" />
+              )}
+            </Link>
+
+            {/* 4. Slip Builder */}
             <Link
               href="/slip-builder"
-              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold transition-all duration-200 shrink-0 ${
-                pathname === "/slip-builder" || pathname === "/edit-slip"
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
+                isBuilderActive
                   ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
                   : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
               }`}
             >
-              <Sparkles
-                className={`w-3.5 h-3.5 ${
-                  pathname === "/slip-builder" || pathname === "/edit-slip"
-                    ? "text-amber-400"
-                    : "text-slate-400"
-                }`}
-              />
-              <span>Slip Studio</span>
-              <span className="text-[9px] font-mono px-1 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
-                20,000x
-              </span>
-              {(pathname === "/slip-builder" || pathname === "/edit-slip") && (
-                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full" />
+              <Sparkles className={`w-3.5 h-3.5 ${isBuilderActive ? "text-amber-400" : "text-slate-400"}`} />
+              <span>Slip Builder</span>
+              {isBuilderActive && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-amber-400 rounded-full" />
               )}
             </Link>
 
-            {/* 3. AI Copilot */}
+            {/* 5. Edit Slip */}
+            <Link
+              href="/edit-slip"
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
+                isEditSlipActive
+                  ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+              }`}
+            >
+              <SlidersHorizontal className={`w-3.5 h-3.5 ${isEditSlipActive ? "text-emerald-400" : "text-slate-400"}`} />
+              <span>Edit Slip</span>
+              {isEditSlipActive && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-emerald-400 rounded-full" />
+              )}
+            </Link>
+
+            {/* 6. AI Copilot */}
             <Link
               href="/?tab=copilot"
-              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold transition-all duration-200 shrink-0 ${
+              className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
                 isCopilotActive
                   ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
                   : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
               }`}
             >
-              <Bot
-                className={`w-3.5 h-3.5 ${isCopilotActive ? "text-[#00C896]" : "text-slate-400"}`}
-              />
+              <Bot className={`w-3.5 h-3.5 ${isCopilotActive ? "text-[#00C896]" : "text-slate-400"}`} />
               <span>AI Copilot</span>
               {isCopilotActive && (
-                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-[#00C896] to-cyan-400 rounded-full" />
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#00C896] rounded-full" />
               )}
             </Link>
 
-            {/* 4. Midnight Autopsy */}
-            <Link
-              href="/autopsy"
-              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-bold transition-all duration-200 shrink-0 ${
-                pathname === "/autopsy"
-                  ? "text-white bg-white/[0.08] border border-white/10 shadow-sm"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-              }`}
-            >
-              <Activity
-                className={`w-3.5 h-3.5 ${pathname === "/autopsy" ? "text-cyan-400" : "text-slate-400"}`}
-              />
-              <span>Midnight Autopsy</span>
-              {pathname === "/autopsy" && (
-                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full" />
-              )}
-            </Link>
-
-            {/* 5. More ▾ Dropdown */}
-            <div className="relative shrink-0">
+            {/* Dropdown 1: Leagues ▾ */}
+            <div className="relative shrink-0" ref={leaguesMenuRef}>
               <button
-                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className={`relative inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs xl:text-sm font-bold transition-all duration-200 ${
-                  pathname === "/pricing" || pathname === "/affiliates"
+                onClick={() => {
+                  setIsLeaguesMenuOpen(!isLeaguesMenuOpen);
+                  setIsGuideMenuOpen(false);
+                }}
+                className="relative inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
+              >
+                <Trophy className="w-3.5 h-3.5 text-slate-400" />
+                <span>Leagues</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isLeaguesMenuOpen ? "rotate-180 text-emerald-400" : "text-slate-400"
+                  }`}
+                />
+              </button>
+
+              {isLeaguesMenuOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 border-b border-white/10">
+                    Filter by Competition
+                  </div>
+                  <div className="max-h-72 overflow-y-auto mt-1 space-y-0.5">
+                    {TOP_LEAGUES_NAV.map((l) => (
+                      <Link
+                        key={l.name}
+                        href={`/?tab=all_matches&league=${encodeURIComponent(l.name)}`}
+                        onClick={() => setIsLeaguesMenuOpen(false)}
+                        className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+                      >
+                        <span>{l.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">{l.country}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown 2: Guide & Lab ▾ */}
+            <div className="relative shrink-0" ref={guideMenuRef}>
+              <button
+                onClick={() => {
+                  setIsGuideMenuOpen(!isGuideMenuOpen);
+                  setIsLeaguesMenuOpen(false);
+                }}
+                className={`relative inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  isGuideActive
                     ? "text-white bg-white/[0.08] border border-white/10"
                     : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
                 }`}
               >
-                <span>More</span>
+                <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Guide & Lab</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isMoreMenuOpen ? "rotate-180 text-emerald-400" : "text-slate-400"
+                    isGuideMenuOpen ? "rotate-180 text-cyan-400" : "text-slate-400"
                   }`}
                 />
-                {(pathname === "/pricing" || pathname === "/affiliates") && (
-                  <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-amber-400 rounded-full" />
+                {isGuideActive && (
+                  <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-cyan-400 rounded-full" />
                 )}
               </button>
 
-              {isMoreMenuOpen && (
-                <div
-                  className="absolute left-0 mt-2 w-52 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150"
-                  onMouseLeave={() => setIsMoreMenuOpen(false)}
-                >
+              {isGuideMenuOpen && (
+                <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <Link
-                    href="/pricing"
-                    onClick={() => setIsMoreMenuOpen(false)}
+                    href="/autopsy"
+                    onClick={() => setIsGuideMenuOpen(false)}
                     className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-slate-300 hover:text-white transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <Crown className="w-4 h-4 text-amber-400" />
-                      <span>Pricing & VIP Plans</span>
+                      <Activity className="w-4 h-4 text-cyan-400" />
+                      <span>Midnight Autopsy</span>
                     </div>
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                      VIP
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-400 font-bold">
+                      12 AM
                     </span>
                   </Link>
 
                   <Link
-                    href="/affiliates"
-                    onClick={() => setIsMoreMenuOpen(false)}
-                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-slate-300 hover:text-white transition-colors mt-1"
+                    href="/?tab=bet_markets_guide"
+                    onClick={() => setIsGuideMenuOpen(false)}
+                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-slate-300 hover:text-white transition-colors mt-0.5"
                   >
                     <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-emerald-400" />
-                      <span>Affiliate 30% Hub</span>
+                      <BookOpen className="w-4 h-4 text-emerald-400" />
+                      <span>Bet Markets Guide</span>
                     </div>
                     <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
-                      30%
+                      A-Z
                     </span>
                   </Link>
+
+                  <Link
+                    href="/?tab=how_it_works"
+                    onClick={() => setIsGuideMenuOpen(false)}
+                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-slate-300 hover:text-white transition-colors mt-0.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <HelpCircle className="w-4 h-4 text-purple-400" />
+                      <span>How It Works Guide</span>
+                    </div>
+                  </Link>
+
+                  <div className="my-1 border-t border-white/10" />
+
+                  <button
+                    onClick={() => {
+                      setIsGuideMenuOpen(false);
+                      setIsAuthModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <span>VIP Plans & 30% Affiliate</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-400 font-bold">
+                      30%
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
           </nav>
 
-          {/* Right (shrink-0 flex items-center gap-2): Plan Tier Badge + Sign In / Sign Up / Account Button */}
+          {/* Right: Plan Tier Badge + Sign In / Account Button */}
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {renderPlanBadge(false)}
 
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-semibold bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10 transition-all duration-200 hover:border-emerald-500/40"
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10 transition-all duration-200 hover:border-emerald-500/40"
             >
               <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
               <span>{user ? profile?.full_name?.split(" ")[0] || "Account" : "Account"}</span>
@@ -265,7 +386,7 @@ const NavbarContent: React.FC = () => {
               <button
                 onClick={() => signOut()}
                 title="Sign out of your account"
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 transition-all duration-200 active:scale-95"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 transition-all duration-200 active:scale-95"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
@@ -273,10 +394,10 @@ const NavbarContent: React.FC = () => {
             ) : (
               <Link
                 href="/auth"
-                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-bold text-black bg-gradient-to-r from-[#10B981] to-[#34D399] hover:from-[#34D399] hover:to-[#10B981] shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all duration-200 active:scale-95 whitespace-nowrap"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-black bg-gradient-to-r from-[#10B981] to-[#34D399] hover:from-[#34D399] hover:to-[#10B981] shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all duration-200 active:scale-95 whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Sign Up / Sign In</span>
+                <span>Sign Up</span>
               </Link>
             )}
           </div>
@@ -324,88 +445,78 @@ const NavbarContent: React.FC = () => {
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-[#090d16]/95 backdrop-blur-2xl border-t border-white/[0.08] shadow-[0_-4px_25px_rgba(0,0,0,0.5)]"
       >
         <div className="grid grid-cols-5 h-full max-w-md mx-auto px-1">
-          {/* Tab 1: Picks (Dashboard) */}
+          {/* Tab 1: Home */}
           <Link
             href="/"
             className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
-              pathname === "/" ? "text-[#10B981]" : "text-slate-400 hover:text-slate-200"
+              isHomeActive ? "text-[#10B981]" : "text-slate-400 hover:text-slate-200"
             }`}
           >
-            <div className="relative">
-              <Layers className="w-5 h-5 transition-transform active:scale-90" />
-              {pathname === "/" && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
-              )}
-            </div>
-            <span className="text-[11px] font-semibold tracking-tight mt-1">Picks</span>
-            {pathname === "/" && (
+            <Compass className="w-5 h-5 transition-transform active:scale-90" />
+            <span className="text-[10px] font-semibold tracking-tight mt-1">Home</span>
+            {isHomeActive && (
               <span className="w-5 h-1 bg-[#10B981] rounded-full absolute bottom-1" />
             )}
           </Link>
 
-          {/* Tab 2: Edit Slip AI */}
+          {/* Tab 2: All Matches */}
           <Link
-            href="/edit-slip"
+            href="/?tab=all_matches"
             className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
-              pathname === "/edit-slip" ? "text-emerald-400" : "text-slate-400 hover:text-slate-200"
+              isMatchesActive ? "text-emerald-400" : "text-slate-400 hover:text-slate-200"
             }`}
           >
-            <div className="relative">
-              <SlidersHorizontal className="w-5 h-5 transition-transform active:scale-90 text-emerald-400" />
-              <span className="absolute -top-1 -right-2 text-[8px] font-mono px-1 rounded-full font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                AI
-              </span>
-            </div>
-            <span className="text-[11px] font-semibold tracking-tight mt-1">Edit Slip</span>
-            {pathname === "/edit-slip" && (
+            <Layers className="w-5 h-5 transition-transform active:scale-90" />
+            <span className="text-[10px] font-semibold tracking-tight mt-1">Matches</span>
+            {isMatchesActive && (
               <span className="w-5 h-1 bg-emerald-400 rounded-full absolute bottom-1" />
             )}
           </Link>
 
-          {/* Tab 3: 20,000x Slip AI */}
+          {/* Tab 3: Bankers */}
           <Link
-            href="/slip-builder"
+            href="/?tab=bankers"
             className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
-              pathname === "/slip-builder" ? "text-[#F59E0B]" : "text-slate-400 hover:text-slate-200"
+              isBankersActive ? "text-amber-400" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             <div className="relative">
-              <Sparkles className="w-5 h-5 transition-transform active:scale-90 text-[#F59E0B]" />
-              <span className="absolute -top-1 -right-2 text-[8px] font-mono px-1 rounded-full font-black bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                20K
+              <Flame className="w-5 h-5 transition-transform active:scale-90 text-amber-400" />
+              <span className="absolute -top-1 -right-2 text-[7px] font-mono px-1 rounded-full font-black bg-amber-500/20 text-amber-400">
+                2x
               </span>
             </div>
-            <span className="text-[11px] font-semibold tracking-tight mt-1">Slip 20K</span>
-            {pathname === "/slip-builder" && (
+            <span className="text-[10px] font-semibold tracking-tight mt-1">Bankers</span>
+            {isBankersActive && (
+              <span className="w-5 h-1 bg-amber-400 rounded-full absolute bottom-1" />
+            )}
+          </Link>
+
+          {/* Tab 4: Slip Builder */}
+          <Link
+            href="/slip-builder"
+            className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
+              isBuilderActive ? "text-[#F59E0B]" : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Sparkles className="w-5 h-5 transition-transform active:scale-90" />
+            <span className="text-[10px] font-semibold tracking-tight mt-1">Builder</span>
+            {isBuilderActive && (
               <span className="w-5 h-1 bg-[#F59E0B] rounded-full absolute bottom-1" />
             )}
           </Link>
 
-          {/* Tab 4: Autopsy */}
+          {/* Tab 5: Edit Slip */}
           <Link
-            href="/autopsy"
+            href="/edit-slip"
             className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
-              pathname === "/autopsy" ? "text-cyan-400" : "text-slate-400 hover:text-slate-200"
+              isEditSlipActive ? "text-emerald-400" : "text-slate-400 hover:text-slate-200"
             }`}
           >
-            <Activity className="w-5 h-5 transition-transform active:scale-90" />
-            <span className="text-[11px] font-semibold tracking-tight mt-1">Autopsy</span>
-            {pathname === "/autopsy" && (
-              <span className="w-5 h-1 bg-cyan-400 rounded-full absolute bottom-1" />
-            )}
-          </Link>
-
-          {/* Tab 5: Account / Pricing */}
-          <Link
-            href="/pricing"
-            className={`flex flex-col items-center justify-center relative py-1 focus:outline-none select-none ${
-              pathname === "/pricing" ? "text-amber-400" : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <Crown className="w-5 h-5 transition-transform active:scale-90" />
-            <span className="text-[11px] font-semibold tracking-tight mt-1">VIP Pass</span>
-            {pathname === "/pricing" && (
-              <span className="w-5 h-1 bg-amber-400 rounded-full absolute bottom-1" />
+            <SlidersHorizontal className="w-5 h-5 transition-transform active:scale-90" />
+            <span className="text-[10px] font-semibold tracking-tight mt-1">Edit Slip</span>
+            {isEditSlipActive && (
+              <span className="w-5 h-1 bg-emerald-400 rounded-full absolute bottom-1" />
             )}
           </Link>
         </div>
@@ -423,7 +534,7 @@ const NavbarContent: React.FC = () => {
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-2.5">
                 <OddoraLogo size="sm" showBadge={false} />
-                <span className="text-sm font-bold text-slate-300">Account & Plan Switcher</span>
+                <span className="text-sm font-bold text-slate-300">Account & VIP Membership</span>
               </div>
               <button
                 onClick={() => setIsAuthModalOpen(false)}
@@ -453,7 +564,7 @@ const NavbarContent: React.FC = () => {
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>Affiliate Commission Balance:</span>
                 <span className="font-mono font-bold text-amber-400">
-                  ${(profile?.affiliate_balance || 0).toFixed(2)} USD
+                  ${(profile?.affiliate_balance || 0).toFixed(2)} USD (30% cut)
                 </span>
               </div>
             </div>
@@ -498,7 +609,7 @@ const NavbarContent: React.FC = () => {
                 })}
               </div>
               <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
-                *Switching instantly triggers the backend affiliate 30% commission flow simulation and unlocks Pro/VIP gated picks.
+                *Switching instantly unlocks all predicted scorelines, 3 daily bankers, and VIP-only betting markets.
               </p>
             </div>
 
@@ -510,7 +621,7 @@ const NavbarContent: React.FC = () => {
                 className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-slate-200 border border-white/10 transition-colors"
               >
                 <Gift className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Affiliate Hub</span>
+                <span>Affiliate 30%</span>
               </Link>
 
               {user ? (
@@ -555,4 +666,3 @@ export const Navbar: React.FC = () => {
 };
 
 export default Navbar;
-

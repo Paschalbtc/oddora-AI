@@ -24,7 +24,11 @@ export async function POST(request: NextRequest) {
       risk_level = "BALANCED",
       user_id = null,
       custom_rules = [],
+      market_types = ["all"],
+      selected_markets = null,
     } = body;
+
+    const markets = selected_markets || market_types || ["all"];
 
     const slip = await generateMathematicalAccumulatorSlip({
       targetOdds: Number(target_odds),
@@ -32,6 +36,7 @@ export async function POST(request: NextRequest) {
       bookmaker: bookmaker.toLowerCase().includes("bet9ja") ? "Bet9ja" : "SportyBet",
       riskLevel: risk_level,
       customRules: custom_rules,
+      marketTypes: Array.isArray(markets) ? markets : [markets],
     });
 
     // Save generated slip to Supabase

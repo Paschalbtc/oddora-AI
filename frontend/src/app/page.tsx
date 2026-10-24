@@ -216,7 +216,7 @@ export default function Home() {
           </div>
         </div>
 
-        <OddoraWorkspace defaultTab="picks" showTelemetryBar={true} />
+        <OddoraWorkspace defaultTab="home" showTelemetryBar={true} />
       </section>
     </div>
   );

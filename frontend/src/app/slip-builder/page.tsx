@@ -20,7 +20,7 @@ export default function SlipBuilderPage() {
         </p>
       </div>
 
-      <OddoraWorkspace defaultTab="slip" showTelemetryBar={true} />
+      <OddoraWorkspace defaultTab="slip_builder" showTelemetryBar={true} />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Sparkles,
   Layers,
@@ -43,8 +44,15 @@ import {
   Table,
   LayoutList,
   Grid,
+  Compass,
+  Trophy,
+  HelpCircle,
 } from "lucide-react";
 import { useAuth, API_BASE_URL } from "@/lib/supabase";
+import BetMarketsGuide from "./BetMarketsGuide";
+import HowItWorksGuide from "./HowItWorksGuide";
+import BankersTab, { BankerTicket } from "./BankersTab";
+import VipPlanModal from "./VipPlanModal";
 
 // =============================================================================
 // INTERFACES
@@ -144,6 +152,8 @@ export interface SlipLeg {
 export interface SlipData {
   bookmaker?: "SportyBet" | "Bet9ja" | string;
   booking_code: string;
+  sporty_code?: string;
+  bet9ja_code?: string;
   share_url?: string;
   target_odds_requested?: number;
   actual_combined_odds: number;
@@ -170,8 +180,28 @@ export interface RuleItem {
   created_at?: string;
 }
 
+export type WorkspaceTab =
+  | "home"
+  | "all_matches"
+  | "bankers"
+  | "slip_builder"
+  | "edit_slip"
+  | "copilot"
+  | "autopsy"
+  | "bet_markets_guide"
+  | "how_it_works";
+
 export interface OddoraWorkspaceProps {
-  defaultTab?: "predictions" | "studio" | "copilot" | "autopsy" | "picks" | "slip" | "edit_slip" | "vip";
+  defaultTab?:
+    | WorkspaceTab
+    | "predictions"
+    | "studio"
+    | "copilot"
+    | "autopsy"
+    | "picks"
+    | "slip"
+    | "edit_slip"
+    | "vip";
   showTelemetryBar?: boolean;
 }
 
@@ -188,26 +218,92 @@ const formatKickoffTime = (timeStr: string, formattedTime?: string) => {
   }
 };
 
+const TOP_LEAGUES_WORKSPACE = [
+  "Premier League",
+  "La Liga",
+  "Serie A",
+  "Bundesliga",
+  "Ligue 1",
+  "UEFA Champions League",
+  "UEFA Europa League",
+  "CAF Champions League",
+];
+
+const FREE_MARKET_OPTIONS = [
+  { id: "all", label: "All Best Markets (AI Auto)" },
+  { id: "1x2", label: "1X2 (Straight Win)" },
+  { id: "double_chance", label: "Double Chance (1X / X2)" },
+  { id: "over_under", label: "Over / Under 1.5 & 2.5 Goals" },
+];
+
+const VIP_MARKET_OPTIONS = [
+  { id: "corners", label: "Corners (Over/Under 8.5–10.5)" },
+  { id: "btts", label: "BTTS (GG & NG)" },
+  { id: "dnb", label: "Draw No Bet (DNB)" },
+  { id: "cards", label: "Cards / Bookings (O/U 3.5)" },
+  { id: "handicap", label: "Handicap (+1 / -1 / Asian)" },
+  { id: "ht_goals", label: "1st Half Goals (Over 0.5 HT)" },
+  { id: "weh", label: "Win Either Half (WEH)" },
+];
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
-export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
-  defaultTab = "predictions",
+const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
+  defaultTab = "home",
   showTelemetryBar = true,
 }) => {
-  const { user, profile, switchPlanDemo } = useAuth();
-  const planTier = profile?.plan_tier || "FREE";
+  const searchParams = useSearchParams();
+  const urlTab = searchParams?.get("tab");
+  const urlLeague = searchParams?.get("league");
 
-  // Consolidated 4 Primary Tabs: predictions | studio (Odds Gen & Edit Slip) | copilot | autopsy
-  const resolveInitialTab = (): "predictions" | "studio" | "copilot" | "autopsy" => {
-    if (defaultTab === "vip" || defaultTab === "autopsy") return "autopsy";
-    if (defaultTab === "slip" || defaultTab === "edit_slip" || defaultTab === "studio") return "studio";
+  const { user, profile, switchPlanDemo } = useAuth();
+  const [localPlanTier, setLocalPlanTier] = useState<"FREE" | "PRO" | "VIP" | null>(null);
+  const planTier: "FREE" | "PRO" | "VIP" = localPlanTier || (profile?.plan_tier as any) || "FREE";
+
+  const resolveInitialTab = (): WorkspaceTab => {
+    if (urlTab) {
+      if (
+        urlTab === "home" ||
+        urlTab === "all_matches" ||
+        urlTab === "bankers" ||
+        urlTab === "slip_builder" ||
+        urlTab === "edit_slip" ||
+        urlTab === "copilot" ||
+        urlTab === "autopsy" ||
+        urlTab === "bet_markets_guide" ||
+        urlTab === "how_it_works"
+      ) {
+        return urlTab as WorkspaceTab;
+      }
+      if (urlTab === "predictions" || urlTab === "picks") return "all_matches";
+      if (urlTab === "studio" || urlTab === "slip") return "slip_builder";
+    }
+    if (defaultTab === "all_matches" || defaultTab === "predictions" || defaultTab === "picks") return "all_matches";
+    if (defaultTab === "bankers") return "bankers";
+    if (defaultTab === "slip_builder" || defaultTab === "slip" || defaultTab === "studio") return "slip_builder";
+    if (defaultTab === "edit_slip") return "edit_slip";
     if (defaultTab === "copilot") return "copilot";
-    return "predictions";
+    if (defaultTab === "autopsy" || defaultTab === "vip") return "autopsy";
+    if (defaultTab === "bet_markets_guide") return "bet_markets_guide";
+    if (defaultTab === "how_it_works") return "how_it_works";
+    return "home";
   };
 
-  const [activeTab, setActiveTab] = useState<"predictions" | "studio" | "copilot" | "autopsy">(resolveInitialTab());
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(resolveInitialTab());
+  const [dayHorizon, setDayHorizon] = useState<"today" | "tomorrow" | "next2days">("today");
+  const [selectedLeague, setSelectedLeague] = useState<string | null>(urlLeague || null);
+  const [dynamicLeagues, setDynamicLeagues] = useState<string[]>([]);
+  const [bankerTickets, setBankerTickets] = useState<BankerTicket[]>([]);
+  const [apiCallsCount, setApiCallsCount] = useState<number>(0);
+  const [apiQuota, setApiQuota] = useState<number>(100);
+  const [isHardCapped, setIsHardCapped] = useState<boolean>(false);
+  const [isVipModalOpen, setIsVipModalOpen] = useState<boolean>(false);
+  const [isLeaguesMenuOpen, setIsLeaguesMenuOpen] = useState<boolean>(false);
+  const [isGuideMenuOpen, setIsGuideMenuOpen] = useState<boolean>(false);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>(["all"]);
+
   const [studioSubTab, setStudioSubTab] = useState<"generator" | "pruner">(
     defaultTab === "edit_slip" ? "pruner" : "generator"
   );
@@ -234,6 +330,14 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSelectPlan = async (plan: "FREE" | "PRO" | "VIP") => {
+    setLocalPlanTier(plan);
+    try {
+      await switchPlanDemo(plan);
+    } catch {}
+    showToast(`Switched to ${plan} Tier`);
   };
 
   // Telemetry stats
@@ -310,19 +414,44 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
   // =============================================================================
 
   // 1. Fetch Live Matches from /api/live-matches
-  const fetchLiveMatches = async (timeframe = picksTimeframe, filter = filterRisk, force = false) => {
+  const fetchLiveMatches = async (
+    timeframe: "today" | "tomorrow" | "next2days" | string = dayHorizon,
+    filter = filterRisk,
+    force = false,
+    league: string | null = selectedLeague
+  ) => {
     setIsLoadingPicks(true);
     try {
       const filterParam = filter.toLowerCase();
-      const res = await fetch(
-        `${API_BASE_URL}/api/live-matches?timeframe=${timeframe}&filter=${filterParam}${force ? "&refresh=true" : ""}`
-      );
+      let url = `${API_BASE_URL}/api/live-matches?timeframe=${timeframe}&filter=${filterParam}`;
+      if (league) {
+        url += `&league=${encodeURIComponent(league)}`;
+      }
+      if (force) {
+        url += `&refresh=true`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.picks)) {
           setPicks(data.picks);
         } else {
           setPicks([]);
+        }
+        if (Array.isArray(data.banker_tickets)) {
+          setBankerTickets(data.banker_tickets);
+        }
+        if (data.daily_api_calls_count !== undefined) {
+          setApiCallsCount(data.daily_api_calls_count);
+        }
+        if (data.daily_api_quota !== undefined) {
+          setApiQuota(data.daily_api_quota);
+        }
+        if (data.is_hard_capped !== undefined) {
+          setIsHardCapped(data.is_hard_capped);
+        }
+        if (Array.isArray(data.dynamic_leagues)) {
+          setDynamicLeagues(data.dynamic_leagues);
         }
         if (data.sync_cycle) setSyncCycle(data.sync_cycle);
         if (data.sync_cycle_label) setSyncCycleLabel(data.sync_cycle_label);
@@ -335,6 +464,17 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
     } finally {
       setIsLoadingPicks(false);
     }
+  };
+
+  const handleHorizonChange = (h: "today" | "tomorrow" | "next2days") => {
+    setDayHorizon(h);
+    fetchLiveMatches(h, filterRisk, false, selectedLeague);
+  };
+
+  const handleLeagueFilter = (league: string | null) => {
+    setSelectedLeague(league);
+    setActiveTab("all_matches");
+    fetchLiveMatches(dayHorizon, filterRisk, false, league);
   };
 
   // 2. Fetch Autopsies & Stats
@@ -467,9 +607,9 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
     fetchLiveMatches(picksTimeframe, filterRisk);
   }, [picksTimeframe, filterRisk]);
 
-  // Load ready slips when predictions or autopsy tab is active
+  // Load ready slips when home or autopsy tab is active
   useEffect(() => {
-    if ((activeTab === "autopsy" || activeTab === "predictions") && dailyReadySlips.length === 0) {
+    if ((activeTab === "autopsy" || activeTab === "home") && dailyReadySlips.length === 0) {
       fetchReadySlips();
     }
   }, [activeTab, selectedBookmaker]);
@@ -506,6 +646,24 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
     }));
   };
 
+  // Toggle Bet Market Filter Pills
+  const toggleMarket = (marketId: string, isVip: boolean) => {
+    if (isVip && planTier === "FREE") {
+      setIsVipModalOpen(true);
+      return;
+    }
+    setSelectedMarkets((prev) => {
+      if (marketId === "all") return ["all"];
+      const filtered = prev.filter((m) => m !== "all");
+      if (filtered.includes(marketId)) {
+        const next = filtered.filter((m) => m !== marketId);
+        return next.length === 0 ? ["all"] : next;
+      } else {
+        return [...filtered, marketId];
+      }
+    });
+  };
+
   // Mathematical Accumulator Slip Generator
   const handleGenerateSlip = async (targetOdds: number, durationOverride?: string) => {
     setIsGeneratingSlip(true);
@@ -519,6 +677,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
           risk_level: targetOdds >= 500 ? "HIGH_ODDS" : targetOdds >= 20 ? "VALUE" : "SAFE",
           bookmaker: selectedBookmaker,
           timeframe: durationOverride || selectedDuration,
+          market_types: selectedMarkets,
         }),
       });
 
@@ -526,7 +685,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
         const data = await res.json();
         if (data.slip) {
           setActiveSlip(data.slip);
-          setActiveTab("studio");
+          setActiveTab("slip_builder");
           setStudioSubTab("generator");
         }
       }
@@ -884,9 +1043,9 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
   return (
     <div className="w-full space-y-6 pb-24 md:pb-6">
       {/* =========================================================================
-          1. TOP LIVE AI TELEMETRY BAR (100% Dynamic Live State)
+          1. TOP LIVE AI TELEMETRY BAR (Rendered strictly on Home tab to avoid Copilot clutter)
          ========================================================================= */}
-      {showTelemetryBar && (
+      {showTelemetryBar && activeTab === "home" && (
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Card 1: Live Upcoming Games (API-Football Dynamic Count + 8-hr Cycle) */}
           <div className="p-4 rounded-2xl bg-[#0c1427]/85 border border-white/10 relative overflow-hidden group">
@@ -955,12 +1114,12 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
             </p>
           </div>
 
-          {/* Card 4: Model Engine Status & Manual Sync Now */}
+          {/* Card 4: Live API-Football Gatekeeper Quota Meter */}
           <div className="p-4 rounded-2xl bg-[#0c1427]/85 border border-white/10 relative overflow-hidden group flex flex-col justify-between">
             <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-xl pointer-events-none" />
             <div>
               <div className="flex items-center justify-between text-xs text-slate-400">
-                <span className="font-semibold uppercase tracking-wider">Engine Status</span>
+                <span className="font-semibold uppercase tracking-wider">API Gatekeeper</span>
                 <button
                   onClick={() => setIsAdminDrawerOpen(!isAdminDrawerOpen)}
                   className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 transition-colors"
@@ -969,31 +1128,47 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                   <span>Admin</span>
                 </button>
               </div>
-              <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>ACTIVE 2026 • Epoch {autopsyWeights?.calibration_epoch || autopsyWeights?.epoch || Math.max(43, 43 + Math.floor((Date.now() - new Date("2026-10-20").getTime()) / 86400000))}</span>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-white">
+                  {apiCallsCount}
+                  <span className="text-xs text-slate-400 font-normal">/{apiQuota}</span>
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    apiCallsCount >= 85 || isHardCapped
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                      : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  }`}
+                >
+                  {apiCallsCount >= 85 || isHardCapped ? "BRAKE ON" : "CACHED"}
+                </span>
               </div>
             </div>
 
-            {/* Prominent Force Refresh / Sync Now Button */}
-            <button
-              onClick={handleForceRefresh}
-              disabled={isLoadingPicks || isSyncingFixtures}
-              className="mt-2 w-full py-1.5 px-2.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${
-                  isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""
-                }`}
-              />
-              <span>Force Refresh / Sync Now</span>
-            </button>
+            {/* Quota Label and Force Refresh */}
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[10px] text-slate-400 font-mono truncate">
+                API Quota: {apiCallsCount}/100 Used Today (Cached via Supabase)
+              </p>
+              <button
+                onClick={handleForceRefresh}
+                disabled={isLoadingPicks || isSyncingFixtures}
+                className="w-full py-1.5 px-2 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""
+                  }`}
+                />
+                <span>Sync Now</span>
+              </button>
+            </div>
           </div>
         </section>
       )}
 
-      {/* Admin Test Drawer */}
-      {isAdminDrawerOpen && (
+      {/* Admin Test Drawer (Rendered strictly on Home tab) */}
+      {isAdminDrawerOpen && activeTab === "home" && (
         <div className="p-5 rounded-3xl bg-[#0a1020] border border-white/15 space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div className="flex items-center gap-2">
@@ -1055,127 +1230,264 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
       )}
 
       {/* =========================================================================
-          2. WORKSPACE TAB SELECTOR (Consolidated 4 Tabs + Global Refresh)
+          2. WORKSPACE TAB SELECTOR (6 Dedicated Primary Tabs + 2 Dropdown Menus)
          ========================================================================= */}
       <div className="flex items-center justify-between border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          {/* Tab 1: Predictions */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+          {/* Tab 1: Home */}
           <button
-            onClick={() => setActiveTab("predictions")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "predictions"
+            onClick={() => setActiveTab("home")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "home"
                 ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
                 : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
             }`}
           >
-            <Layers className="w-4 h-4 text-emerald-400" />
-            <span>Predictions</span>
+            <Compass className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Home</span>
+          </button>
+
+          {/* Tab 2: All Matches */}
+          <button
+            onClick={() => setActiveTab("all_matches")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "all_matches"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            <span>All Matches</span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-emerald-400">
               {picks.length}
             </span>
           </button>
 
-          {/* Tab 2: Slip Studio (Odds Generator + Edit Slip AI) */}
+          {/* Tab 3: Bankers */}
           <button
-            onClick={() => setActiveTab("studio")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "studio"
+            onClick={() => setActiveTab("bankers")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "bankers"
                 ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
                 : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Slip Studio</span>
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span>Bankers</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
+              2-3x
+            </span>
+          </button>
+
+          {/* Tab 4: Slip Builder */}
+          <button
+            onClick={() => setActiveTab("slip_builder")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "slip_builder"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Slip Builder</span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
               20,000x
             </span>
           </button>
 
-          {/* Tab 3: Copilot AI */}
+          {/* Tab 5: Edit Slip */}
+          <button
+            onClick={() => setActiveTab("edit_slip")}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "edit_slip"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Edit Slip</span>
+          </button>
+
+          {/* Tab 6: AI Copilot */}
           <button
             onClick={() => setActiveTab("copilot")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 select-none ${
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
               activeTab === "copilot"
                 ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
                 : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
             }`}
           >
-            <Bot className="w-4 h-4 text-[#00C896]" />
+            <Bot className="w-3.5 h-3.5 text-[#00C896]" />
             <span>AI Copilot</span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-[#00C896]">
               STUDIO
             </span>
           </button>
 
-          {/* Tab 4: Midnight Autopsy */}
-          <button
-            onClick={() => setActiveTab("autopsy")}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "autopsy"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Activity className="w-4 h-4 text-cyan-400" />
-            <span>Midnight Autopsy</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-cyan-500/20 text-cyan-400">
-              12 AM
-            </span>
-          </button>
+          {/* Dropdown 1: Leagues ▾ */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => {
+                setIsLeaguesMenuOpen(!isLeaguesMenuOpen);
+                setIsGuideMenuOpen(false);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <span>Leagues</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {isLeaguesMenuOpen && (
+              <div className="absolute left-0 mt-2 w-56 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1 text-[10px] font-mono uppercase text-slate-400 border-b border-white/10">
+                  Select Competition
+                </div>
+                <div className="max-h-60 overflow-y-auto mt-1 space-y-0.5">
+                  {TOP_LEAGUES_WORKSPACE.map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => {
+                        handleLeagueFilter(l);
+                        setIsLeaguesMenuOpen(false);
+                      }}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
+                    >
+                      <span>{l}</span>
+                    </button>
+                  ))}
+                  {dynamicLeagues &&
+                    dynamicLeagues.length > 0 &&
+                    dynamicLeagues.slice(0, 10).map((l) => (
+                      <button
+                        key={l}
+                        onClick={() => {
+                          handleLeagueFilter(l);
+                          setIsLeaguesMenuOpen(false);
+                        }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center justify-between"
+                      >
+                        <span>{l}</span>
+                        <span className="text-[9px] text-slate-500 font-mono">Live</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dropdown 2: Guide & Lab ▾ */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => {
+                setIsGuideMenuOpen(!isGuideMenuOpen);
+                setIsLeaguesMenuOpen(false);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Guide & Lab</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {isGuideMenuOpen && (
+              <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  onClick={() => {
+                    setActiveTab("autopsy");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Midnight Autopsy</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold">
+                    12 AM
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab("bet_markets_guide");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Bet Markets Guide</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
+                    A-Z
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab("how_it_works");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
+                    <span>How It Works Guide</span>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-white/10" />
+
+                <button
+                  onClick={() => {
+                    setIsVipModalOpen(true);
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-amber-300 hover:text-amber-200 transition flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    <span>VIP Plans & 30% Affiliate</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold">
+                    30%
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Global Refresh Button */}
-        <button
-          onClick={handleForceRefresh}
-          disabled={isLoadingPicks || isSyncingFixtures}
-          title="Force Refresh / Sync Now"
-          className="p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""}`} />
-        </button>
+        {/* Global Refresh Button & VIP Status */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsVipModalOpen(true)}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition"
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-400" />
+            <span>{planTier === "VIP" ? "VIP Active" : "Upgrade VIP"}</span>
+          </button>
+
+          <button
+            onClick={handleForceRefresh}
+            disabled={isLoadingPicks || isSyncingFixtures}
+            title="Force Refresh / Sync Now"
+            className="p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${
+                isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* =========================================================================
-          TAB 1: PREDICTIONS (ALL MATCH PICKS & TODAY'S ALGORITHM READY SLIPS)
+          TAB: HOME (OVERVIEW, #1 SUPER BANKER, TODAY'S 4 READY SLIPS & QUICK HUB)
          ========================================================================= */}
-      {activeTab === "predictions" && (
-        <section className="space-y-5 animate-in fade-in duration-200">
-          {/* Sub-Switch: All Match Picks vs Today's Algorithm Ready Slips */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#0c1427]/85 border border-white/10">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPredictionsSubTab("picks")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  predictionsSubTab === "picks"
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>All Match Picks ({picks.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPredictionsSubTab("ready_slips")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  predictionsSubTab === "ready_slips"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Today's Algorithm Ready Slips (4 Tiers)</span>
-              </button>
-            </div>
-
-            <span className="text-xs font-mono text-slate-400 hidden sm:inline">
-              {predictionsSubTab === "picks"
-                ? `Upcoming Matches • Cycle ${syncCycle}/3 (${syncCycleLabel})`
-                : "Pre-Computed 3x to 50x Slips"}
-            </span>
-          </div>
+      {activeTab === "home" && (
+        <section className="space-y-6 animate-in fade-in duration-200">
 
           {/* =========================================================================
               🔥 TODAY'S #1 AI SUPER BANKER (90%+ CONFIDENCE) SPOTLIGHT HERO CARD
@@ -1294,9 +1606,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
             </div>
           )}
 
-          {predictionsSubTab === "ready_slips" ? (
-            /* Today's 4 Algorithm Ready Slips View */
-            <div className="space-y-4">
+          {/* Today's 4 Algorithm Ready Slips View */}
+          <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-extrabold text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400" />
@@ -1364,7 +1675,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                         <div className="mt-4 pt-3 border-t border-white/10">
                           {isLocked ? (
                             <button
-                              onClick={() => switchPlanDemo("VIP")}
+                              onClick={() => setIsVipModalOpen(true)}
                               className="w-full py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-400 to-amber-500 text-black flex items-center justify-center gap-1.5 shadow-md"
                             >
                               <Crown className="w-3.5 h-3.5" />
@@ -1399,24 +1710,190 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                 </div>
               )}
             </div>
-          ) : (
-            <>
-              {/* Quick Jump Banner to Ready Slips */}
-              <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent border border-amber-500/20 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs">
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="text-slate-200">
-                    <strong>Today's 4 Algorithm Ready Slips</strong> are generated for Cycle {syncCycle}/3 ({syncCycleLabel}).
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPredictionsSubTab("ready_slips")}
-                  className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold shrink-0 transition-all"
+
+            {/* Quick Platform Navigation Hub Grid */}
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-emerald-400" />
+                  <span>Oddora Quantitative Intelligence Hub</span>
+                </h3>
+                <span className="text-xs font-mono text-slate-400">Fast Navigation</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Card 1: All Matches */}
+                <div
+                  onClick={() => setActiveTab("all_matches")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-emerald-500/40 cursor-pointer transition-all group"
                 >
-                  View 4 Ready Slips →
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4" />
+                      <span>All Matches</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    AfriOdds match board with predicted exact scores, Poisson tips & form across Today, Tomorrow & Next 2 Days.
+                  </p>
+                </div>
+
+                {/* Card 2: 3 Bankers */}
+                <div
+                  onClick={() => setActiveTab("bankers")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-amber-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                      <Flame className="w-4 h-4" />
+                      <span>3 Daily Bankers (2.00x–3.00x)</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    3 dedicated high-win-rate tickets mathematically solved using Poisson floor picks and dual booking codes.
+                  </p>
+                </div>
+
+                {/* Card 3: Slip Builder */}
+                <div
+                  onClick={() => setActiveTab("slip_builder")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-amber-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4" />
+                      <span>Slip Builder (2x to 20,000x)</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-amber-300 transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Custom multiplier accumulator generator with VIP market pills (Corners, DNB, BTTS, Asian Handicap).
+                  </p>
+                </div>
+
+                {/* Card 4: Edit Slip */}
+                <div
+                  onClick={() => setActiveTab("edit_slip")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-emerald-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-4 h-4" />
+                      <span>Edit Slip AI</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Paste SportyBet or Bet9ja codes to scan for rotation traps and draw risks, prune bad legs, and regenerate.
+                  </p>
+                </div>
+
+                {/* Card 5: AI Copilot */}
+                <div
+                  onClick={() => setActiveTab("copilot")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-[#00C896]/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-[#00C896] flex items-center gap-1.5">
+                      <Bot className="w-4 h-4" />
+                      <span>AI Copilot Studio</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-[#00C896] transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Distraction-free conversational chat with Senior Quant Analyst instructions and real-time football news.
+                  </p>
+                </div>
+
+                {/* Card 6: Bet Markets Guide */}
+                <div
+                  onClick={() => setActiveTab("bet_markets_guide")}
+                  className="p-5 rounded-2xl bg-[#0c1427]/85 border border-white/10 hover:border-purple-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4" />
+                      <span>Bet Markets Guide</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Visual dictionary of betting markets, SportyBet/Bet9ja codes, winning scoreline examples, and AI heuristics.
+                  </p>
+                </div>
+              </div>
+            </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          TAB: BANKERS (3 DEDICATED 2.00x - 3.00x BANKER TICKETS)
+         ========================================================================= */}
+      {activeTab === "bankers" && (
+        <section className="space-y-6 animate-in fade-in duration-200">
+          <BankersTab
+            bankers={bankerTickets}
+            userTier={planTier}
+            onOpenVipModal={() => setIsVipModalOpen(true)}
+            onLoadIntoBuilder={(ticket) => {
+              setSelectedDuration("today");
+              setActiveTab("slip_builder");
+              showToast(`Loaded ${ticket.title} into Slip Builder!`);
+            }}
+          />
+        </section>
+      )}
+
+      {/* =========================================================================
+          TAB: ALL MATCHES (AFRIODDS TABLE, HORIZON SWITCHER & PREDICTED SCORES)
+         ========================================================================= */}
+      {activeTab === "all_matches" && (
+        <section className="space-y-5 animate-in fade-in duration-200">
+          {/* Day Horizon Switcher & Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#0c1427]/85 border border-white/10">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {(["today", "tomorrow", "next2days"] as const).map((horizon) => {
+                const isCurrent = dayHorizon === horizon;
+                const label =
+                  horizon === "today"
+                    ? "Today"
+                    : horizon === "tomorrow"
+                    ? "Tomorrow (+1 Day)"
+                    : "Next 2 Days (+48h)";
+                return (
+                  <button
+                    key={horizon}
+                    type="button"
+                    onClick={() => handleHorizonChange(horizon)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                      isCurrent
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                        : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedLeague && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-white">
+                <span className="text-slate-400">Competition:</span>
+                <span className="font-bold text-emerald-400">{selectedLeague}</span>
+                <button
+                  onClick={() => handleLeagueFilter(null)}
+                  className="ml-1 text-slate-400 hover:text-white text-xs"
+                  title="Clear filter"
+                >
+                  ✕
                 </button>
               </div>
+            )}
+          </div>
 
               {/* Controls Bar: Timeframe Selector + Search */}
               <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-4 rounded-3xl bg-[#0c1427]/85 border border-white/10">
@@ -1657,8 +2134,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                                 planTier === "VIP"
                                   ? false
                                   : planTier === "PRO"
-                                  ? globalIndex >= 40
-                                  : globalIndex >= 3;
+                                  ? dayHorizon !== "today" || globalIndex >= 40
+                                  : dayHorizon !== "today" || globalIndex >= 5;
                               const isBanker = item.is_super_banker || item.confidence_score >= 88;
 
                               return (
@@ -1694,7 +2171,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                                   <td className="py-3 px-3 text-center">
                                     {isLocked ? (
                                       <button
-                                        onClick={() => switchPlanDemo(planTier === "PRO" ? "VIP" : "PRO")}
+                                        onClick={() => setIsVipModalOpen(true)}
                                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-black bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)] transition-all active:scale-95 group"
                                         title="Unlock Predicted Score with VIP"
                                       >
@@ -1719,8 +2196,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                                   <td className="py-3 px-3">
                                     {isLocked ? (
                                       <button
-                                        onClick={() => switchPlanDemo(planTier === "PRO" ? "VIP" : "PRO")}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25"
+                                        onClick={() => setIsVipModalOpen(true)}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 transition"
                                       >
                                         <Lock className="w-2.5 h-2.5" />
                                         <span>VIP Pick</span>
@@ -1797,8 +2274,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                             planTier === "VIP"
                               ? false
                               : planTier === "PRO"
-                              ? globalIndex >= 40
-                              : globalIndex >= 3;
+                              ? dayHorizon !== "today" || globalIndex >= 40
+                              : dayHorizon !== "today" || globalIndex >= 5;
                           const isBanker = item.is_super_banker || item.confidence_score >= 88;
 
                           return (
@@ -1832,7 +2309,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                                 <div className="text-right shrink-0">
                                   {isLocked ? (
                                     <button
-                                      onClick={() => switchPlanDemo(planTier === "PRO" ? "VIP" : "PRO")}
+                                      onClick={() => setIsVipModalOpen(true)}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-mono font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
                                     >
                                       <span>🔒 ? - ?</span>
@@ -1855,7 +2332,13 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                               <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 text-xs">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {isLocked ? (
-                                    <span className="text-[11px] font-bold text-amber-400">🔒 VIP Tip</span>
+                                    <button
+                                      onClick={() => setIsVipModalOpen(true)}
+                                      className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                                    >
+                                      <Lock className="w-2.5 h-2.5" />
+                                      <span>VIP Tip</span>
+                                    </button>
                                   ) : (
                                     <span className="font-bold text-emerald-400 bg-white/5 px-2 py-0.5 rounded border border-white/10 text-[11px]">
                                       {item.selection_label || item.selected_market} @{item.odd_value.toFixed(2)}
@@ -1892,8 +2375,8 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                     planTier === "VIP"
                       ? false
                       : planTier === "PRO"
-                      ? index >= 40
-                      : index >= 3;
+                      ? dayHorizon !== "today" || index >= 40
+                      : dayHorizon !== "today" || index >= 5;
                   const isExpanded = expandedPicks[item.fixture_id] || false;
                   const analyst = item.senior_analyst;
 
@@ -1969,20 +2452,18 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
                             </div>
                             <div>
                               <p className="text-xs font-bold text-white">
-                                🔒 {planTier === "PRO" ? "VIP Exclusive Quantitative Pick" : "Pro / VIP Gated AI Prediction"}
+                                🔒 VIP Protected AI Prediction
                               </p>
                               <p className="text-[11px] text-slate-400 max-w-xs mt-0.5">
-                                {planTier === "PRO"
-                                  ? `Upgrade to VIP to view all ${picks.length} AI predictions (Unlocked top 40 on Pro)`
-                                  : `Upgrade to Pro/VIP to view all ${picks.length} AI predictions (Unlocked first 3 Safe Picks on Free)`}
+                                Upgrade to VIP to unlock predicted exact scores and senior analyst picks on all matches across Today, Tomorrow, and Next 2 Days.
                               </p>
                             </div>
                             <button
-                              onClick={() => switchPlanDemo(planTier === "PRO" ? "VIP" : "PRO")}
+                              onClick={() => setIsVipModalOpen(true)}
                               className="mt-1 inline-flex items-center gap-1.5 py-2 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-md transition-all active:scale-95"
                             >
                               <Crown className="w-3.5 h-3.5" />
-                              <span>Upgrade to {planTier === "PRO" ? "VIP" : "Pro / VIP"}</span>
+                              <span>Unlock All Matches with VIP</span>
                             </button>
                           </div>
                         ) : (
@@ -2124,51 +2605,26 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
             )}
           </div>
         )}
-        </>
-      )}
       </section>
     )}
 
       {/* =========================================================================
-          TAB 2: SLIP STUDIO - 20,000x ODDS GENERATOR (MATHEMATICAL SOLVER)
+          TAB: SLIP BUILDER (CUSTOM ACCUMULATOR & BET MARKET SELECTOR)
          ========================================================================= */}
-      {activeTab === "studio" && studioSubTab === "generator" && (
+      {activeTab === "slip_builder" && (
         <section className="space-y-6 animate-in fade-in duration-200">
-          {/* Studio Sub-Switcher */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#0c1427]/85 border border-white/10">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStudioSubTab("generator")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-              >
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>20,000x Odds Generator</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStudioSubTab("pruner")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-slate-400 hover:text-white hover:bg-white/[0.04]"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
-                <span>Edit Slip AI & Catalyst Pruner</span>
-              </button>
-            </div>
-
-            <span className="text-xs font-mono text-slate-400 hidden sm:inline">
-              Combinatorial Multiplier Engine (2x - 20,000x)
-            </span>
-          </div>
-
-          {/* Bookmaker Selector Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-3xl bg-[#0c1427]/85 border border-white/10">
-            <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
-                TARGET BOOKMAKER PLATFORM
-              </span>
-              <p className="text-xs text-slate-300 font-semibold mt-0.5">
-                Generate real verified booking slips with live bookmaker synchronization.
+          {/* Header Banner */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-xs font-mono font-bold text-amber-400">
+                <Sparkles className="w-4 h-4" />
+                <span>COMBINATORIAL TICKET SOLVER & MARKET FILTER</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                Custom Multiplier Slip Builder
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+                Choose your multiplier, select timeframe, and toggle preferred betting markets. The solver enforces Ticket Harmony (max 30% straight wins) and issues dual copyable SportyBet and Bet9ja booking codes.
               </p>
             </div>
 
@@ -2176,61 +2632,58 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedBookmaker("SportyBet")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                   selectedBookmaker === "SportyBet"
                     ? "bg-[#E51D25] text-white shadow-[0_0_15px_rgba(229,29,37,0.4)]"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-white" />
-                <span>SportyBet Nigeria</span>
+                <span>SportyBet</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedBookmaker("Bet9ja")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
                   selectedBookmaker === "Bet9ja"
                     ? "bg-[#008234] text-white shadow-[0_0_15px_rgba(0,130,52,0.4)]"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
                 <span className="w-2 h-2 rounded-full bg-white" />
-                <span>Bet9ja Nigeria</span>
+                <span>Bet9ja</span>
               </button>
             </div>
           </div>
 
-          {/* Timeframe Selector & Generator Box */}
-          <div className="p-6 rounded-3xl bg-[#0c1427]/90 border border-white/10 shadow-2xl relative overflow-hidden">
+          {/* Builder Box */}
+          <div className="p-6 rounded-3xl bg-[#0c1427]/90 border border-white/10 shadow-2xl relative overflow-hidden space-y-5">
             <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
+            {/* Timeframe Selector */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-              <div className="space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  SENIOR ANALYST ACCUMULATOR HARMONY ENGINE
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
+                  1. SELECT MATCH HORIZON / TIMEFRAME
                 </span>
-                <h3 className="text-lg sm:text-xl font-black text-white">
-                  Target Accumulator Odds Generator
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Select target multiplier. Algorithms enforce ticket harmony (max 30% straight wins) with 100% mathematical precision.
+                <p className="text-xs text-slate-300 font-semibold mt-0.5">
+                  Filter fixtures included in accumulator calculation
                 </p>
               </div>
 
-              {/* Timeframe Selector */}
-              <div className="flex items-center gap-1 p-1 rounded-xl bg-[#080d1a] border border-white/10 text-xs font-bold">
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-[#080d1a] border border-white/10 text-xs font-bold overflow-x-auto no-scrollbar max-w-full">
                 {[
-                  { id: "today", label: "Today (24h)" },
-                  { id: "3days", label: "3-Day Weekend" },
+                  { id: "today", label: "Today" },
+                  { id: "tomorrow", label: "Tomorrow" },
+                  { id: "3days", label: "Weekend" },
                   { id: "1week", label: "1 Week" },
                   { id: "1month", label: "1 Month" },
                 ].map((d) => (
                   <button
                     key={d.id}
                     onClick={() => setSelectedDuration(d.id as any)}
-                    className={`px-2.5 py-1.5 rounded-lg transition-all ${
-                      selectedDuration === d.id ? "bg-amber-500 text-black shadow-sm" : "text-slate-400 hover:text-white"
+                    className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+                      selectedDuration === d.id ? "bg-amber-500 text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
                     }`}
                   >
                     {d.label}
@@ -2239,39 +2692,131 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Quick Multiplier Buttons */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 pt-5">
-              {oddsMultiplierButtons.map((b) => (
-                <button
-                  key={b.label}
-                  disabled={isGeneratingSlip}
-                  onClick={() => handleGenerateSlip(b.target)}
-                  className="py-3 px-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 border border-amber-500/40 shadow-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{b.label}</span>
-                </button>
-              ))}
+            {/* Bet Market Selector Pills */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 block">
+                    2. BET MARKET FILTER (ALLOWED POISSON MARKETS)
+                  </span>
+                  <p className="text-xs text-slate-300 font-semibold mt-0.5">
+                    Toggle markets to allow or restrict on your generated slip
+                  </p>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {selectedMarkets.includes("all") ? "All AI Markets Allowed" : `${selectedMarkets.length} Selected`}
+                </span>
+              </div>
+
+              {/* Free Standard Markets */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-mono text-slate-400 uppercase">Standard Markets (Free)</div>
+                <div className="flex flex-wrap gap-2">
+                  {FREE_MARKET_OPTIONS.map((m) => {
+                    const isSelected = selectedMarkets.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMarket(m.id, false)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm"
+                            : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        {isSelected && <span className="mr-1 text-amber-400">✓</span>}
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* VIP Exclusive Quantitative Markets */}
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[10px] font-mono text-amber-400 uppercase flex items-center gap-1">
+                  <Crown className="w-3 h-3" />
+                  <span>VIP Exclusive Quantitative Markets</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {VIP_MARKET_OPTIONS.map((m) => {
+                    const isSelected = selectedMarkets.includes(m.id);
+                    const isVipTier = planTier === "VIP" || planTier === "PRO";
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMarket(m.id, true)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 ${
+                          isSelected && isVipTier
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm"
+                            : !isVipTier
+                            ? "bg-amber-950/20 text-amber-300/80 border-amber-500/30 hover:bg-amber-950/40"
+                            : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        {!isVipTier ? (
+                          <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                        ) : isSelected ? (
+                          <span className="text-emerald-400">✓</span>
+                        ) : null}
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
-            {/* Custom Odds Input */}
-            <div className="mt-4 flex items-center gap-2 max-w-md">
-              <input
-                type="number"
-                min="2"
-                max="100000"
-                placeholder="Custom Target Odds e.g. 50"
-                value={targetOddsInput}
-                onChange={(e) => setTargetOddsInput(e.target.value)}
-                className="flex-1 bg-[#080d1a] border border-white/10 rounded-xl py-2.5 px-4 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-              />
-              <button
-                disabled={isGeneratingSlip || !targetOddsInput}
-                onClick={() => handleGenerateSlip(parseFloat(targetOddsInput) || 20.0)}
-                className="py-2.5 px-5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-lg transition-all active:scale-95 disabled:opacity-50"
-              >
-                {isGeneratingSlip ? "Generating..." : "Generate"}
-              </button>
+            {/* Multiplier Presets */}
+            <div className="pt-3 border-t border-white/10 space-y-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
+                3. SELECT TARGET ODDS PRESET (OR ENTER CUSTOM VALUE)
+              </span>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                {[
+                  { label: "2x", target: 2.0 },
+                  { label: "5x", target: 5.0 },
+                  { label: "10x", target: 10.0 },
+                  { label: "20x", target: 20.0 },
+                  { label: "50x", target: 50.0 },
+                  { label: "100x", target: 100.0 },
+                  { label: "1,000x", target: 1000.0 },
+                  { label: "20,000x", target: 20000.0 },
+                ].map((b) => (
+                  <button
+                    key={b.label}
+                    disabled={isGeneratingSlip}
+                    onClick={() => handleGenerateSlip(b.target)}
+                    className="py-3 px-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 border border-amber-500/40 shadow-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{b.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Odds Input */}
+              <div className="mt-3 flex items-center gap-2 max-w-md">
+                <input
+                  type="number"
+                  min="2"
+                  max="100000"
+                  placeholder="Custom Target Odds e.g. 50"
+                  value={targetOddsInput}
+                  onChange={(e) => setTargetOddsInput(e.target.value)}
+                  className="flex-1 bg-[#080d1a] border border-white/10 rounded-xl py-2.5 px-4 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  disabled={isGeneratingSlip || !targetOddsInput}
+                  onClick={() => handleGenerateSlip(parseFloat(targetOddsInput) || 20.0)}
+                  className="py-2.5 px-5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isGeneratingSlip ? "Generating..." : "Generate"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2281,46 +2826,73 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                        activeSlip.bookmaker === "Bet9ja"
-                          ? "bg-[#008234]/20 text-[#00a843] border border-[#008234]/40"
-                          : "bg-[#E51D25]/20 text-[#ff4d55] border border-[#E51D25]/40"
-                      }`}
-                    >
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                       <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {activeSlip.bookmaker || selectedBookmaker} OFFICIAL CODE
+                      HARMONIZED ACCUMULATOR RESULT
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 mt-2">
-                    <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-widest">
-                      {activeSlip.booking_code}
-                    </span>
-                    <button
-                      onClick={() => copyBookingCode(activeSlip.booking_code)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-white border border-white/15 transition-all"
-                    >
-                      {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedCode ? "Copied!" : "Copy Code"}</span>
-                    </button>
-                    <a
-                      href={
-                        activeSlip.share_url ||
-                        (activeSlip.bookmaker === "Bet9ja"
-                          ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${activeSlip.booking_code}`
-                          : `http://www.sportybet.com/ng/?shareCode=${activeSlip.booking_code}`)
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black text-white shadow-md transition-all active:scale-95 ${
-                        activeSlip.bookmaker === "Bet9ja"
-                          ? "bg-[#008234] hover:bg-[#00963c]"
-                          : "bg-[#E51D25] hover:bg-[#f52b34]"
-                      }`}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open on {activeSlip.bookmaker || selectedBookmaker}</span>
-                    </a>
+
+                  {/* Dual Booking Codes: SportyBet AND Bet9ja */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    {/* SportyBet */}
+                    <div className="p-3.5 rounded-2xl bg-black/60 border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                          SportyBet Booking Code
+                        </div>
+                        <div className="text-lg font-mono font-black text-white mt-0.5 tracking-wider">
+                          {activeSlip.sporty_code || activeSlip.booking_code}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => copyBookingCode(activeSlip.sporty_code || activeSlip.booking_code)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                          title="Copy SportyBet code"
+                        >
+                          {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                        <a
+                          href={`http://www.sportybet.com/ng/?shareCode=${activeSlip.sporty_code || activeSlip.booking_code}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-xl bg-[#E51D25] text-white hover:bg-[#f52b34] transition"
+                          title="Open on SportyBet"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Bet9ja */}
+                    <div className="p-3.5 rounded-2xl bg-black/60 border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                          Bet9ja Booking Code
+                        </div>
+                        <div className="text-lg font-mono font-black text-white mt-0.5 tracking-wider">
+                          {activeSlip.bet9ja_code || `B9-${(activeSlip.booking_code || "CODE").slice(-5)}`}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => copyBookingCode(activeSlip.bet9ja_code || `B9-${(activeSlip.booking_code || "CODE").slice(-5)}`)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                          title="Copy Bet9ja code"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <a
+                          href={`https://sports.bet9ja.com/mobile/coupon?couponCode=${activeSlip.bet9ja_code || `B9-${(activeSlip.booking_code || "CODE").slice(-5)}`}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-xl bg-[#008234] text-white hover:bg-[#00963c] transition"
+                          title="Open on Bet9ja"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -2718,25 +3290,24 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
       )}
 
       {/* =========================================================================
-          TAB 2: SLIP STUDIO - EDIT SLIP AI & CATALYST PRUNER
+          TAB 5: EDIT SLIP - CATALYST PRUNER & TICKET AUDITOR
          ========================================================================= */}
-      {activeTab === "studio" && studioSubTab === "pruner" && (
+      {activeTab === "edit_slip" && (
         <section className="space-y-6 animate-in fade-in duration-200">
           {/* Studio Sub-Switcher */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#0c1427]/85 border border-white/10">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setStudioSubTab("generator")}
+                onClick={() => setActiveTab("slip_builder")}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-slate-400 hover:text-white hover:bg-white/[0.04]"
               >
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>20,000x Odds Generator</span>
+                <span>Custom Slip Builder</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setStudioSubTab("pruner")}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
               >
                 <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
@@ -3183,80 +3754,7 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
             )}
           </div>
 
-          {/* 2. Sample of Top 5-8 Key Audited Match Games (Capped strictly for clean layout) */}
-          <div className="p-6 rounded-3xl bg-[#0c1427]/85 border border-white/10 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-cyan-400" />
-                <h3 className="font-bold text-white text-base">Key Audited Matches (Top Sample)</h3>
-              </div>
-              <span className="text-xs font-mono text-cyan-400">Real Final Scores & Root Causes</span>
-            </div>
-
-            {autopsies.length === 0 ? (
-              <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-white/10 space-y-2">
-                <AlertCircle className="w-8 h-8 text-cyan-400 mx-auto opacity-70" />
-                <p className="text-sm font-semibold text-white">No Audited Matches Recorded for Yesterday Yet</p>
-                <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  Yesterday's analyzed matches will be audited here against real final scores after 00:00 UTC.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {autopsies.slice(0, 8).map((item) => {
-                const isWon = item.outcome_status === "WON";
-
-                return (
-                  <div
-                    key={item.prediction_id}
-                    className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-300">{item.league_name}</span>
-                      <span
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                          isWon
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                            : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                        }`}
-                      >
-                        {item.outcome_status} • {item.final_score}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-white text-sm">
-                        {item.home_team} vs {item.away_team}
-                      </span>
-                      <span className="font-mono text-xs text-slate-400">@{item.odd_value.toFixed(2)}</span>
-                    </div>
-
-                    <p className="text-xs text-slate-400">
-                      Market: <strong className="text-slate-200">{item.selected_market}</strong>
-                    </p>
-
-                    {item.failure_autopsy && (
-                      <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/20 text-xs text-rose-200">
-                        <strong className="text-rose-400 block text-[10px] uppercase font-bold mb-0.5">
-                          Root-Cause Autopsy:
-                        </strong>
-                        <p>{item.failure_autopsy}</p>
-                      </div>
-                    )}
-
-                    {item.ai_reasoning && (
-                      <p className="text-[11px] text-amber-300/80 italic font-mono">
-                        Saved to Vector Memory: "{item.ai_reasoning}"
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-          {/* 3. Dynamic Model Weights Calibration Panel */}
+          {/* 2. Dynamic Model Weights Calibration Panel */}
           {autopsyWeights && (
             <div className="p-6 rounded-3xl bg-[#0c1427]/85 border border-cyan-500/30 space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -3300,53 +3798,24 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
       )}
 
       {/* =========================================================================
-          STICKY BOTTOM BAR FOR MOBILE SCREENS (4 CONSOLIDATED TABS)
+          TAB: BET MARKETS GUIDE (Visual Dictionary)
          ========================================================================= */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#070d1e]/95 backdrop-blur-xl border-t border-white/10 px-2 py-2 flex items-center justify-around shadow-2xl">
-        {/* Tab 1: Predictions */}
-        <button
-          onClick={() => setActiveTab("predictions")}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === "predictions" ? "text-[#00C896]" : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Layers className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Predictions</span>
-        </button>
+      {activeTab === "bet_markets_guide" && <BetMarketsGuide />}
 
-        {/* Tab 2: Slip Studio */}
-        <button
-          onClick={() => setActiveTab("studio")}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === "studio" ? "text-[#00C896]" : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Sparkles className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Studio</span>
-        </button>
+      {/* =========================================================================
+          TAB: HOW IT WORKS GUIDE (5-Step User Onboarding)
+         ========================================================================= */}
+      {activeTab === "how_it_works" && (
+        <HowItWorksGuide onNavigateTab={(t) => setActiveTab(t as any)} />
+      )}
 
-        {/* Tab 3: Copilot AI */}
-        <button
-          onClick={() => setActiveTab("copilot")}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === "copilot" ? "text-[#00C896]" : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Bot className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Copilot</span>
-        </button>
-
-        {/* Tab 4: Midnight Autopsy */}
-        <button
-          onClick={() => setActiveTab("autopsy")}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === "autopsy" ? "text-[#00C896]" : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Activity className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Autopsy</span>
-        </button>
-      </nav>
+      {/* VIP Plan & Affiliate Modal */}
+      <VipPlanModal
+        isOpen={isVipModalOpen}
+        onClose={() => setIsVipModalOpen(false)}
+        currentPlan={planTier}
+        onSelectPlan={handleSelectPlan}
+      />
 
       {/* Floating Toast Notification */}
       {toastMessage && (
@@ -3356,6 +3825,23 @@ export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({
         </div>
       )}
     </div>
+  );
+};
+
+export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = (props) => {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full py-16 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-slate-400 font-mono text-xs">
+            <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <span>Initializing Oddora Intelligence Engine...</span>
+          </div>
+        </div>
+      }
+    >
+      <OddoraWorkspaceInner {...props} />
+    </Suspense>
   );
 };
 

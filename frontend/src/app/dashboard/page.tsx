@@ -141,7 +141,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <OddoraWorkspace defaultTab="picks" showTelemetryBar={true} />
+        <OddoraWorkspace defaultTab="home" showTelemetryBar={true} />
       </section>
     </div>
   );

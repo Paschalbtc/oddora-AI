@@ -91,6 +91,17 @@ const NavbarContent: React.FC = () => {
     (pathname === "/" &&
       (currentTab === "autopsy" || currentTab === "bet_markets_guide" || currentTab === "how_it_works"));
 
+  // On pages where OddoraWorkspace renders the integrated AfriOdds top navbar & mobile nav, avoid duplicate stacked navbars
+  if (
+    pathname === "/" ||
+    pathname === "/dashboard" ||
+    pathname === "/slip-builder" ||
+    pathname === "/edit-slip" ||
+    pathname === "/autopsy"
+  ) {
+    return null;
+  }
+
   // Plan Badge Render Helper
   const renderPlanBadge = (isMobile = false) => {
     switch (planTier) {

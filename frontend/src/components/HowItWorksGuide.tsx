@@ -126,3 +126,4 @@ export const HowItWorksGuide: React.FC<{ onNavigateTab?: (tab: string) => void }
 };
 
 export default HowItWorksGuide;
+

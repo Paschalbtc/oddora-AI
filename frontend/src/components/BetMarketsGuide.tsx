@@ -221,3 +221,4 @@ export const BetMarketsGuide: React.FC = () => {
 };
 
 export default BetMarketsGuide;
+

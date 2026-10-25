@@ -53,6 +53,7 @@ import BetMarketsGuide from "./BetMarketsGuide";
 import HowItWorksGuide from "./HowItWorksGuide";
 import BankersTab, { BankerTicket } from "./BankersTab";
 import VipPlanModal from "./VipPlanModal";
+import { OddoraLogo } from "./OddoraLogo";
 
 // =============================================================================
 // INTERFACES
@@ -206,15 +207,17 @@ export interface OddoraWorkspaceProps {
 }
 
 // Kickoff time helper avoiding SSR hydration mismatch
-const formatKickoffTime = (timeStr: string, formattedTime?: string) => {
+const formatKickoffTime = (timeStr?: string, formattedTime?: string) => {
   if (formattedTime) return formattedTime;
+  if (!timeStr) return "TBD";
   try {
     const d = new Date(timeStr);
+    if (isNaN(d.getTime())) return timeStr;
     const hours = String(d.getUTCHours()).padStart(2, "0");
     const mins = String(d.getUTCMinutes()).padStart(2, "0");
     return `${hours}:${mins} UTC`;
   } catch {
-    return timeStr;
+    return timeStr || "TBD";
   }
 };
 
@@ -332,6 +335,50 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const handleTabChange = (newTab: WorkspaceTab) => {
+    setActiveTab(newTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (newTab === "home") {
+        url.searchParams.delete("tab");
+      } else {
+        url.searchParams.set("tab", newTab);
+      }
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+
+  // Sync activeTab when urlTab query param changes
+  useEffect(() => {
+    if (urlTab) {
+      if (
+        urlTab === "home" ||
+        urlTab === "all_matches" ||
+        urlTab === "bankers" ||
+        urlTab === "slip_builder" ||
+        urlTab === "edit_slip" ||
+        urlTab === "copilot" ||
+        urlTab === "autopsy" ||
+        urlTab === "bet_markets_guide" ||
+        urlTab === "how_it_works"
+      ) {
+        setActiveTab(urlTab as WorkspaceTab);
+      } else if (urlTab === "predictions" || urlTab === "picks") {
+        setActiveTab("all_matches");
+      } else if (urlTab === "studio" || urlTab === "slip") {
+        setActiveTab("slip_builder");
+      }
+    }
+  }, [urlTab]);
+
+  // Sync league filter when urlLeague query param changes
+  useEffect(() => {
+    if (urlLeague) {
+      setSelectedLeague(urlLeague);
+      setActiveTab("all_matches");
+    }
+  }, [urlLeague]);
+
   const handleSelectPlan = async (plan: "FREE" | "PRO" | "VIP") => {
     setLocalPlanTier(plan);
     try {
@@ -354,7 +401,7 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
   // TAB 2: ODDS GEN STATE
   // ---------------------------------------------------------------------------
   const [selectedBookmaker, setSelectedBookmaker] = useState<"SportyBet" | "Bet9ja">("SportyBet");
-  const [selectedDuration, setSelectedDuration] = useState<"today" | "3days" | "1week" | "1month">("today");
+  const [selectedDuration, setSelectedDuration] = useState<"today" | "2days" | "3days" | "1week" | "1month">("today");
   const [targetOddsInput, setTargetOddsInput] = useState<string>("20");
   const [isGeneratingSlip, setIsGeneratingSlip] = useState(false);
   const [activeSlip, setActiveSlip] = useState<SlipData | null>(null);
@@ -906,14 +953,15 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
   };
 
   // Client-side search filtering
-  const filteredPicks = picks.filter((p) => {
+  const filteredPicks = (picks || []).filter((p) => {
+    if (!p) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
-      p.home_team.toLowerCase().includes(q) ||
-      p.away_team.toLowerCase().includes(q) ||
-      p.league_name.toLowerCase().includes(q) ||
-      p.selected_market.toLowerCase().includes(q)
+      (p.home_team || "").toLowerCase().includes(q) ||
+      (p.away_team || "").toLowerCase().includes(q) ||
+      (p.league_name || "").toLowerCase().includes(q) ||
+      (p.selected_market || "").toLowerCase().includes(q)
     );
   });
 
@@ -997,11 +1045,16 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
     showToast("Super Banker pick copied to clipboard!");
   };
 
-  const renderFormDots = (form?: string[]) => {
-    const formList = form && form.length > 0 ? form.slice(-5) : ["W", "D", "W", "W", "L"];
+  const renderFormDots = (form?: string[] | string) => {
+    let formList: string[] = ["W", "D", "W", "W", "L"];
+    if (Array.isArray(form) && form.length > 0) {
+      formList = form.slice(-5);
+    } else if (typeof form === "string" && form.length > 0) {
+      formList = form.slice(-5).split("");
+    }
     return (
       <div className="flex items-center gap-1">
-        {formList.map((res, i) => {
+        {(formList || []).map((res, i) => {
           const bg =
             res === "W"
               ? "bg-emerald-500 text-black"
@@ -1025,8 +1078,11 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
   // Multiplier options
   const oddsMultiplierButtons = [
     { label: "2x", target: 2.0 },
+    { label: "3x", target: 3.0 },
+    { label: "5x", target: 5.0 },
     { label: "10x", target: 10.0 },
     { label: "20x", target: 20.0 },
+    { label: "50x", target: 50.0 },
     { label: "100x", target: 100.0 },
     { label: "1,000x", target: 1000.0 },
     { label: "20,000x", target: 20000.0 },
@@ -1043,6 +1099,328 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
   return (
     <div className="w-full space-y-6 pb-24 md:pb-6">
       {/* =========================================================================
+          TOP DESKTOP NAVBAR (AfriOdds High-Density Style: 6 Primary Tabs + 2 Dropdowns + Tier Switcher)
+         ========================================================================= */}
+      <header className="sticky top-0 z-40 -mx-2 sm:-mx-4 -mt-2 sm:-mt-4 px-3 sm:px-4 py-2.5 bg-[#090d16]/95 backdrop-blur-xl border-b border-white/[0.08] flex items-center justify-between gap-3 shadow-lg">
+        {/* Left: Compact Oddora AI Logo */}
+        <div className="shrink-0 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleTabChange("home")}
+            className="flex items-center gap-2 text-left focus:outline-none"
+          >
+            <OddoraLogo size="sm" showBadge={false} href="" />
+          </button>
+        </div>
+
+        {/* Center Navigation: 6 Primary Tabs + 2 Dropdown Menus */}
+        <div className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+          {/* Tab 1: Home */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("home")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "home"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Home</span>
+          </button>
+
+          {/* Tab 2: All Matches */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("all_matches")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "all_matches"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            <span>All Matches</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-emerald-400">
+              {(picks || []).length}
+            </span>
+          </button>
+
+          {/* Tab 3: Bankers */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("bankers")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "bankers"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span>Bankers</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
+              2-3x
+            </span>
+          </button>
+
+          {/* Tab 4: Slip Builder */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("slip_builder")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "slip_builder"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Slip Builder</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
+              20,000x
+            </span>
+          </button>
+
+          {/* Tab 5: Edit Slip */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("edit_slip")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "edit_slip"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Edit Slip</span>
+          </button>
+
+          {/* Tab 6: AI Copilot */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("copilot")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
+              activeTab === "copilot"
+                ? "bg-white/[0.1] text-white border border-white/15 shadow-sm"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <Bot className="w-3.5 h-3.5 text-[#00C896]" />
+            <span>AI Copilot</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-[#00C896]">
+              STUDIO
+            </span>
+          </button>
+
+          {/* Dropdown 1: Leagues ▾ */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsLeaguesMenuOpen(!isLeaguesMenuOpen);
+                setIsGuideMenuOpen(false);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <span>Leagues</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {isLeaguesMenuOpen && (
+              <div className="absolute left-0 mt-2 w-56 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1 text-[10px] font-mono uppercase text-slate-400 border-b border-white/10">
+                  Select Competition
+                </div>
+                <div className="max-h-60 overflow-y-auto mt-1 space-y-0.5">
+                  {(TOP_LEAGUES_WORKSPACE || []).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => {
+                        handleLeagueFilter(l);
+                        handleTabChange("all_matches");
+                        setIsLeaguesMenuOpen(false);
+                      }}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
+                    >
+                      <span>{l}</span>
+                    </button>
+                  ))}
+                  {(dynamicLeagues || []).slice(0, 10).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => {
+                        handleLeagueFilter(l);
+                        handleTabChange("all_matches");
+                        setIsLeaguesMenuOpen(false);
+                      }}
+                      className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center justify-between"
+                    >
+                      <span>{l}</span>
+                      <span className="text-[9px] text-slate-500 font-mono">Live</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dropdown 2: Guide & Lab ▾ */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsGuideMenuOpen(!isGuideMenuOpen);
+                setIsLeaguesMenuOpen(false);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Guide & Lab</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {isGuideMenuOpen && (
+              <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("autopsy");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Midnight Autopsy</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold">
+                    12 AM
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("bet_markets_guide");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Bet Markets Guide</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
+                    A-Z
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTabChange("how_it_works");
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
+                    <span>How It Works Guide</span>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-white/10" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsVipModalOpen(true);
+                    setIsGuideMenuOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-amber-300 hover:text-amber-200 transition flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    <span>VIP Plans & 30% Affiliate</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold">
+                    30%
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Controls: Interactive Tier Switcher + Account / VIP + Force Refresh */}
+        <div className="shrink-0 flex items-center gap-2">
+          {/* Interactive Tier Switcher Pills (FREE | PRO | VIP) */}
+          <div className="flex items-center p-0.5 rounded-xl bg-[#0e1424] border border-white/10 text-xs">
+            <button
+              type="button"
+              onClick={() => handleSelectPlan("FREE")}
+              className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all ${
+                planTier === "FREE"
+                  ? "bg-slate-700 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              FREE
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlan("PRO")}
+              className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all ${
+                planTier === "PRO"
+                  ? "bg-emerald-500 text-black shadow-sm font-black"
+                  : "text-slate-400 hover:text-emerald-300"
+              }`}
+            >
+              PRO
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPlan("VIP")}
+              className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all flex items-center gap-1 ${
+                planTier === "VIP"
+                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-sm font-black"
+                  : "text-slate-400 hover:text-amber-300"
+              }`}
+            >
+              <Crown className="w-3 h-3" />
+              <span>VIP</span>
+            </button>
+          </div>
+
+          {/* Account / VIP Upgrade Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsVipModalOpen(true)}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition"
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-400" />
+            <span>{planTier === "VIP" ? "VIP Active" : "Account / VIP"}</span>
+          </button>
+
+          {/* Force Refresh Button */}
+          <button
+            type="button"
+            onClick={handleForceRefresh}
+            disabled={isLoadingPicks || isSyncingFixtures}
+            title="Force Refresh / Sync Now"
+            className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${
+                isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""
+              }`}
+            />
+          </button>
+        </div>
+      </header>
+
+      {/* =========================================================================
           1. TOP LIVE AI TELEMETRY BAR (Rendered strictly on Home tab to avoid Copilot clutter)
          ========================================================================= */}
       {showTelemetryBar && activeTab === "home" && (
@@ -1056,7 +1434,7 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-black text-white">
-                {picks.filter((p) => !p.outcome_status || p.outcome_status === "PENDING").length || picks.length}
+                {(picks || []).filter((p) => !p.outcome_status || p.outcome_status === "PENDING").length || (picks || []).length}
               </span>
               <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
                 Live Feed
@@ -1228,260 +1606,6 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
           )}
         </div>
       )}
-
-      {/* =========================================================================
-          2. WORKSPACE TAB SELECTOR (6 Dedicated Primary Tabs + 2 Dropdown Menus)
-         ========================================================================= */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-          {/* Tab 1: Home */}
-          <button
-            onClick={() => setActiveTab("home")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "home"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Home</span>
-          </button>
-
-          {/* Tab 2: All Matches */}
-          <button
-            onClick={() => setActiveTab("all_matches")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "all_matches"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5 text-emerald-400" />
-            <span>All Matches</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-emerald-400">
-              {picks.length}
-            </span>
-          </button>
-
-          {/* Tab 3: Bankers */}
-          <button
-            onClick={() => setActiveTab("bankers")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "bankers"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5 text-amber-400" />
-            <span>Bankers</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
-              2-3x
-            </span>
-          </button>
-
-          {/* Tab 4: Slip Builder */}
-          <button
-            onClick={() => setActiveTab("slip_builder")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "slip_builder"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Slip Builder</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-400">
-              20,000x
-            </span>
-          </button>
-
-          {/* Tab 5: Edit Slip */}
-          <button
-            onClick={() => setActiveTab("edit_slip")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "edit_slip"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Edit Slip</span>
-          </button>
-
-          {/* Tab 6: AI Copilot */}
-          <button
-            onClick={() => setActiveTab("copilot")}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 select-none ${
-              activeTab === "copilot"
-                ? "bg-white/[0.1] text-white border border-white/15 shadow-md"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            <Bot className="w-3.5 h-3.5 text-[#00C896]" />
-            <span>AI Copilot</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black bg-emerald-500/20 text-[#00C896]">
-              STUDIO
-            </span>
-          </button>
-
-          {/* Dropdown 1: Leagues ▾ */}
-          <div className="relative shrink-0">
-            <button
-              onClick={() => {
-                setIsLeaguesMenuOpen(!isLeaguesMenuOpen);
-                setIsGuideMenuOpen(false);
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
-            >
-              <span>Leagues</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {isLeaguesMenuOpen && (
-              <div className="absolute left-0 mt-2 w-56 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1 text-[10px] font-mono uppercase text-slate-400 border-b border-white/10">
-                  Select Competition
-                </div>
-                <div className="max-h-60 overflow-y-auto mt-1 space-y-0.5">
-                  {TOP_LEAGUES_WORKSPACE.map((l) => (
-                    <button
-                      key={l}
-                      onClick={() => {
-                        handleLeagueFilter(l);
-                        setIsLeaguesMenuOpen(false);
-                      }}
-                      className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
-                    >
-                      <span>{l}</span>
-                    </button>
-                  ))}
-                  {dynamicLeagues &&
-                    dynamicLeagues.length > 0 &&
-                    dynamicLeagues.slice(0, 10).map((l) => (
-                      <button
-                        key={l}
-                        onClick={() => {
-                          handleLeagueFilter(l);
-                          setIsLeaguesMenuOpen(false);
-                        }}
-                        className="w-full text-left p-2 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition flex items-center justify-between"
-                      >
-                        <span>{l}</span>
-                        <span className="text-[9px] text-slate-500 font-mono">Live</span>
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Dropdown 2: Guide & Lab ▾ */}
-          <div className="relative shrink-0">
-            <button
-              onClick={() => {
-                setIsGuideMenuOpen(!isGuideMenuOpen);
-                setIsLeaguesMenuOpen(false);
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
-            >
-              <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Guide & Lab</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {isGuideMenuOpen && (
-              <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-[#0e1424] border border-white/15 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <button
-                  onClick={() => {
-                    setActiveTab("autopsy");
-                    setIsGuideMenuOpen(false);
-                  }}
-                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Midnight Autopsy</span>
-                  </div>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold">
-                    12 AM
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveTab("bet_markets_guide");
-                    setIsGuideMenuOpen(false);
-                  }}
-                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Bet Markets Guide</span>
-                  </div>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
-                    A-Z
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveTab("how_it_works");
-                    setIsGuideMenuOpen(false);
-                  }}
-                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition flex items-center justify-between mt-0.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
-                    <span>How It Works Guide</span>
-                  </div>
-                </button>
-
-                <div className="my-1 border-t border-white/10" />
-
-                <button
-                  onClick={() => {
-                    setIsVipModalOpen(true);
-                    setIsGuideMenuOpen(false);
-                  }}
-                  className="w-full text-left p-2.5 rounded-xl hover:bg-white/[0.06] text-xs font-bold text-amber-300 hover:text-amber-200 transition flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-3.5 h-3.5 text-amber-400" />
-                    <span>VIP Plans & 30% Affiliate</span>
-                  </div>
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold">
-                    30%
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Global Refresh Button & VIP Status */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsVipModalOpen(true)}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition"
-          >
-            <Crown className="w-3.5 h-3.5 text-amber-400" />
-            <span>{planTier === "VIP" ? "VIP Active" : "Upgrade VIP"}</span>
-          </button>
-
-          <button
-            onClick={handleForceRefresh}
-            disabled={isLoadingPicks || isSyncingFixtures}
-            title="Force Refresh / Sync Now"
-            className="p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${
-                isLoadingPicks || isSyncingFixtures ? "animate-spin text-emerald-400" : ""
-              }`}
-            />
-          </button>
-        </div>
-      </div>
 
       {/* =========================================================================
           TAB: HOME (OVERVIEW, #1 SUPER BANKER, TODAY'S 4 READY SLIPS & QUICK HUB)
@@ -2674,13 +2798,14 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
               <div className="flex items-center gap-1 p-1 rounded-xl bg-[#080d1a] border border-white/10 text-xs font-bold overflow-x-auto no-scrollbar max-w-full">
                 {[
                   { id: "today", label: "Today" },
-                  { id: "tomorrow", label: "Tomorrow" },
-                  { id: "3days", label: "Weekend" },
+                  { id: "2days", label: "2 Days" },
+                  { id: "3days", label: "3 Days" },
                   { id: "1week", label: "1 Week" },
                   { id: "1month", label: "1 Month" },
                 ].map((d) => (
                   <button
                     key={d.id}
+                    type="button"
                     onClick={() => setSelectedDuration(d.id as any)}
                     className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
                       selectedDuration === d.id ? "bg-amber-500 text-black shadow-sm font-black" : "text-slate-400 hover:text-white"
@@ -2775,9 +2900,10 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
                 3. SELECT TARGET ODDS PRESET (OR ENTER CUSTOM VALUE)
               </span>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
                 {[
                   { label: "2x", target: 2.0 },
+                  { label: "3x", target: 3.0 },
                   { label: "5x", target: 5.0 },
                   { label: "10x", target: 10.0 },
                   { label: "20x", target: 20.0 },
@@ -3824,6 +3950,69 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* =========================================================================
+          STICKY MOBILE BOTTOM NAVIGATION BAR (Never Overflows, 5 Core Tap Targets)
+         ========================================================================= */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#070d1e]/95 backdrop-blur-xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        <button
+          type="button"
+          onClick={() => handleTabChange("home")}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === "home" ? "text-emerald-400 font-bold" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Compass className="w-4 h-4" />
+          <span className="text-[10px]">Home</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("all_matches")}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all relative ${
+            activeTab === "all_matches" ? "text-emerald-400 font-bold" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span className="text-[10px]">Matches</span>
+          {(picks || []).length > 0 && (
+            <span className="absolute -top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("bankers")}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === "bankers" ? "text-amber-400 font-bold" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Flame className="w-4 h-4" />
+          <span className="text-[10px]">Bankers</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("slip_builder")}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === "slip_builder" ? "text-amber-400 font-bold" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="text-[10px]">Builder</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("copilot")}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === "copilot" ? "text-[#00C896] font-bold" : "text-slate-400 hover:text-white"
+          }`}
+        >
+          <Bot className="w-4 h-4" />
+          <span className="text-[10px]">Copilot</span>
+        </button>
+      </nav>
     </div>
   );
 };

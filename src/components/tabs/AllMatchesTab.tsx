@@ -15,6 +15,9 @@ import {
   Trophy,
   ExternalLink,
   Copy,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 
@@ -24,13 +27,33 @@ export interface AllMatchesTabProps {
   onAddToSlip?: (match: any) => void;
 }
 
-export type SportFilter = "football" | "basketball" | "volleyball" | "tennis";
+export type SportFilter =
+  | "football"
+  | "basketball"
+  | "table_tennis"
+  | "volleyball"
+  | "tennis";
 
 export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
   currentTier,
   onOpenUpgradeModal,
   onAddToSlip,
 }) => {
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+
   const [selectedSport, setSelectedSport] = useState<SportFilter>("football");
   const [matches, setMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,13 +64,13 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
 
   useEffect(() => {
     fetchMatches();
-  }, [selectedSport, currentTier]);
+  }, [selectedSport, currentTier, selectedDate]);
 
   async function fetchMatches() {
     setIsLoading(true);
     try {
       const res = await fetch(
-        `/api/engines/all-matches?sport=${selectedSport}&tier=${currentTier}`
+        `/api/engines/all-matches?date=${selectedDate}&sport=${selectedSport}&tier=${currentTier}`
       );
       if (res.ok) {
         const json = await res.json();
@@ -62,6 +85,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
   const sportsList: Array<{ id: SportFilter; label: string; icon: string }> = [
     { id: "football", label: "Football", icon: "⚽" },
     { id: "basketball", label: "Basketball", icon: "🏀" },
+    { id: "table_tennis", label: "Table Tennis", icon: "🏓" },
     { id: "volleyball", label: "Volleyball", icon: "🏐" },
     { id: "tennis", label: "Tennis", icon: "🎾" },
   ];
@@ -165,6 +189,70 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
               </>
             )}
           </span>
+        </div>
+      </div>
+
+      {/* Date Navigation & Calendar Switcher */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
+        {/* Quick Date Buttons: Yesterday / Today / Tomorrow */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(yesterdayStr)}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+              selectedDate === yesterdayStr
+                ? "bg-white/[0.12] text-white border-white/25 shadow-sm font-black"
+                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Yesterday</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedDate(todayStr)}
+            className={`flex-1 sm:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+              selectedDate === todayStr
+                ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
+                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <span>★ Today</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedDate(tomorrowStr)}
+            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+              selectedDate === tomorrowStr
+                ? "bg-white/[0.12] text-white border-white/25 shadow-sm font-black"
+                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <span>Tomorrow</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Date Picker & Active Date Label */}
+        <div className="flex items-center justify-between sm:justify-end gap-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline text-slate-400">Date:</span>
+            <span className="text-white bg-black/40 px-2 py-0.5 rounded-md border border-white/10">
+              {selectedDate}
+            </span>
+          </div>
+
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              if (e.target.value) setSelectedDate(e.target.value);
+            }}
+            className="bg-[#070A0E] text-xs font-mono font-bold text-slate-200 border border-white/10 rounded-xl py-1.5 px-2.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+          />
         </div>
       </div>
 
@@ -283,23 +371,52 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                       {/* Left: Kickoff & Teams */}
                       <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
                         {/* Kickoff pill */}
-                        <div className="shrink-0 text-center bg-[#070A0E] px-2.5 py-1.5 rounded-xl border border-white/10">
+                        <div className="shrink-0 text-center bg-[#070A0E] px-2.5 py-1.5 rounded-xl border border-white/10 min-w-[58px]">
                           <span
                             suppressHydrationWarning
                             className="text-[11px] font-mono font-bold text-slate-300 block"
                           >
                             {formatKickoff(m.kickoff_time)}
                           </span>
-                          <span className="text-[9px] font-mono uppercase text-slate-500 block">
-                            TODAY
+                          <span
+                            className={`text-[9px] font-mono uppercase font-black block ${
+                              selectedDate < todayStr
+                                ? "text-slate-400"
+                                : selectedDate === todayStr
+                                ? "text-emerald-400"
+                                : "text-amber-400"
+                            }`}
+                          >
+                            {selectedDate < todayStr
+                              ? "FT"
+                              : selectedDate === todayStr
+                              ? "TODAY"
+                              : "UPCOMING"}
                           </span>
                         </div>
 
-                        {/* Team names & flags */}
+                        {/* Team names & scores */}
                         <div className="min-w-0 flex-1">
-                          <div className="font-bold text-white text-sm truncate">
-                            {m.home_team} <span className="text-slate-500 font-normal">vs</span>{" "}
-                            {m.away_team}
+                          <div className="font-bold text-white text-sm flex items-center gap-2 truncate">
+                            <span className="truncate">
+                              {m.home_team} <span className="text-slate-500 font-normal">vs</span>{" "}
+                              {m.away_team}
+                            </span>
+                            {m.home_score !== null && m.away_score !== null && (
+                              <span className="shrink-0 px-2 py-0.5 rounded-lg bg-white/[0.08] text-white font-mono font-black text-xs border border-white/10">
+                                {m.home_score} - {m.away_score}
+                              </span>
+                            )}
+                            {m.outcome_result === "WON" && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                ✓ WON
+                              </span>
+                            )}
+                            {m.outcome_result === "LOST" && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono font-black bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                ✗ LOST
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] text-slate-400 mt-1 flex flex-wrap items-center gap-2">
                             <span className="uppercase text-emerald-400 font-mono font-bold">

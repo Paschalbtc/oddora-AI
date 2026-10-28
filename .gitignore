@@ -19,6 +19,7 @@ out/
 build/
 dist/
 *.tsbuildinfo
+.vercel/
 
 # Python
 __pycache__/

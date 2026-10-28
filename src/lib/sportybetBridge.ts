@@ -77,6 +77,7 @@ export async function fetchSportyBetLiveEvents(sportId: string = "sr:sport:1"): 
       {
         headers: SPORTYBET_HEADERS,
         cache: "no-store",
+        signal: AbortSignal.timeout(4000),
       }
     );
 
@@ -231,6 +232,7 @@ export async function createSportyBetBookingCode(
       method: "POST",
       headers: SPORTYBET_HEADERS,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(4000),
     });
 
     if (res.ok) {
@@ -284,6 +286,7 @@ export async function decodeSportyBetBookingCode(code: string): Promise<DecodedS
       {
         headers: SPORTYBET_HEADERS,
         cache: "no-store",
+        signal: AbortSignal.timeout(4000),
       }
     );
 

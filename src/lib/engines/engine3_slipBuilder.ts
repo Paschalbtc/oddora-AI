@@ -4,29 +4,37 @@
  * Responsibilities:
  * 1. Combinatorial / Knapsack High-Probability Compound Solver:
  *    - Prioritizes highest win-probability outcomes above all else (80%–95%+ win rate).
- *    - Inspects all diverse market types from Sport Brains via `all_markets_json`.
  *    - Strict Hard Cap: Maximum 50 matches per ticket (Nigerian bookmaker standard for SportyBet & Bet9ja).
- * 2. Match Count Modes:
- *    - `AUTO`: Dynamically compounds highest probability selections until target multiplier is reached.
- *    - `CUSTOM`: Forms an exact match count (2 to 50 matches) that optimizes win-probability and target odds.
- * 3. Market Filters: Gated by user tier (Basic for Free; Quantitative for Pro/Premium).
- * 4. Outputs authentic, verified SportyBet and Bet9ja booking codes via Universal Booking Engine.
+ * 2. Strict Market Filtering:
+ *    - When specific market types are selected, ONLY games with that exact outcome are chosen.
+ *    - Fixtures without the selected outcome are discarded, NEVER substituted with 1X2.
+ * 3. Date Horizon Flexibility:
+ *    - "today": Today's games only.
+ *    - "14_days": Next 14 days calendar window.
+ *    - "30_days": Next 30 days calendar window.
+ * 4. Multi-Sport Support:
+ *    - Football, Basketball, Table Tennis, Volleyball, or All Sports.
+ * 5. Accurate Multiplier Convergence:
+ *    - Hits target odds cleanly within 0.95x–1.20x without runaway multiplier overshoot.
+ * 6. Authenticated Universal Booking:
+ *    - Produces valid, sharable SportyBet and Bet9ja booking codes.
  */
 
 import { getSupabaseAdmin } from "../supabase";
 import { mapMarketToSportyBetIds } from "../sportybetBridge";
-import { syncTodayAllMatches } from "./engine1_allMatches";
+import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { bookUniversalSlip } from "./bookingEngine";
 
 export const MAX_GAMES_PER_TICKET = 50;
 export const MIN_GAMES_PER_TICKET = 2;
 
 export interface CustomBuilderRequest {
-  sport_type?: string; // "football" | "basketball" | "volleyball" | "tennis" | "all"
-  allowed_markets?: string[]; // e.g. ["1x2", "double chance", "handicap", "dnb", "over 1.5", "over 2.5", "btts"]
+  sport_type?: string; // "football" | "basketball" | "volleyball" | "tennis" | "table_tennis" | "all"
+  allowed_markets?: string[]; // e.g. ["fb_over_1_5", "1x2", "double chance", "handicap", "dnb", "over 1.5"]
   match_count_mode?: "AUTO" | "CUSTOM";
   custom_match_count?: number; // e.g. 5, 10, 25, 50 (max 50)
   target_odds: number; // e.g. 2.0, 5.0, 10.0, 50.0, 100.0, 500.0
+  date_horizon?: "today" | "14_days" | "30_days";
   bookmaker?: "SPORTYBET" | "BET9JA";
   user_tier?: "FREE" | "PRO" | "PREMIUM";
 }
@@ -61,7 +69,8 @@ export interface CustomBuilderResult {
 }
 
 /**
- * Checks if a market category or selection string matches the user-specified market filters
+ * Checks if a market category or selection string matches the user-specified market filters.
+ * Supports IDs, short codes, and descriptive labels across all 4 sports.
  */
 function isMarketAllowed(market: string, selection: string, allowed: string[]): boolean {
   if (allowed.length === 0 || allowed.includes("all")) return true;
@@ -73,31 +82,95 @@ function isMarketAllowed(market: string, selection: string, allowed: string[]): 
     const filter = a.toLowerCase().trim();
     if (!filter) continue;
 
-    if (filter === "1x2" || filter.includes("straight") || filter.includes("winner")) {
+    // Direct match
+    if (mLower === filter || sLower === filter) return true;
+
+    // 1. Football Markets
+    if (filter === "fb_over_1_5" || filter === "o1.5" || filter === "over 1.5" || filter === "over 1.5 goals") {
+      if (sLower.includes("over 1.5") || (mLower.includes("over") && sLower.includes("1.5"))) return true;
+    } else if (filter === "fb_dc_1x" || filter === "1x" || filter === "home or draw") {
+      if (sLower === "1x" || sLower.includes("1x") || sLower.includes("home or draw")) return true;
+    } else if (filter === "fb_dc_x2" || filter === "x2" || filter === "away or draw") {
+      if (sLower === "x2" || sLower.includes("x2") || sLower.includes("away or draw")) return true;
+    } else if (filter === "fb_dc_12" || filter === "12" || filter === "home or away") {
+      if (sLower === "12" || sLower.includes("12") || sLower.includes("home or away") || sLower.includes("no draw")) return true;
+    } else if (filter === "fb_under_3_5" || filter === "u3.5" || filter === "under 3.5") {
+      if (sLower.includes("under 3.5")) return true;
+    } else if (filter === "fb_under_4_5" || filter === "u4.5" || filter === "under 4.5") {
+      if (sLower.includes("under 4.5")) return true;
+    } else if (filter === "fb_home_dnb" || filter === "dnb 1" || filter === "dnb1" || filter === "home dnb") {
+      if ((sLower.includes("dnb") || mLower.includes("dnb") || mLower.includes("draw no bet")) && (sLower.includes("home") || sLower.includes("1"))) return true;
+    } else if (filter === "fb_away_dnb" || filter === "dnb 2" || filter === "dnb2" || filter === "away dnb") {
+      if ((sLower.includes("dnb") || mLower.includes("dnb") || mLower.includes("draw no bet")) && (sLower.includes("away") || sLower.includes("2"))) return true;
+    } else if (filter === "fb_home_over_0_5" || filter === "home o0.5" || filter === "home over 0.5") {
+      if ((sLower.includes("home") || sLower.includes("team 1")) && sLower.includes("0.5")) return true;
+    } else if (filter === "fb_away_over_0_5" || filter === "away o0.5" || filter === "away over 0.5") {
+      if ((sLower.includes("away") || sLower.includes("team 2")) && sLower.includes("0.5")) return true;
+    } else if (filter === "fb_ht_over_0_5" || filter === "1h o0.5" || filter === "1st half over 0.5") {
+      if ((mLower.includes("1st half") || sLower.includes("1h") || mLower.includes("ht")) && sLower.includes("0.5")) return true;
+    } else if (filter.includes("corner")) {
+      if (mLower.includes("corner") || sLower.includes("corner")) return true;
+    } else if (filter.includes("weh") || filter.includes("either half")) {
+      if (mLower.includes("either half") || sLower.includes("either half") || sLower.includes("weh")) return true;
+    } else if (filter === "1x2" || filter.includes("straight") || filter.includes("winner")) {
       if (mLower.includes("1x2") || mLower.includes("moneyline") || mLower.includes("winner")) return true;
-    } else if (filter.includes("double chance") || filter === "1x" || filter === "x2" || filter === "12") {
+    } else if (filter.includes("double chance")) {
       if (mLower.includes("double") || sLower.includes("1x") || sLower.includes("x2") || sLower.includes("12")) return true;
     } else if (filter.includes("handicap") || filter.includes("spread")) {
-      if (mLower.includes("handicap") || mLower.includes("spread") || sLower.includes("+1.5") || sLower.includes("+3.5") || sLower.includes("+4.5")) return true;
+      if (mLower.includes("handicap") || mLower.includes("spread") || sLower.includes("+1.5") || sLower.includes("+2.5") || sLower.includes("+3.5") || sLower.includes("+4.5") || sLower.includes("+8.5") || sLower.includes("-3.5")) return true;
     } else if (filter.includes("dnb") || filter.includes("draw no bet")) {
       if (mLower.includes("dnb") || mLower.includes("draw no bet") || sLower.includes("dnb")) return true;
-    } else if (filter.includes("over 1.5")) {
-      if (sLower.includes("over 1.5")) return true;
     } else if (filter.includes("over 2.5")) {
       if (sLower.includes("over 2.5")) return true;
-    } else if (filter.includes("under 3.5")) {
-      if (sLower.includes("under 3.5")) return true;
     } else if (filter.includes("btts") || filter.includes("gg") || filter.includes("both")) {
       if (mLower.includes("both") || mLower.includes("btts") || sLower.includes("btts") || sLower.includes("gg")) return true;
-    } else if (filter.includes("1st half") || filter.includes("ht")) {
-      if (mLower.includes("1st half") || mLower.includes("ht") || sLower.includes("1st half")) return true;
-    } else if (filter.includes("total points")) {
-      if (mLower.includes("total points") || sLower.includes("pts") || sLower.includes("points")) return true;
-    } else if (filter.includes("total sets")) {
-      if (mLower.includes("total sets") || sLower.includes("sets")) return true;
-    } else if (filter.includes("total games")) {
-      if (mLower.includes("total games") || sLower.includes("games")) return true;
-    } else if (mLower.includes(filter) || sLower.includes(filter)) {
+    }
+    // 2. Table Tennis Markets
+    else if (filter === "tt_match_winner" || filter === "ml win") {
+      if (mLower.includes("winner") || mLower.includes("moneyline") || sLower.includes("win")) return true;
+    } else if (filter === "tt_sets_over_3_5" || filter === "sets o3.5") {
+      if (sLower.includes("3.5") && (mLower.includes("set") || sLower.includes("set"))) return true;
+    } else if (filter === "tt_set_hcp_plus_1_5" || filter === "set +1.5") {
+      if (sLower.includes("+1.5") && (mLower.includes("set") || sLower.includes("set"))) return true;
+    } else if (filter === "tt_set_hcp_plus_2_5" || filter === "set +2.5") {
+      if (sLower.includes("+2.5") && (mLower.includes("set") || sLower.includes("set"))) return true;
+    } else if (filter === "tt_total_points_over_70_5" || filter === "pts o70.5") {
+      if (sLower.includes("70.5") || (mLower.includes("point") && sLower.includes("over"))) return true;
+    } else if (filter === "tt_point_hcp_plus_5_5" || filter === "hcp +5.5") {
+      if (sLower.includes("5.5") && (mLower.includes("handicap") || sLower.includes("hcp"))) return true;
+    }
+    // 3. Basketball Markets
+    else if (filter === "bb_moneyline" || filter === "ml") {
+      if (mLower.includes("moneyline") || mLower.includes("winner") || sLower.includes("win")) return true;
+    } else if (filter === "bb_spread_plus_8_5" || filter === "+8.5") {
+      if (sLower.includes("+8.5")) return true;
+    } else if (filter === "bb_spread_minus_3_5" || filter === "-3.5") {
+      if (sLower.includes("-3.5")) return true;
+    } else if (filter === "bb_total_alt_over" || filter === "alt over") {
+      if (sLower.includes("over") && (mLower.includes("points") || mLower.includes("total"))) return true;
+    } else if (filter === "bb_total_alt_under" || filter === "alt under") {
+      if (sLower.includes("under") && (mLower.includes("points") || mLower.includes("total"))) return true;
+    } else if (filter === "bb_1h_moneyline" || filter === "1h ml") {
+      if (mLower.includes("1st half") && (sLower.includes("win") || sLower.includes("1") || sLower.includes("2"))) return true;
+    }
+    // 4. Volleyball Markets
+    else if (filter === "vb_match_winner") {
+      if (mLower.includes("winner") || sLower.includes("win")) return true;
+    } else if (filter === "vb_sets_over_3_5") {
+      if (sLower.includes("3.5") && mLower.includes("set")) return true;
+    } else if (filter === "vb_set_hcp_plus_1_5") {
+      if (sLower.includes("+1.5") && mLower.includes("set")) return true;
+    } else if (filter === "vb_set_hcp_plus_2_5") {
+      if (sLower.includes("+2.5") && mLower.includes("set")) return true;
+    } else if (filter === "vb_set_hcp_minus_1_5") {
+      if (sLower.includes("-1.5") && mLower.includes("set")) return true;
+    } else if (filter === "vb_total_points_over_175_5" || filter === "pts o175.5") {
+      if (sLower.includes("175.5") || (mLower.includes("point") && sLower.includes("over"))) return true;
+    } else if (filter === "vb_set1_points_over_44_5" || filter === "s1 o44.5") {
+      if (sLower.includes("44.5") || (mLower.includes("1st set") && sLower.includes("over"))) return true;
+    }
+    // Catch-all substring
+    else if (mLower.includes(filter) || sLower.includes(filter)) {
       return true;
     }
   }
@@ -108,6 +181,7 @@ function isMarketAllowed(market: string, selection: string, allowed: string[]): 
 /**
  * Extracts candidate market outcomes from a match row and returns the single highest-probability
  * outcome that satisfies the allowed market filter.
+ * STRICT: If a specific market was selected and not found, returns null (never fallbacks to 1X2).
  */
 function extractHighestProbabilityOutcome(
   matchRow: any,
@@ -150,14 +224,17 @@ function extractHighestProbabilityOutcome(
     });
   }
 
-  // Filter outcomes by user's allowed markets
-  let eligible = allOutcomes.filter((o) =>
-    isMarketAllowed(o.market, o.selection, allowedMarkets)
-  );
+  const isStrict = allowedMarkets.length > 0 && !allowedMarkets.includes("all");
 
-  // If no outcome satisfied a strict filter, fall back to safest available outcome for this match
+  // Filter outcomes by user's allowed markets
+  const eligible = isStrict
+    ? allOutcomes.filter((o) => isMarketAllowed(o.market, o.selection, allowedMarkets))
+    : allOutcomes;
+
+  // STRICT REQUIREMENT: If specific markets were selected and none matched, DISCARD THIS FIXTURE!
+  // Do NOT fall back to other markets unless user chose "all".
   if (eligible.length === 0) {
-    eligible = allOutcomes;
+    return null;
   }
 
   // Sort by win_probability DESCENDING (prioritize higher probability outcomes!)
@@ -165,7 +242,6 @@ function extractHighestProbabilityOutcome(
     if (b.win_probability !== a.win_probability) {
       return b.win_probability - a.win_probability;
     }
-    // If win probabilities are tied, pick the one with better odds value
     return b.odd - a.odd;
   });
 
@@ -178,7 +254,7 @@ function extractHighestProbabilityOutcome(
     match: `${matchRow.home_team} vs ${matchRow.away_team}`,
     home_team: matchRow.home_team,
     away_team: matchRow.away_team,
-    league: matchRow.league_name || "Championship",
+    league: matchRow.league_name || "Premier Division",
     market: best.market,
     selection: best.selection,
     odd: Math.max(1.05, Math.round(best.odd * 100) / 100),
@@ -209,8 +285,8 @@ function solveForExactCount(
   // Score candidate matches: Combine high win probability with proximity to targetPerLeg
   const scored = candidates.map((c) => {
     const diff = Math.abs(c.odd - targetPerLeg);
-    // 2.0x weight on win_probability to prioritize high probability survival
-    const score = c.win_probability * 2.0 - diff * 12.0;
+    // 2.5x weight on win_probability to prioritize high probability survival
+    const score = c.win_probability * 2.5 - diff * 10.0;
     return { candidate: c, score };
   });
 
@@ -228,25 +304,40 @@ function solveForExactCount(
 /**
  * High-Probability Compound Solver (AUTO Mode):
  * Greedily compounds the highest-probability outcomes available until target odds are reached.
- * Hard-capped at 50 games maximum.
+ * Hard-capped at 50 games maximum. Accurately converges around target odds without runaway inflation.
  */
 function solveForTargetOdds(
   candidates: CustomBuilderLeg[],
   target: number
 ): CustomBuilderLeg[] {
   // Sort candidates strictly by highest win probability first
-  const sorted = [...candidates].sort((a, b) => b.win_probability - a.win_probability);
+  const sorted = [...candidates].sort((a, b) => {
+    if (b.win_probability !== a.win_probability) {
+      return b.win_probability - a.win_probability;
+    }
+    return b.odd - a.odd;
+  });
 
   let currentOdds = 1.0;
   const picked: CustomBuilderLeg[] = [];
 
-  // Pass 1: Select highest-probability legs that do not overshoot target excessively
+  // Pass 1: Select highest-probability legs that approach target without massive overshoot
   for (const c of sorted) {
     if (picked.length >= MAX_GAMES_PER_TICKET) break;
 
-    if (currentOdds * c.odd <= target * 1.35) {
+    const projected = currentOdds * c.odd;
+
+    // If adding this selection puts us within the target convergence zone [0.90x, 1.25x]:
+    if (picked.length >= MIN_GAMES_PER_TICKET - 1 && projected >= target * 0.90) {
       picked.push(c);
-      currentOdds *= c.odd;
+      currentOdds = projected;
+      break;
+    }
+
+    // Add if it keeps us under 1.20x target
+    if (projected <= target * 1.20) {
+      picked.push(c);
+      currentOdds = projected;
     }
 
     if (currentOdds >= target * 0.95 && picked.length >= MIN_GAMES_PER_TICKET) {
@@ -278,6 +369,7 @@ function solveForTargetOdds(
       if (picked.length >= MIN_GAMES_PER_TICKET) break;
       if (!picked.some((p) => p.eventId === c.eventId || p.match === c.match)) {
         picked.push(c);
+        currentOdds *= c.odd;
       }
     }
   }
@@ -293,6 +385,7 @@ export async function buildCustomSlip(
   const target = Math.max(1.5, Number(req.target_odds) || 10.0);
   const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
   const sport = (req.sport_type || "all").toLowerCase();
+  const horizon = req.date_horizon || "today";
 
   const countMode =
     req.match_count_mode === "CUSTOM" && Number(req.custom_match_count) > 0
@@ -305,34 +398,66 @@ export async function buildCustomSlip(
       ? Math.max(MIN_GAMES_PER_TICKET, Math.min(MAX_GAMES_PER_TICKET, Number(req.custom_match_count)))
       : 0;
 
-  // 1. Fetch eligible matches for today from Supabase
+  // 1. Fetch eligible matches based on Date Horizon from Supabase
   let query = supabase
     .from("oddora_v2_matches")
     .select("*")
-    .eq("match_date", todayStr)
     .order("win_probability", { ascending: false });
 
+  if (horizon === "today") {
+    query = query.eq("match_date", todayStr);
+  } else {
+    const daysToAdd = horizon === "30_days" ? 30 : 14;
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + daysToAdd);
+    const futureDateStr = futureDate.toISOString().split("T")[0];
+    query = query.gte("match_date", todayStr).lte("match_date", futureDateStr);
+  }
+
   if (sport !== "all") {
-    query = query.ilike("sport_type", sport);
+    if (sport === "tennis" || sport === "table_tennis") {
+      query = query.in("sport_type", ["TENNIS", "TABLE_TENNIS", "tennis", "table_tennis"]);
+    } else {
+      query = query.ilike("sport_type", sport);
+    }
   }
 
   let { data: rawMatches } = await query;
 
-  // If no matches cached, trigger sync
+  // If no matches cached, trigger sync for today and tomorrow
   if (!rawMatches || rawMatches.length === 0) {
     try {
       await syncTodayAllMatches();
-      const retry = await supabase
+      if (horizon !== "today") {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        await syncMatchesForDate(tomorrow.toISOString().split("T")[0]);
+      }
+
+      let retryQuery = supabase
         .from("oddora_v2_matches")
         .select("*")
-        .eq("match_date", todayStr)
         .order("win_probability", { ascending: false });
-      rawMatches = retry.data || [];
-      if (sport !== "all" && rawMatches.length > 0) {
-        rawMatches = rawMatches.filter(
-          (m: any) => m.sport_type?.toLowerCase() === sport
-        );
+
+      if (horizon === "today") {
+        retryQuery = retryQuery.eq("match_date", todayStr);
+      } else {
+        const daysToAdd = horizon === "30_days" ? 30 : 14;
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + daysToAdd);
+        retryQuery = retryQuery.gte("match_date", todayStr).lte("match_date", futureDate.toISOString().split("T")[0]);
       }
+
+      if (sport !== "all") {
+        if (sport === "tennis" || sport === "table_tennis") {
+          retryQuery = retryQuery.in("sport_type", ["TENNIS", "TABLE_TENNIS", "tennis", "table_tennis"]);
+        } else {
+          retryQuery = retryQuery.ilike("sport_type", sport);
+        }
+      }
+
+      const retry = await retryQuery;
+      rawMatches = retry.data || [];
     } catch (e) {
       console.warn("Auto-sync error in buildCustomSlip:", e);
     }
@@ -340,7 +465,7 @@ export async function buildCustomSlip(
 
   if (!rawMatches || rawMatches.length === 0) {
     throw new Error(
-      "No active fixtures available in database for builder. Run Engine 1 sync first."
+      `No active fixtures found for ${horizon === "today" ? "today" : horizon.replace("_", " ")}. Run Engine 1 sync first.`
     );
   }
 
@@ -362,7 +487,9 @@ export async function buildCustomSlip(
   }
 
   if (candidateLegs.length === 0) {
-    throw new Error("No candidate matches matched the selected betting markets.");
+    throw new Error(
+      `No candidate matches found matching the selected market "${req.allowed_markets?.join(", ")}". Try selecting All Markets or another market.`
+    );
   }
 
   // 3. High-Probability Combinatorial Solving

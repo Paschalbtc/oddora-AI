@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "../supabase";
 
-export type SportType = "football" | "basketball" | "volleyball" | "tennis";
+export type SportType = "football" | "basketball" | "volleyball" | "tennis" | "table_tennis";
 
 export interface AnalyzedOutcome {
   sport: SportType;

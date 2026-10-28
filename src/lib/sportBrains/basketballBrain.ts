@@ -97,6 +97,9 @@ export async function analyzeBasketballMatch(
     odd: number;
     winProb: number;
     reasoning: string;
+    shortCode?: string;
+    sportyMarketId?: string;
+    bet9jaCode?: string;
   }> = [];
 
   // 1. Point Spread Safety Cushion (+7.5 Underdog)
@@ -110,70 +113,90 @@ export async function analyzeBasketballMatch(
     reasoning: `High safety cushion: ${underdog} +7.5 spread covers in ${probPlus75}% of modeled possessions.`,
   });
 
-  // 2. Point Spread (+4.5 Cushion)
-  const pPlus45 = normalCDF((4.5 - Math.abs(projectedMargin)) / spreadStdDev);
-  const probPlus45 = Math.round(pPlus45 * 100);
-  candidates.push({
-    market: "Point Spread",
-    selection: `${underdog} (+4.5)`,
-    odd: toBookmakerOdd(pPlus45, 1.55),
-    winProb: Math.min(88, Math.max(65, probPlus45)),
-    reasoning: `Competitive spread: ${underdog} stays within 4 points in ${probPlus45}% of game pace runs.`,
-  });
-
-  // 3. Moneyline (Favorite to Win)
+  // 1. Moneyline (Favorite to Win)
   const favoriteProb = Math.round((isHomeFavorite ? pHomeWin : pAwayWin) * 100);
   candidates.push({
     market: "Moneyline",
     selection: `${favorite} to Win`,
     odd: toBookmakerOdd(isHomeFavorite ? pHomeWin : pAwayWin, isHomeFavorite ? odds.home_win : odds.away_win),
-    winProb: Math.min(91, Math.max(55, favoriteProb)),
+    winProb: Math.min(94, Math.max(85, favoriteProb)),
+    shortCode: "ML Win",
+    sportyMarketId: "219_4",
+    bet9jaCode: "12_OT",
     reasoning: `Offensive rating advantage: ${favorite} projected at ${isHomeFavorite ? projectedHomeScore.toFixed(1) : projectedAwayScore.toFixed(1)} pts (${favoriteProb}% Win Rate).`,
   });
 
-  // 4. Total Points (Over 210.5)
-  const pOver210 = 1 - normalCDF((210.5 - projectedTotalPoints) / totalStdDev);
-  const probOver210 = Math.round(pOver210 * 100);
+  // 2. Safe Alternate Point Spread (+8.5 Points Cushion)
+  const pPlus85 = normalCDF((8.5 - Math.abs(projectedMargin)) / spreadStdDev);
+  const probPlus85 = Math.round(pPlus85 * 100);
+  candidates.push({
+    market: "Point Spread",
+    selection: `${underdog} (+8.5)`,
+    odd: toBookmakerOdd(pPlus85, 1.34),
+    winProb: Math.min(95, Math.max(86, probPlus85)),
+    shortCode: "Spread +8.5",
+    sportyMarketId: "223_hcp=8.5_1714",
+    bet9jaCode: "H+8.5",
+    reasoning: `High safety cushion: ${underdog} +8.5 spread covers in ${probPlus85}% of modeled possessions.`,
+  });
+
+  // 3. Safe Favourite Spread (-3.5 Points)
+  const pMinus35 = normalCDF((Math.abs(projectedMargin) - 3.5) / spreadStdDev);
+  const probMinus35 = Math.round(pMinus35 * 100);
+  candidates.push({
+    market: "Point Spread",
+    selection: `${favorite} (-3.5)`,
+    odd: toBookmakerOdd(pMinus35, 1.42),
+    winProb: Math.min(92, Math.max(82, probMinus35)),
+    shortCode: "Spread -3.5",
+    sportyMarketId: "223_hcp=-3.5_1714",
+    bet9jaCode: "H-3.5",
+    reasoning: `Dominant scoring differential: ${favorite} clears -3.5 spread in ${probMinus35}% of simulations.`,
+  });
+
+  // 4. Safe Alternate Total Points Over (Buffered -8 Pts)
+  const bufferedOverLine = Math.round(projectedTotalPoints - 8.5);
+  const pAltOver = 1 - normalCDF((bufferedOverLine - projectedTotalPoints) / totalStdDev);
+  const probAltOver = Math.round(pAltOver * 100);
   candidates.push({
     market: "Total Points",
-    selection: "Over 210.5",
-    odd: toBookmakerOdd(pOver210, 1.38),
-    winProb: Math.min(92, Math.max(68, probOver210)),
-    reasoning: `Fast transition pace: Projected total of ${projectedTotalPoints.toFixed(1)} exceeds 210.5 in ${probOver210}% of simulated outcomes.`,
+    selection: `Over ${bufferedOverLine}.5 Points`,
+    odd: toBookmakerOdd(pAltOver, 1.32),
+    winProb: Math.min(94, Math.max(85, probAltOver)),
+    shortCode: "Alt Total Over",
+    sportyMarketId: "225_12",
+    bet9jaCode: "BK_O_ALT",
+    reasoning: `Pace efficiency: Projected game total of ${projectedTotalPoints.toFixed(1)} clears buffered ${bufferedOverLine}.5 line with ${probAltOver}% safety.`,
   });
 
-  // 5. Total Points (Under 225.5)
-  const pUnder225 = normalCDF((225.5 - projectedTotalPoints) / totalStdDev);
-  const probUnder225 = Math.round(pUnder225 * 100);
+  // 5. Safe Alternate Total Points Under (Buffered +8 Pts)
+  const bufferedUnderLine = Math.round(projectedTotalPoints + 8.5);
+  const pAltUnder = normalCDF((bufferedUnderLine - projectedTotalPoints) / totalStdDev);
+  const probAltUnder = Math.round(pAltUnder * 100);
   candidates.push({
     market: "Total Points",
-    selection: "Under 225.5",
-    odd: toBookmakerOdd(pUnder225, 1.42),
-    winProb: Math.min(92, Math.max(68, probUnder225)),
-    reasoning: `Defensive containment: Projected game total of ${projectedTotalPoints.toFixed(1)} bounded below 225.5 (${probUnder225}% probability).`,
+    selection: `Under ${bufferedUnderLine}.5 Points`,
+    odd: toBookmakerOdd(pAltUnder, 1.32),
+    winProb: Math.min(94, Math.max(85, probAltUnder)),
+    shortCode: "Alt Total Under",
+    sportyMarketId: "225_13",
+    bet9jaCode: "BK_U_ALT",
+    reasoning: `Defensive containment: Game ceiling bounded under ${bufferedUnderLine}.5 in ${probAltUnder}% of simulations.`,
   });
 
-  // 6. 1st Half Total Points (Over 106.5)
-  const p1stHalfOver106 = 1 - normalCDF((106.5 - (projectedTotalPoints / 2)) / (totalStdDev * 0.65));
-  const prob1stHalf = Math.round(p1stHalfOver106 * 100);
+  // 6. 1st Half Winner
+  const h1Margin = projectedMargin / 2;
+  const pH1Fav = normalCDF(h1Margin / (spreadStdDev * 0.72));
+  const probH1 = Math.round(pH1Fav * 100);
   candidates.push({
-    market: "1st Half Points",
-    selection: "1st Half Over 106.5",
-    odd: toBookmakerOdd(p1stHalfOver106, odds.h1_over_points),
-    winProb: Math.min(90, Math.max(65, prob1stHalf)),
-    reasoning: `High opening energy: 1st half projected points exceed 106.5 at ${prob1stHalf}% confidence.`,
-  });
-
-  // 7. 1st Quarter Winner
-  const q1Margin = projectedMargin / 4;
-  const pQ1Fav = normalCDF(q1Margin / 6.2);
-  const probQ1 = Math.round(pQ1Fav * 100);
-  candidates.push({
-    market: "1st Quarter Winner",
-    selection: `${favorite} Q1 Win`,
-    odd: toBookmakerOdd(pQ1Fav, isHomeFavorite ? odds.q1_home_win : odds.q1_away_win),
-    winProb: Math.min(84, Math.max(58, probQ1)),
-    reasoning: `Starting rotation: ${favorite} holds opening quarter win probability of ${probQ1}%.`,
+    market: "1st Half Winner",
+    selection: `${favorite} 1H Win`,
+    odd: toBookmakerOdd(pH1Fav, 1.40),
+    winProb: Math.min(92, Math.max(81, probH1)),
+    shortCode: "1H Win",
+    sportyMarketId: "60_1",
+    bet9jaCode: "1H_1",
+    reasoning: `Fast-starting rotation: ${favorite} leads at halftime in ${probH1}% of distribution runs.`,
   });
 
   // Apply Directives

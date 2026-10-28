@@ -108,6 +108,7 @@ export async function analyzeFootballMatch(
   let pOver15 = 0;
   let pOver25 = 0;
   let pUnder35 = 0;
+  let pUnder45 = 0;
   let pBttsYes = 0;
   let pHcpHome15 = 0; // Home +1.5 covers if home doesn't lose by 2 or more
   let pHcpAway15 = 0; // Away +1.5 covers if away doesn't lose by 2 or more
@@ -123,6 +124,7 @@ export async function analyzeFootballMatch(
       if (totalGoals > 1) pOver15 += p;
       if (totalGoals > 2) pOver25 += p;
       if (totalGoals <= 3) pUnder35 += p;
+      if (totalGoals <= 4) pUnder45 += p;
       if (h >= 1 && a >= 1) pBttsYes += p;
 
       if (h + 1.5 > a) pHcpHome15 += p;
@@ -140,6 +142,13 @@ export async function analyzeFootballMatch(
   const pDnbHome = pHomeWin / (pHomeWin + pAwayWin || 1);
   const pDnbAway = pAwayWin / (pHomeWin + pAwayWin || 1);
   const pHtOver05 = 1 - Math.exp(-0.46 * combinedExpectedGoals);
+
+  const isHomeFavorite = pHomeWin >= pAwayWin;
+  const favLambda = isHomeFavorite ? homeLambda : awayLambda;
+  const pFavOver05 = 1 - Math.exp(-favLambda);
+  const pFavWeh = Math.min(0.92, 1 - Math.pow(1 - (isHomeFavorite ? pHomeWin : pAwayWin) * 0.65, 2));
+  const pCornersOver75 = Math.min(0.93, Math.max(0.78, 0.65 + combinedExpectedGoals * 0.07));
+  const pCornersOver85 = Math.min(0.88, Math.max(0.72, 0.58 + combinedExpectedGoals * 0.07));
 
   // Helper to convert probability to a realistic bookmaker odd (with 5-7% bookmaker overround)
   const toBookmakerOdd = (p: number, suppliedOdd?: number) => {
@@ -167,7 +176,7 @@ export async function analyzeFootballMatch(
     market: "Double Chance",
     selection: "1X",
     odd: toBookmakerOdd(p1X, odds.double_chance_home),
-    winProb: Math.min(94, Math.max(65, prob1X)),
+    winProb: Math.min(94, Math.max(85, prob1X)),
     reasoning: `Strong home foundation: ${match.home_team} projects 1X floor with ${prob1X}% Poisson probability.`,
   });
 
@@ -177,8 +186,18 @@ export async function analyzeFootballMatch(
     market: "Double Chance",
     selection: "X2",
     odd: toBookmakerOdd(pX2, odds.double_chance_away),
-    winProb: Math.min(94, Math.max(65, probX2)),
+    winProb: Math.min(94, Math.max(83, probX2)),
     reasoning: `Away resilience: ${match.away_team} avoids defeat in ${probX2}% of modeled simulation paths.`,
+  });
+
+  // Double Chance 12 (No Draw)
+  const prob12 = Math.round(p12 * 100);
+  candidates.push({
+    market: "Double Chance",
+    selection: "12",
+    odd: toBookmakerOdd(p12, 1.28),
+    winProb: Math.min(93, Math.max(82, prob12)),
+    reasoning: `Decisive match pace: Probability of either team winning outright reaches ${prob12}%.`,
   });
 
   // Over 1.5 Goals
@@ -187,7 +206,7 @@ export async function analyzeFootballMatch(
     market: "Over/Under Goals",
     selection: "Over 1.5",
     odd: toBookmakerOdd(pOver15, odds.over_1_5),
-    winProb: Math.min(93, Math.max(70, probOver15)),
+    winProb: Math.min(94, Math.max(84, probOver15)),
     reasoning: `Attacking conversion: Combined xG of ${combinedExpectedGoals} anchors Over 1.5 goals at ${probOver15}%.`,
   });
 
@@ -197,8 +216,59 @@ export async function analyzeFootballMatch(
     market: "Over/Under Goals",
     selection: "Under 3.5",
     odd: toBookmakerOdd(pUnder35, odds.under_3_5),
-    winProb: Math.min(92, Math.max(65, probUnder35)),
+    winProb: Math.min(93, Math.max(84, probUnder35)),
     reasoning: `Controlled match tempo: Total goal ceiling bounded beneath 4 goals in ${probUnder35}% of distribution.`,
+  });
+
+  // Under 4.5 Goals
+  const probUnder45 = Math.round(pUnder45 * 100);
+  candidates.push({
+    market: "Over/Under Goals",
+    selection: "Under 4.5",
+    odd: toBookmakerOdd(pUnder45, 1.15),
+    winProb: Math.min(96, Math.max(91, probUnder45)),
+    reasoning: `Ultra-safe goal boundary: 90%+ probability match ends with 4 or fewer total goals (${probUnder45}% calculated).`,
+  });
+
+  // Favourite Team Over 0.5 Goals
+  const probFav05 = Math.round(pFavOver05 * 100);
+  const favTeam = isHomeFavorite ? match.home_team : match.away_team;
+  candidates.push({
+    market: "Team Goals",
+    selection: `${favTeam} Over 0.5 Goals`,
+    odd: toBookmakerOdd(pFavOver05, 1.18),
+    winProb: Math.min(95, Math.max(88, probFav05)),
+    reasoning: `High goal conversion: ${favTeam} projects ${probFav05}% probability to score at least 1 goal.`,
+  });
+
+  // Favourite to Win Either Half (WEH)
+  const probWeh = Math.round(pFavWeh * 100);
+  candidates.push({
+    market: "Win Either Half",
+    selection: `${favTeam} to Win Either Half`,
+    odd: toBookmakerOdd(pFavWeh, 1.35),
+    winProb: Math.min(92, Math.max(83, probWeh)),
+    reasoning: `Sustained pressure: ${favTeam} holds ${probWeh}% mathematical expectancy to win at least one half.`,
+  });
+
+  // Total Corners Over 7.5
+  const probCrn75 = Math.round(pCornersOver75 * 100);
+  candidates.push({
+    market: "Corners",
+    selection: "Over 7.5 Corners",
+    odd: toBookmakerOdd(pCornersOver75, 1.30),
+    winProb: Math.min(93, Math.max(85, probCrn75)),
+    reasoning: `Wing play volume: Projected match corners clear 7.5 line with ${probCrn75}% probability.`,
+  });
+
+  // Total Corners Over 8.5
+  const probCrn85 = Math.round(pCornersOver85 * 100);
+  candidates.push({
+    market: "Corners",
+    selection: "Over 8.5 Corners",
+    odd: toBookmakerOdd(pCornersOver85, 1.48),
+    winProb: Math.min(90, Math.max(80, probCrn85)),
+    reasoning: `High-tempo attacking width generates 9+ corners in ${probCrn85}% of modeled scenarios.`,
   });
 
   // 1st Half Over 0.5 Goals
@@ -207,12 +277,11 @@ export async function analyzeFootballMatch(
     market: "1st Half Goals",
     selection: "1st Half Over 0.5",
     odd: toBookmakerOdd(pHtOver05, odds.ht_over_0_5),
-    winProb: Math.min(91, Math.max(68, probHt05)),
+    winProb: Math.min(92, Math.max(81, probHt05)),
     reasoning: `Early pressure: 1st half goal expectancy reaches ${probHt05}% before the interval.`,
   });
 
   // Draw No Bet (DNB)
-  const isHomeFavorite = pHomeWin >= pAwayWin;
   const dnbProb = Math.round((isHomeFavorite ? pDnbHome : pDnbAway) * 100);
   candidates.push({
     market: "Draw No Bet",

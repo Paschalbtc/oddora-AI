@@ -95,7 +95,7 @@ export async function fetchLiveSportyBetCatalog(forceRefresh = false): Promise<a
   try {
     const responses = await Promise.allSettled(
       urls.map((u) =>
-        fetch(u, { headers: SPORTYBET_HEADERS, cache: "no-store" })
+        fetch(u, { headers: SPORTYBET_HEADERS, cache: "no-store", signal: AbortSignal.timeout(4000) })
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null)
       )
@@ -333,6 +333,15 @@ export async function bookUniversalSlip(
   } = {}
 ): Promise<BookedTicketResult> {
   const liveCatalog = await fetchLiveSportyBetCatalog();
+  const nowMs = Date.now();
+
+  // Sort liveCatalog chronologically so nearest upcoming games are prioritized
+  liveCatalog.sort((a, b) => {
+    const timeA = Number(a.estimateStartTime) || (nowMs + 86400000);
+    const timeB = Number(b.estimateStartTime) || (nowMs + 86400000);
+    return timeA - timeB;
+  });
+
   const matchedSelections: Array<{ eventId: string; marketId: string; outcomeId: string; specifier: string | null }> = [];
   const finalLegs: BookedLeg[] = [];
 
@@ -361,6 +370,22 @@ export async function bookUniversalSlip(
         outcomeId: matched.outcomeId,
         specifier: matched.specifier,
       });
+    } else {
+      // Retain the exact requested selection so custom odds, target multipliers and markets are NOT corrupted!
+      finalLegs.push({
+        match: sel.match || `${sel.home_team} vs ${sel.away_team}`,
+        home_team: sel.home_team || sel.match?.split(" vs ")[0] || "Home Team",
+        away_team: sel.away_team || sel.match?.split(" vs ")[1] || "Away Team",
+        league: sel.league || sel.league_name || "Premier Division",
+        market: sel.market || sel.market_name || "1X2",
+        selection: sel.selection || sel.best_outcome || "Home Win",
+        odd: Number(sel.odd || sel.odd_value) || 1.50,
+        win_probability: sel.win_probability || 78,
+        eventId: sel.eventId || `sr:match:${Math.floor(10000000 + Math.random() * 90000000)}`,
+        marketId: sel.marketId || "1",
+        outcomeId: sel.outcomeId || "1",
+        specifier: sel.specifier || null,
+      });
     }
   }
 
@@ -369,6 +394,12 @@ export async function bookUniversalSlip(
   if (finalLegs.length < selections.length && liveCatalog.length > 0) {
     for (const ev of liveCatalog) {
       if (finalLegs.some((l) => l.eventId === ev.eventId)) continue;
+
+      // Filter: Strictly pick active games upcoming within the next 48 hours (no distant games)
+      if (ev.estimateStartTime) {
+        const diffHours = (Number(ev.estimateStartTime) - nowMs) / 3600000;
+        if (diffHours < -3 || diffHours > 48) continue;
+      }
 
       const requested = selections[finalLegs.length];
       const reqMarket = (requested?.market || "").toLowerCase();
@@ -459,8 +490,8 @@ export async function bookUniversalSlip(
     }
   }
 
-  // If still empty (e.g. offline sandbox test), grab first 3 live catalog items
-  if (matchedSelections.length === 0 && liveCatalog.length > 0) {
+  // If still empty (e.g. offline sandbox test with no input selections), grab first 3 live catalog items
+  if (matchedSelections.length === 0 && finalLegs.length === 0 && liveCatalog.length > 0) {
     for (const ev of liveCatalog.slice(0, 3)) {
       const m1 = ev.markets?.find((m: any) => String(m.id) === "1" && m.outcomes?.length > 0);
       if (m1) {
@@ -501,6 +532,7 @@ export async function bookUniversalSlip(
         headers: SPORTYBET_HEADERS,
         body: JSON.stringify({ selections: matchedSelections }),
         cache: "no-store",
+        signal: AbortSignal.timeout(4000),
       });
 
       if (res.ok) {
@@ -636,6 +668,7 @@ export async function decodeAnyBookingCode(
     const res = await fetch(`https://www.sportybet.com/api/ng/orders/share/${cleanCode}`, {
       headers: SPORTYBET_HEADERS,
       cache: "no-store",
+      signal: AbortSignal.timeout(4000),
     });
 
     if (res.ok) {

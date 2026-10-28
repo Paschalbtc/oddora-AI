@@ -13,8 +13,10 @@ import {
   Crown,
   RefreshCw,
   ExternalLink,
+  Calendar,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
+import { getOutcomesForSport } from "@/lib/highProbabilityOutcomes";
 
 export interface SlipBuilderTabProps {
   currentTier: UserTier;
@@ -26,6 +28,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const [sportType, setSportType] = useState<string>("all");
+  const [dateHorizon, setDateHorizon] = useState<"today" | "14_days" | "30_days">("today");
   const [matchCountMode, setMatchCountMode] = useState<"AUTO" | "CUSTOM">("AUTO");
   const [customMatchCount, setCustomMatchCount] = useState<number>(5);
   const [targetOdds, setTargetOdds] = useState<string>("10");
@@ -38,26 +41,12 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const isProOrPremium = currentTier === "PRO" || currentTier === "PREMIUM";
 
-  const freeMarkets = [
-    { id: "double chance", label: "Double Chance (1X / X2)" },
-    { id: "handicap", label: "Handicap (+1.5 Cushion)" },
-    { id: "over 1.5", label: "Over 1.5 Goals" },
-    { id: "dnb", label: "Draw No Bet (DNB)" },
-    { id: "1x2", label: "1X2 (Straight Win)" },
-  ];
-
-  const advancedMarkets = [
-    { id: "over 2.5", label: "Over 2.5 Goals", tier: "PRO" },
-    { id: "under 3.5", label: "Under 3.5 Goals", tier: "PRO" },
-    { id: "btts", label: "Both Teams To Score (GG)", tier: "PRO" },
-    { id: "1st half", label: "1st Half Over 0.5", tier: "PRO" },
-    { id: "total points", label: "Basketball Total Points", tier: "PRO" },
-    { id: "point spread", label: "Basketball Point Spread", tier: "PREMIUM" },
-    { id: "total sets", label: "Volleyball Total Sets", tier: "PRO" },
-    { id: "set handicap", label: "Volleyball Set Handicap (+1.5)", tier: "PRO" },
-    { id: "total games", label: "Tennis Total Games", tier: "PREMIUM" },
-    { id: "game handicap", label: "Tennis Game Handicap (+3.5)", tier: "PREMIUM" },
-  ];
+  // Strictly isolated betting markets for the selected sport category
+  const currentSportOutcomes = getOutcomesForSport(sportType);
+  const freeMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "FREE");
+  const advancedMarkets = currentSportOutcomes.filter(
+    (o) => o.tierAccess === "PRO" || o.tierAccess === "PREMIUM"
+  );
 
   const quickOddsPresets = [
     { label: "2x", val: 2 },
@@ -108,6 +97,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           match_count_mode: matchCountMode,
           custom_match_count: customMatchCount,
           target_odds: finalOdds,
+          date_horizon: dateHorizon,
           bookmaker,
           user_tier: currentTier,
         }),
@@ -248,25 +238,66 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           </div>
         </div>
 
-        {/* Step 2: Sport & Match Count Selector */}
+        {/* Step 2: Match Calendar Horizon */}
+        <div className="space-y-2 pt-4 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Step 2: Match Calendar Horizon</span>
+            </label>
+            <span className="text-[11px] font-mono text-emerald-400 font-bold">
+              {dateHorizon === "today"
+                ? "Today's Games Only"
+                : dateHorizon === "14_days"
+                ? "Next 14 Days"
+                : "Next 30 Days"}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "today", label: "Today's Games", sub: "Live / Today Only" },
+              { id: "14_days", label: "Next 14 Days", sub: "2-Week Horizon" },
+              { id: "30_days", label: "Next 30 Days", sub: "1-Month Horizon" },
+            ].map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setDateHorizon(h.id as any)}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition border text-left ${
+                  dateHorizon === h.id
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm"
+                    : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
+                }`}
+              >
+                <div className="font-black">{h.label}</div>
+                <div className="text-[10px] text-slate-500 font-mono">{h.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 3: Sport & Match Count Selector */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/10">
           {/* Sport Selector */}
           <div className="space-y-2">
             <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-              Step 2: Sport Category
+              Step 3: Sport Category
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 { id: "all", label: "All Sports" },
                 { id: "football", label: "⚽ Football" },
                 { id: "basketball", label: "🏀 Basketball" },
+                { id: "table_tennis", label: "🏓 Table Tennis" },
                 { id: "volleyball", label: "🏐 Volleyball" },
-                { id: "tennis", label: "🎾 Tennis" },
               ].map((s) => (
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setSportType(s.id)}
+                  onClick={() => {
+                    setSportType(s.id);
+                    setSelectedMarkets(["all"]);
+                  }}
                   className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
                     sportType === s.id
                       ? "bg-white/[0.1] text-white border-white/20 font-black"
@@ -283,7 +314,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-                Step 3: Match Count Mode
+                Step 4: Match Count Mode
               </label>
               <span className="text-[11px] font-mono text-emerald-400 font-bold">
                 Max 50 Games
@@ -354,11 +385,18 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           </div>
         </div>
 
-        {/* Step 4: Allowed Markets */}
+        {/* Step 5: Allowed Betting Markets (Isolated strictly to selected sport) */}
         <div className="space-y-3 pt-4 border-t border-white/10">
-          <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-            Step 4: Allowed Betting Markets
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+              Step 5: Allowed Betting Markets ({sportType === "all" ? "All Sports" : sportType.replace("_", " ").toUpperCase()})
+            </label>
+            <span className="text-[11px] font-mono text-slate-400">
+              {selectedMarkets.includes("all")
+                ? "All markets active"
+                : `${selectedMarkets.length} selected`}
+            </span>
+          </div>
 
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
@@ -388,43 +426,50 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     }`}
                   >
                     {isSelected && "✓ "}
-                    {m.label}
+                    {m.outcomeName} ({m.shortCode})
                   </button>
                 );
               })}
             </div>
 
             {/* Advanced Pro/Premium Markets */}
-            <div className="text-[11px] font-mono text-amber-400 pt-2 flex items-center gap-1">
-              <Crown className="w-3 h-3" />
-              <span>Advanced Quantitative Markets (Pro & Premium)</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {advancedMarkets.map((m) => {
-                const isSelected = selectedMarkets.includes(m.id);
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => toggleMarket(m.id, true)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border flex items-center gap-1.5 ${
-                      isSelected && isProOrPremium
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
-                        : !isProOrPremium
-                        ? "bg-white/[0.02] text-slate-500 border-white/5 hover:text-slate-300"
-                        : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
-                    }`}
-                  >
-                    {!isProOrPremium ? (
-                      <Lock className="w-3 h-3 text-amber-400" />
-                    ) : isSelected ? (
-                      <span>✓ </span>
-                    ) : null}
-                    <span>{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {advancedMarkets.length > 0 && (
+              <>
+                <div className="text-[11px] font-mono text-amber-400 pt-2 flex items-center gap-1">
+                  <Crown className="w-3 h-3" />
+                  <span>Advanced Quantitative Markets (Pro & Premium)</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {advancedMarkets.map((m) => {
+                    const isSelected = selectedMarkets.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleMarket(m.id, true)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border flex items-center gap-1.5 ${
+                          isSelected && isProOrPremium
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
+                            : !isProOrPremium
+                            ? "bg-white/[0.02] text-slate-500 border-white/5 hover:text-slate-300"
+                            : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        {!isProOrPremium ? (
+                          <Lock className="w-3 h-3 text-amber-400" />
+                        ) : isSelected ? (
+                          <span>✓ </span>
+                        ) : null}
+                        <span>{m.outcomeName} ({m.shortCode})</span>
+                        <span className="text-[10px] font-mono text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">
+                          {m.tierAccess}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

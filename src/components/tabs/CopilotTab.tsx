@@ -39,7 +39,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
     {
       sender: "bot",
       text: "👋 Welcome to Oddora AI Copilot! I am connected to all 4 Sport Brains and Product Engines. You can ask me questions about betting markets, command me to solve custom slips (e.g. 'Build 10 odds slip'), or ask me to edit or split your SportyBet/Bet9ja booking codes. How can I assist you today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: "Today",
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -69,7 +69,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
     const userMsg: Message = {
       sender: "user",
       text,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: "Just now",
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -88,7 +88,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
         text: json.reply || "I have processed your request.",
         generated_slip: json.generated_slip,
         edited_slip: json.edited_slip,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: "Just now",
       };
 
       setMessages((prev) => [...prev, botMsg]);
@@ -98,7 +98,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
         {
           sender: "bot",
           text: "Connection error. Please try asking again.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timestamp: "Just now",
         },
       ]);
     } finally {

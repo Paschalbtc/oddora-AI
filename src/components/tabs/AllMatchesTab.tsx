@@ -136,7 +136,8 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
 
   const handleCopyPrediction = (m: any) => {
     const key = m.id || m.external_fixture_id;
-    const text = `${m.home_team} vs ${m.away_team}: ${m.selection_label || m.best_outcome} @ ${Number(
+    const outcomeText = m.selection_label || m.best_outcome || "Best Pick";
+    const text = `${m.home_team || "Home"} vs ${m.away_team || "Away"}: ${outcomeText} @ ${Number(
       m.odd_value || 1.45
     ).toFixed(2)}`;
     navigator.clipboard.writeText(text);
@@ -361,7 +362,9 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                 {leagueMatches.map((m, idx) => {
                   const isLocked =
                     currentTier === "FREE" &&
-                    (m.best_outcome.includes("Locked") || !m.is_free_preview);
+                    (!m.is_free_preview ||
+                      (typeof m.best_outcome === "string" &&
+                        m.best_outcome.includes("Locked")));
 
                   const matchKey = m.id || m.external_fixture_id || `m_${idx}`;
                   const isAdded = !!addedIds[matchKey];
@@ -384,6 +387,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                             {formatKickoff(m.kickoff_time)}
                           </span>
                           <span
+                            suppressHydrationWarning
                             className={`text-[9px] font-mono uppercase font-black block ${
                               selectedDate < todayStr
                                 ? "text-slate-400"
@@ -468,7 +472,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                             {/* AI Chosen Outcome */}
                             <div className="text-left md:text-right">
                               <span className="font-black text-emerald-400 text-xs sm:text-sm font-mono block">
-                                {m.selection_label || m.best_outcome}
+                                {m.selection_label || m.best_outcome || "High Probability Pick"}
                               </span>
                               <span className="text-[10px] text-slate-400 block truncate max-w-[140px]">
                                 {m.market_name || "Match Winner"}

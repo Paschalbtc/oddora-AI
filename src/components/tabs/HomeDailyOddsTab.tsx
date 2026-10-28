@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   ArrowRight,
   BookOpen,
+  RefreshCw,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 
@@ -367,7 +368,29 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
 
         {/* Slips Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {slips.map((slip) => {
+          {isLoading ? (
+            <div className="col-span-1 md:col-span-2 p-12 text-center rounded-3xl bg-[#11161F] border border-white/10 flex flex-col items-center justify-center gap-3 shadow-lg">
+              <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-mono text-slate-400">Loading today's auto-booked accumulators & booking codes...</span>
+            </div>
+          ) : slips.length === 0 ? (
+            <div className="col-span-1 md:col-span-2 p-10 text-center rounded-3xl bg-[#11161F] border border-white/10 text-slate-400 text-xs space-y-3 shadow-lg">
+              <Sparkles className="w-8 h-8 text-amber-400 mx-auto" />
+              <p className="font-bold text-white text-sm">Accumulator Slips Generating</p>
+              <p className="text-slate-400 max-w-md mx-auto">
+                Syncing today's high-probability accumulators. Click below to generate fresh tickets:
+              </p>
+              <button
+                type="button"
+                onClick={fetchSlips}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Slips</span>
+              </button>
+            </div>
+          ) : (
+            slips.map((slip) => {
             const isBanker = slip.slip_type === "BANKER_2X";
             const isOver25Special = slip.slip_type === "OVER_2_5_SPECIAL";
             const isLocked =
@@ -609,7 +632,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </section>
     </div>

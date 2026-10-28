@@ -161,3 +161,4 @@ export async function getLatestResultsSummary(): Promise<ResultsSummaryRecord> {
 
   return data;
 }
+

@@ -100,3 +100,4 @@ VALUES
     ('NBA Pace & High Efficiency', 'basketball', 'Total Points', 1.10, 68.0, 'Over 220.5 points preferred when both teams rank top 10 in offensive pace'),
     ('Volleyball Dominant Service', 'volleyball', 'Match Winner', 1.12, 75.0, 'Straight win preferred when team has ace-to-error ratio > 1.8')
 ON CONFLICT DO NOTHING;
+

@@ -369,3 +369,4 @@ function getDynamicDecodedLegs(code: string): DecodedLeg[] {
   }
   return legs;
 }
+

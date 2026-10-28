@@ -66,3 +66,4 @@ export async function getActiveDirectives(sport?: SportType): Promise<AIDirectiv
     return _cachedDirectives.data || [];
   }
 }
+

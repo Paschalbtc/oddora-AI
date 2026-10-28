@@ -40,3 +40,4 @@ export function getSupabaseClient(): SupabaseClient {
   }
   return _supabaseClient;
 }
+

@@ -328,9 +328,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
               const sportyUrl =
                 slip.sporty_url ||
                 (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
-              const bet9jaUrl =
-                slip.bet9ja_url ||
-                (bet9jaCode ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}` : "");
+              const bet9jaUrl = "https://sports.bet9ja.com";
 
               return (
                 <div
@@ -379,18 +377,15 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                         <ExternalLink className="w-3 h-3 ml-0.5" />
                       </a>
                     )}
-                    {bet9jaUrl && (
-                      <a
-                        href={bet9jaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
-                      >
-                        <Zap className="w-3 h-3" />
-                        <span>Bet9ja</span>
-                        <ExternalLink className="w-3 h-3 ml-0.5" />
-                      </a>
-                    )}
+                    <a
+                      href="https://sports.bet9ja.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
+                    >
+                      <span>🟢 Open Bet9ja</span>
+                      <ExternalLink className="w-3 h-3 ml-0.5" />
+                    </a>
                   </div>
 
                   {/* Surviving legs preview */}

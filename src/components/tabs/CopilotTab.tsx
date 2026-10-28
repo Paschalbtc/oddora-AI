@@ -229,21 +229,15 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}
-                      {msg.generated_slip.bet9ja_code && (
-                        <a
-                          href={
-                            msg.generated_slip.bet9ja_url ||
-                            `https://sports.bet9ja.com/mobile/coupon?couponCode=${msg.generated_slip.bet9ja_code}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="py-1.5 px-2.5 rounded-lg bg-[#008234] hover:bg-emerald-700 text-white font-bold text-[11px] text-center flex items-center justify-center gap-1 transition"
-                        >
-                          <Zap className="w-3 h-3" />
-                          <span>Load Bet9ja</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      )}
+                      <a
+                        href="https://sports.bet9ja.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1.5 px-2.5 rounded-lg bg-[#008234] hover:bg-emerald-700 text-white font-bold text-[11px] text-center flex items-center justify-center gap-1 transition"
+                      >
+                        <span>🟢 Open Bet9ja</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
                     </div>
 
                     <div className="space-y-1 max-h-48 overflow-y-auto pt-1">

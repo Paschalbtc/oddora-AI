@@ -62,6 +62,24 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
+  const handleCopyBet9ja = () => {
+    if (isLocked) {
+      onOpenUpgradeModal();
+      return;
+    }
+    const lines = [
+      `Oddora AI - Over 2.5 Goals Master Ticket (${specialSlip?.actual_odds || 50.82}x Combined Odds)`,
+      ...legs.map(
+        (l: any, i: number) =>
+          `${i + 1}. ${l.match || `${l.home_team} vs ${l.away_team}`} | Over 2.5 Goals @ ${Number(l.odd || 1.75).toFixed(2)}`
+      ),
+      "Place on Bet9ja: https://sports.bet9ja.com",
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedCode("b9_over25");
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
   const isLocked = currentTier === "FREE";
   const legs = specialSlip?.legs || [];
   const sportyCode = specialSlip?.sporty_code || "VIP_ONLY";
@@ -71,11 +89,7 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
     (sportyCode && !sportyCode.includes("VIP")
       ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}`
       : "https://www.sportybet.com/ng/");
-  const bet9jaUrl =
-    specialSlip?.bet9ja_url ||
-    (bet9jaCode && !bet9jaCode.includes("VIP")
-      ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}`
-      : "https://sports.bet9ja.com/");
+  const bet9jaUrl = "https://sports.bet9ja.com";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -196,24 +210,24 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                   </a>
                 </div>
 
-                {/* Bet9ja Box */}
+                {/* Bet9ja Box (Formatted Match Selections) */}
                 <div className="p-3.5 rounded-2xl bg-[#008234]/15 border border-[#008234]/40 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-emerald-300 font-mono block">
-                        Bet9ja Booking Code:
+                        Bet9ja Slip Selections ({legs.length} Matches)
                       </span>
-                      <span className="text-base font-black font-mono text-white tracking-wider">
-                        {bet9jaCode}
+                      <span className="text-sm font-bold font-mono text-white">
+                        📋 Copy 7 Over 2.5 Games
                       </span>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => handleCopy(bet9jaCode)}
+                      onClick={handleCopyBet9ja}
                       className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono text-xs font-bold flex items-center gap-1.5 transition"
                     >
-                      {copiedCode === bet9jaCode ? (
+                      {copiedCode === "b9_over25" ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-400" />
                           <span>Copied</span>
@@ -227,15 +241,14 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                     </button>
                   </div>
 
-                  {/* 1-Click Load Bet9ja Button */}
+                  {/* Open Bet9ja Button */}
                   <a
-                    href={bet9jaUrl}
+                    href="https://sports.bet9ja.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
                   >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>🟢 Load on Bet9ja (1-Click)</span>
+                    <span>🟢 Open Bet9ja Sportsbook</span>
                     <ExternalLink className="w-3 h-3 ml-1" />
                   </a>
                 </div>

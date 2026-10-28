@@ -89,6 +89,26 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
+  const formatBet9jaSlipText = (slip: any) => {
+    const legs = slip.legs || [];
+    const lines = [
+      `Oddora AI - ${slip.slip_title || "Slip"} (${slip.actual_odds}x Combined Odds)`,
+      ...legs.map(
+        (l: any, i: number) =>
+          `${i + 1}. ${l.match || `${l.home_team} vs ${l.away_team}`} | Pick: ${l.selection} @ ${Number(l.odd || 1.5).toFixed(2)}`
+      ),
+      "Place on Bet9ja: https://sports.bet9ja.com",
+    ];
+    return lines.join("\n");
+  };
+
+  const handleCopyBet9ja = (slip: any) => {
+    const text = formatBet9jaSlipText(slip);
+    navigator.clipboard.writeText(text);
+    setCopiedCode("b9_" + slip.slip_type);
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedSlips((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -269,7 +289,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             const isExpanded = !!expandedSlips[slip.slip_type];
             const legs = slip.legs || [];
             const sportyUrl = slip.share_url || `http://www.sportybet.com/ng/?shareCode=${slip.sporty_code}`;
-            const bet9jaUrl = slip.bet9ja_url || `https://sports.bet9ja.com/mobile/coupon?couponCode=${slip.bet9ja_code}`;
+            const bet9jaUrl = "https://sports.bet9ja.com";
 
             return (
               <div
@@ -412,15 +432,17 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {/* SportyBet Code Card */}
+                        {/* SportyBet Code Card (1-Click Loadable) */}
                         <div className="p-2.5 rounded-2xl bg-[#E51D25]/15 hover:bg-[#E51D25]/25 border border-[#E51D25]/40 transition flex items-center justify-between gap-2">
                           <button
                             type="button"
                             onClick={() => handleCopy(slip.sporty_code)}
                             className="flex-1 text-left"
-                            title="Click to copy code"
+                            title="Click to copy SportyBet code"
                           >
-                            <span className="text-[10px] text-red-300 font-mono block">SportyBet Code</span>
+                            <span className="text-[10px] text-red-300 font-mono block">
+                              SportyBet (⚡ 1-Click Load)
+                            </span>
                             <span className="font-mono font-black text-white text-sm tracking-wider">
                               {slip.sporty_code}
                             </span>
@@ -443,49 +465,53 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                               href={sportyUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 rounded-lg bg-[#E51D25] hover:bg-[#c91820] text-white transition"
+                              className="py-1 px-2 rounded-lg bg-[#E51D25] hover:bg-[#c91820] text-white text-[11px] font-bold flex items-center gap-1 transition shadow-sm"
                               title="Load directly in SportyBet"
                             >
-                              <ArrowUpRight className="w-3.5 h-3.5" />
+                              <span>Load</span>
+                              <ArrowUpRight className="w-3 h-3" />
                             </a>
                           </div>
                         </div>
 
-                        {/* Bet9ja Code Card */}
+                        {/* Bet9ja Slip Card (1-Click Formatted Matches) */}
                         <div className="p-2.5 rounded-2xl bg-[#008234]/15 hover:bg-[#008234]/25 border border-[#008234]/40 transition flex items-center justify-between gap-2">
                           <button
                             type="button"
-                            onClick={() => handleCopy(slip.bet9ja_code)}
+                            onClick={() => handleCopyBet9ja(slip)}
                             className="flex-1 text-left"
-                            title="Click to copy code"
+                            title="Click to copy formatted Bet9ja match selections"
                           >
-                            <span className="text-[10px] text-emerald-300 font-mono block">Bet9ja Code</span>
-                            <span className="font-mono font-black text-white text-sm tracking-wider">
-                              {slip.bet9ja_code}
+                            <span className="text-[10px] text-emerald-300 font-mono block">
+                              Bet9ja Slip Selections
+                            </span>
+                            <span className="font-mono font-black text-white text-xs tracking-wide flex items-center gap-1">
+                              <span>📋 Copy {legs.length} Matches</span>
                             </span>
                           </button>
 
                           <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
-                              onClick={() => handleCopy(slip.bet9ja_code)}
+                              onClick={() => handleCopyBet9ja(slip)}
                               className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
-                              title="Copy code"
+                              title="Copy formatted selections for Bet9ja"
                             >
-                              {copiedCode === slip.bet9ja_code ? (
+                              {copiedCode === "b9_" + slip.slip_type ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-400" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5 text-emerald-300" />
                               )}
                             </button>
                             <a
-                              href={bet9jaUrl}
+                              href="https://sports.bet9ja.com"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 rounded-lg bg-[#008234] hover:bg-[#006e2b] text-white transition"
-                              title="Load directly in Bet9ja"
+                              className="py-1 px-2 rounded-lg bg-[#008234] hover:bg-[#006e2b] text-white text-[11px] font-bold flex items-center gap-1 transition shadow-sm"
+                              title="Open Bet9ja Sportsbook"
                             >
-                              <ArrowUpRight className="w-3.5 h-3.5" />
+                              <span>Open</span>
+                              <ArrowUpRight className="w-3 h-3" />
                             </a>
                           </div>
                         </div>

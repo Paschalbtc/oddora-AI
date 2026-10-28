@@ -315,7 +315,7 @@ export async function getDailySlipsForUI(
       bet9ja_code: bet9jaCode,
       share_url: `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
       sporty_url: `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
-      bet9ja_url: `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}`,
+      bet9ja_url: "https://sports.bet9ja.com",
       legs: Array.isArray(r.legs_json) ? r.legs_json : [],
       legs_json: r.legs_json,
       is_locked_for_tier: requiredTier,

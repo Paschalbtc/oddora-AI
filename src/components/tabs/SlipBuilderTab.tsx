@@ -128,14 +128,28 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
+  const handleCopyBet9ja = () => {
+    if (!resultSlip) return;
+    const legs = resultSlip.legs || [];
+    const lines = [
+      `Oddora AI - Solved Accumulator (${resultSlip.actual_combined_odds}x Odds)`,
+      ...legs.map(
+        (l: any, i: number) =>
+          `${i + 1}. ${l.match} | Pick: ${l.selection} @ ${Number(l.odd).toFixed(2)}`
+      ),
+      "Place on Bet9ja: https://sports.bet9ja.com",
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedCode("b9_builder");
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
   const sportyCode = resultSlip?.sporty_code || resultSlip?.booking_code;
   const bet9jaCode = resultSlip?.bet9ja_code;
   const sportyUrl =
     resultSlip?.sporty_url ||
     (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
-  const bet9jaUrl =
-    resultSlip?.bet9ja_url ||
-    (bet9jaCode ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}` : "");
+  const bet9jaUrl = "https://sports.bet9ja.com";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -444,20 +458,18 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 </button>
               )}
 
-              {bet9jaCode && (
-                <button
-                  type="button"
-                  onClick={() => handleCopy(bet9jaCode)}
-                  className="px-3 py-1.5 rounded-xl bg-[#008234]/15 border border-[#008234]/40 text-white font-mono text-xs font-black flex items-center gap-1.5 hover:bg-[#008234]/25 transition"
-                >
-                  <span>Bet9ja: {bet9jaCode}</span>
-                  {copiedCode === bet9jaCode ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5 text-emerald-300" />
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleCopyBet9ja}
+                className="px-3 py-1.5 rounded-xl bg-[#008234]/15 border border-[#008234]/40 text-emerald-300 font-mono text-xs font-bold flex items-center gap-1.5 hover:bg-[#008234]/25 transition"
+              >
+                <span>Bet9ja: Copy Matches</span>
+                {copiedCode === "b9_builder" ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5 text-emerald-300" />
+                )}
+              </button>
             </div>
           </div>
 
@@ -476,18 +488,15 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
               </a>
             )}
 
-            {bet9jaUrl && (
-              <a
-                href={bet9jaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2.5 px-4 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-lg active:scale-98"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>🟢 Load Slip on Bet9ja</span>
-                <ExternalLink className="w-3 h-3 ml-1" />
-              </a>
-            )}
+            <a
+              href="https://sports.bet9ja.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2.5 px-4 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-lg active:scale-98"
+            >
+              <span>🟢 Open Bet9ja Sportsbook</span>
+              <ExternalLink className="w-3 h-3 ml-1" />
+            </a>
           </div>
 
           {/* Legs Breakdown */}

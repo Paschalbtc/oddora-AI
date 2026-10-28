@@ -417,7 +417,7 @@ export async function bookUniversalSlip(
     bet9jaSuffix += bet9jaChars.charAt(Math.floor(Math.random() * bet9jaChars.length));
   }
   const bet9jaCode = `B9J-${bet9jaSuffix}`;
-  const bet9jaUrl = `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}`;
+  const bet9jaUrl = "https://sports.bet9ja.com";
 
   const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
   const todayStr = new Date().toISOString().split("T")[0];
@@ -506,7 +506,7 @@ export async function decodeAnyBookingCode(
         legs_count: cachedSlip.legs_json.length,
         legs: cachedSlip.legs_json,
         share_url: isBet9ja
-          ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${cleanCode}`
+          ? "https://sports.bet9ja.com"
           : `http://www.sportybet.com/ng/?shareCode=${cleanCode}`,
       };
     }
@@ -604,7 +604,7 @@ export async function decodeAnyBookingCode(
       legs_count: mockLegs.length,
       legs: mockLegs,
       share_url: cleanCode.startsWith("B9")
-        ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${cleanCode}`
+        ? "https://sports.bet9ja.com"
         : `http://www.sportybet.com/ng/?shareCode=${cleanCode}`,
     };
   }

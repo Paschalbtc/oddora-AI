@@ -18,6 +18,7 @@ node_modules/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -25,3 +26,4 @@ __pycache__/
 *$py.class
 .venv/
 venv/
+

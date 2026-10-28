@@ -186,6 +186,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
         </div>
       </div>
 
+      {/* Beginner Step-by-Step Helper */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 text-emerald-300 font-bold">
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>How to use: 1. Select target odds (e.g. 5x or 10x). 2. Keep Auto match count. 3. Tap Solve & Book Slip!</span>
+        </div>
+      </div>
+
       {/* Solver Controls Panel */}
       <div className="p-5 sm:p-7 rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl space-y-6">
         {/* Step 1: Target Multiplier / Odds */}

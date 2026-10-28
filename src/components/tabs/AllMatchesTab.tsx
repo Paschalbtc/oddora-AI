@@ -372,26 +372,26 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                               )}
                             </button>
 
-                            {/* Quick Add to Slip Button */}
+                            {/* Quick Add to Slip Button (Fully Visible on Mobile & Desktop) */}
                             <button
                               type="button"
                               onClick={() => handleAdd(m)}
                               title="Add to Slip Builder"
-                              className={`p-2 rounded-xl transition flex items-center gap-1 font-bold text-xs ${
+                              className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-bold text-xs shrink-0 ${
                                 isAdded
-                                  ? "bg-emerald-500 text-black font-black"
+                                  ? "bg-emerald-500 text-black font-black shadow-md"
                                   : "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30"
                               }`}
                             >
                               {isAdded ? (
                                 <>
                                   <Check className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Added!</span>
+                                  <span>Added!</span>
                                 </>
                               ) : (
                                 <>
                                   <Plus className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Add to Slip</span>
+                                  <span>Add to Slip</span>
                                 </>
                               )}
                             </button>

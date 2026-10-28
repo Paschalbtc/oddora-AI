@@ -19,6 +19,8 @@ import {
   ArrowUpRight,
   Radio,
   CheckCircle2,
+  ArrowRight,
+  BookOpen,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 
@@ -162,6 +164,39 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       </div>
 
       {/* =========================================================================
+          BEGINNER QUICK-START ONBOARDING BANNER (Always Visible & Friendly)
+         ========================================================================= */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#11161F] to-[#11161F] border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-black text-white text-sm sm:text-base">
+              New to Oddora AI? Here is how to play today:
+            </h3>
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              1. Check our <strong className="text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
+              <br />
+              2. Tap <strong className="text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-400">"Copy Matches"</strong> to place on Bet9ja.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
+          <button
+            type="button"
+            onClick={() => onNavigateTab("how_it_works")}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition border border-white/10"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Platform Guide</span>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
           1. VERIFIED PERFORMANCE & WIN-RATE TRACKER (From resultsCalculator.ts)
          ========================================================================= */}
       <section className="space-y-3">
@@ -247,6 +282,59 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             </p>
           </div>
         </div>
+      </section>
+
+      {/* =========================================================================
+          QUICK FEATURE SHORTCUTS (Mobile & Desktop Friendly Grid)
+         ========================================================================= */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigateTab("all_matches")}
+          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-emerald-500/40 text-left transition group shadow-md"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+            <Layers className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-black text-white block">All Matches</span>
+          <span className="text-[10px] text-slate-400 block mt-0.5">4 Sports Schedule</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigateTab("slip_builder")}
+          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-emerald-500/40 text-left transition group shadow-md"
+        >
+          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-black text-white block">Slip Builder</span>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Custom Multiplier</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigateTab("over_25")}
+          className="p-3.5 rounded-2xl bg-[#11161F] border border-amber-500/30 hover:border-amber-500/60 text-left transition group shadow-md"
+        >
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+            <Flame className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-black text-white block">Over 2.5 Daily</span>
+          <span className="text-[10px] text-amber-400/90 font-bold block mt-0.5">🔥 7-Game Special</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigateTab("edit_game")}
+          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-cyan-500/40 text-left transition group shadow-md"
+        >
+          <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+            <Zap className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-black text-white block">Edit Game</span>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Split & Prune Slips</span>
+        </button>
       </section>
 
       {/* =========================================================================

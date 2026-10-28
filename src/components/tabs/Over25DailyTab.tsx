@@ -119,6 +119,9 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl mt-1">
                 Selected by the Football Brain when combined team xG and scoring averages exceed 2.85. Auto-booked into verified SportyBet & Bet9ja slips.
               </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium mt-1">
+                <span>💡 Beginner Tip: You win if 3 or more total goals are scored (e.g. 2-1, 3-0, 2-2).</span>
+              </div>
             </div>
 
             <div className="text-left sm:text-right shrink-0">

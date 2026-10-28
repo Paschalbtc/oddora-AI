@@ -177,6 +177,11 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
         </div>
       </div>
 
+      {/* Beginner Explanation */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 text-xs text-cyan-300 font-medium">
+        💡 <strong>How it works:</strong> Paste any booking code from SportyBet or Bet9ja. Our AI will analyze every match, strip away the riskiest legs, or split a long accumulator into safer mini-slips!
+      </div>
+
       {/* Input & Mode Configuration Panel */}
       <div className="p-5 sm:p-7 rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl space-y-6">
         {/* Ticket Code Input Field with Paste helper */}

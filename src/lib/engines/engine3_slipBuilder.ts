@@ -10,12 +10,10 @@
 
 import { getSupabaseAdmin } from "../supabase";
 import {
-  createSportyBetBookingCode,
-  generateBet9jaBookingCode,
   mapMarketToSportyBetIds,
-  SportyBetSelectionPayload,
 } from "../sportybetBridge";
 import { syncTodayAllMatches } from "./engine1_allMatches";
+import { bookUniversalSlip } from "./bookingEngine";
 
 export interface CustomBuilderRequest {
   sport_type?: string; // "football" | "basketball" | "volleyball" | "tennis" | "all"
@@ -128,23 +126,16 @@ export async function buildCustomSlip(
     Math.round(selectedLegs.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
   const accuracy = Math.round((actualOdds / target) * 1000) / 10;
 
-  // 4. Generate real SportyBet & Bet9ja codes via bridge
-  const sportyPayloads: SportyBetSelectionPayload[] = selectedLegs.map((l) => ({
-    eventId: l.eventId,
-    marketId: l.marketId,
-    outcomeId: l.outcomeId,
-    specifier: l.specifier || null,
-  }));
+  // 4. Book authentic, verified live codes via Universal Booking Engine
+  const booked = await bookUniversalSlip(selectedLegs, {
+    slip_category: "CUSTOM_SOLVER",
+    target_odds: target,
+  });
 
-  const sportyShare = await createSportyBetBookingCode(sportyPayloads);
-  const sportyCode = sportyShare?.shareCode || "SB" + Math.floor(1000 + Math.random() * 9000);
-  const bet9jaCode = generateBet9jaBookingCode();
-
+  const sportyCode = booked.sportybet_code;
+  const bet9jaCode = booked.bet9ja_code;
   const primaryCode = bookmaker === "BET9JA" ? bet9jaCode : sportyCode;
-  const shareUrl =
-    bookmaker === "BET9JA"
-      ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}`
-      : sportyShare?.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+  const shareUrl = bookmaker === "BET9JA" ? booked.bet9ja_url : booked.sporty_url;
 
   return {
     bookmaker,
@@ -153,11 +144,11 @@ export async function buildCustomSlip(
     bet9ja_code: bet9jaCode,
     share_url: shareUrl,
     target_odds_requested: target,
-    actual_combined_odds: actualOdds,
+    actual_combined_odds: booked.actual_odds,
     odds_accuracy_ratio: `${accuracy}%`,
     match_count_mode: countMode,
-    legs_count: selectedLegs.length,
-    legs: selectedLegs,
+    legs_count: booked.legs.length,
+    legs: booked.legs,
   };
 }
 

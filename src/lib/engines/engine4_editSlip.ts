@@ -2,22 +2,16 @@
  * Engine 4: 4-Mode Edit Game Engine (src/lib/engines/engine4_editSlip.ts)
  *
  * Responsibilities:
- * 1. Decodes SportyBet or Bet9ja booking code (preserving exact eventId, marketId, outcomeId, specifier).
+ * 1. Decodes SportyBet or Bet9ja booking codes (via live SportyBet API or persistent Supabase registry).
  * 2. Executes 4 distinct pruning & structuring modes:
- *    - Mode 1 (SPLIT_TICKET): Splits ticket into N separate smaller tickets and books codes for each.
+ *    - Mode 1 (SPLIT_TICKET): Splits ticket into N separate smaller tickets with verified booking codes for each.
  *    - Mode 2 (LOWEST_PROBABILITY): Uses Sport Brains to identify & prune the remove_count lowest-probability legs.
  *    - Mode 3 (RANDOM_TRIM): Randomly removes remove_count legs from the accumulator.
  *    - Mode 4 (COMBO_HYBRID): Trims both high-risk big odds and low-value small odds.
- * 3. Returns the edited slip(s) with verified SportyBet & Bet9ja booking codes.
+ * 3. Re-books all surviving and split slips with verified SportyBet & Bet9ja booking codes.
  */
 
-import {
-  decodeSportyBetBookingCode,
-  createSportyBetBookingCode,
-  generateBet9jaBookingCode,
-  DecodedLeg,
-  SportyBetSelectionPayload,
-} from "../sportybetBridge";
+import { decodeAnyBookingCode, bookUniversalSlip, BookedLeg } from "./bookingEngine";
 
 export type EditSlipMode =
   | "SPLIT_TICKET"
@@ -41,8 +35,8 @@ export interface EditedSlipPayload {
   share_url: string;
   total_odds: number;
   legs_count: number;
-  surviving_legs: DecodedLeg[];
-  pruned_legs?: DecodedLeg[];
+  surviving_legs: BookedLeg[];
+  pruned_legs?: BookedLeg[];
 }
 
 export interface EditSlipResponse {
@@ -63,10 +57,10 @@ export async function executeEditSlip(
     throw new Error("Missing booking_code parameter.");
   }
 
-  // 1. Decode original booking code
-  const decoded = await decodeSportyBetBookingCode(code);
-  if (!decoded || !decoded.legs || decoded.legs.length === 0) {
-    throw new Error(`Failed to decode booking code: ${code}`);
+  // 1. Decode original booking code using Universal Booking Engine
+  const decoded = await decodeAnyBookingCode(code, req.bookmaker || "SportyBet");
+  if (decoded.status === "error" || !decoded.legs || decoded.legs.length === 0) {
+    throw new Error(decoded.message || `Failed to decode booking code: ${code}`);
   }
 
   const originalLegs = [...decoded.legs];
@@ -75,9 +69,9 @@ export async function executeEditSlip(
 
   // MODE 1: SPLIT_TICKET
   if (req.mode === "SPLIT_TICKET") {
-    const partsCount = Math.max(2, Math.min(6, Number(req.split_parts) || 2));
+    const partsCount = Math.max(2, Math.min(5, Number(req.split_parts) || 2));
     const chunkSize = Math.ceil(originalLegs.length / partsCount);
-    const splitChunks: DecodedLeg[][] = [];
+    const splitChunks: BookedLeg[][] = [];
 
     for (let i = 0; i < originalLegs.length; i += chunkSize) {
       splitChunks.push(originalLegs.slice(i, i + chunkSize));
@@ -90,23 +84,22 @@ export async function executeEditSlip(
       const chunkOdds =
         Math.round(chunk.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
 
-      const payloads: SportyBetSelectionPayload[] = chunk.map((l) => ({
-        eventId: l.eventId,
-        marketId: l.marketId,
-        outcomeId: l.outcomeId,
-        specifier: l.specifier || null,
-      }));
+      // Book each split chunk with a real verified booking code
+      const bookedChunk = await bookUniversalSlip(chunk, {
+        slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
+      });
 
-      const share = await createSportyBetBookingCode(payloads);
-      const sportyCode = share?.shareCode || `SPLIT${idx + 1}_` + Math.floor(100 + Math.random() * 900);
-      const bet9jaCode = generateBet9jaBookingCode();
+      const sportyCode = bookedChunk.sportybet_code;
+      const bet9jaCode = bookedChunk.bet9ja_code;
+      const primaryCode = req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode;
+      const shareUrl = req.bookmaker === "Bet9ja" ? bookedChunk.bet9ja_url : bookedChunk.sporty_url;
 
       outputSlips.push({
         slip_index: idx + 1,
-        booking_code: req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode,
+        booking_code: primaryCode,
         sporty_code: sportyCode,
         bet9ja_code: bet9jaCode,
-        share_url: share?.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
+        share_url: shareUrl,
         total_odds: chunkOdds,
         legs_count: chunk.length,
         surviving_legs: chunk,
@@ -128,8 +121,8 @@ export async function executeEditSlip(
   const maxRemovable = Math.max(1, originalLegs.length - 2); // Keep at least 2 legs
   const removeCount = Math.min(maxRemovable, Math.max(1, Number(req.remove_count) || 2));
 
-  let surviving: DecodedLeg[] = [];
-  let pruned: DecodedLeg[] = [];
+  let surviving: BookedLeg[] = [];
+  let pruned: BookedLeg[] = [];
 
   if (req.mode === "LOWEST_PROBABILITY") {
     // Mode 2: Sort by risk / implied probability (higher odds = lower win probability)
@@ -139,43 +132,38 @@ export async function executeEditSlip(
     surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
   } else if (req.mode === "RANDOM_TRIM") {
     // Mode 3: Random trim
-    const shuffled = [...originalLegs].sort(() => Math.random() - 0.5);
+    const shuffled = [...originalLegs].sort(() => 0.5 - Math.random());
     pruned = shuffled.slice(0, removeCount);
     const prunedIds = new Set(pruned.map((p) => p.eventId));
     surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
-  } else {
-    // Mode 4: COMBO_HYBRID (Trims highest risk + lowest return outlier)
-    const sortedDesc = [...originalLegs].sort((a, b) => b.odd - a.odd);
-    const halfPrune = Math.ceil(removeCount / 2);
-    const highestRisk = sortedDesc.slice(0, halfPrune);
-
-    const remainingPool = originalLegs.filter(
-      (l) => !highestRisk.some((hr) => hr.eventId === l.eventId)
-    );
-    const randomHalf = remainingPool
-      .sort(() => Math.random() - 0.5)
-      .slice(0, removeCount - halfPrune);
-
-    pruned = [...highestRisk, ...randomHalf];
+  } else if (req.mode === "COMBO_HYBRID") {
+    // Mode 4: Remove both extremes (highest odd trap + lowest odd low-value)
+    const sorted = [...originalLegs].sort((a, b) => b.odd - a.odd);
+    const half = Math.ceil(removeCount / 2);
+    const highest = sorted.slice(0, half);
+    const lowest = sorted.slice(-Math.floor(removeCount / 2));
+    pruned = [...highest, ...lowest];
     const prunedIds = new Set(pruned.map((p) => p.eventId));
     surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
   }
 
-  // Calculate new odds
-  const survivingOdds =
-    Math.round(surviving.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
+  // Ensure surviving has at least 2 legs
+  if (surviving.length < 2) {
+    surviving = originalLegs.slice(0, 2);
+    pruned = originalLegs.slice(2);
+  }
 
-  // Generate new booking code for surviving legs
-  const payloads: SportyBetSelectionPayload[] = surviving.map((l) => ({
-    eventId: l.eventId,
-    marketId: l.marketId,
-    outcomeId: l.outcomeId,
-    specifier: l.specifier || null,
-  }));
+  const newOdds = Math.round(surviving.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
 
-  const share = await createSportyBetBookingCode(payloads);
-  const sportyCode = share?.shareCode || "PRUNED" + Math.floor(1000 + Math.random() * 9000);
-  const bet9jaCode = generateBet9jaBookingCode();
+  // Book the surviving legs into a real booking code
+  const bookedSurviving = await bookUniversalSlip(surviving, {
+    slip_category: "PRUNED_SLIP",
+  });
+
+  const sportyCode = bookedSurviving.sportybet_code;
+  const bet9jaCode = bookedSurviving.bet9ja_code;
+  const primaryCode = req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode;
+  const shareUrl = req.bookmaker === "Bet9ja" ? bookedSurviving.bet9ja_url : bookedSurviving.sporty_url;
 
   return {
     original_code: code,
@@ -185,17 +173,16 @@ export async function executeEditSlip(
     is_split: false,
     slips: [
       {
-        booking_code: req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode,
+        booking_code: primaryCode,
         sporty_code: sportyCode,
         bet9ja_code: bet9jaCode,
-        share_url: share?.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
-        total_odds: survivingOdds,
+        share_url: shareUrl,
+        total_odds: newOdds,
         legs_count: surviving.length,
         surviving_legs: surviving,
         pruned_legs: pruned,
       },
     ],
-    summary_message: `Edited slip: removed ${pruned.length} matches under ${req.mode} mode. Surviving ticket has ${surviving.length} legs @ ${survivingOdds} odds.`,
+    summary_message: `Removed ${pruned.length} risky/redundant games. Surviving ticket re-booked at ${newOdds}x odds with working codes.`,
   };
 }
-

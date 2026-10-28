@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   RefreshCw,
   ExternalLink,
+  ClipboardPaste,
+  Zap,
+  ShieldCheck,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 
@@ -51,21 +54,21 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
     {
       id: "SPLIT_TICKET",
       title: "1. Split Ticket Mode",
-      description: "Splits a long accumulator (e.g. 30–50 games) into multiple balanced tickets with individual booking codes.",
+      description: "Splits a long accumulator into multiple balanced tickets with individual valid booking codes.",
       icon: Split,
       color: "text-cyan-400 border-cyan-500/30",
     },
     {
       id: "LOWEST_PROBABILITY",
       title: "2. Remove Lowest Probability",
-      description: "Uses the Sport Brains to strip away the riskiest legs, protecting your ticket floor.",
+      description: "Uses the Sport Brains to strip away the riskiest legs, protecting your win probability.",
       icon: TrendingDown,
       color: "text-emerald-400 border-emerald-500/30",
     },
     {
       id: "RANDOM_TRIM",
       title: "3. Remove Random Games",
-      description: "Quickly thins out the ticket size randomly while preserving overall structure.",
+      description: "Quickly thins out the ticket size randomly while preserving overall odds balance.",
       icon: Shuffle,
       color: "text-amber-400 border-amber-500/30",
     },
@@ -77,6 +80,17 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
       color: "text-purple-400 border-purple-500/30",
     },
   ];
+
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setBookingCode(text.trim());
+      }
+    } catch {
+      // Browser permissions fallback
+    }
+  };
 
   const handleExecute = async () => {
     if (!bookingCode.trim()) {
@@ -141,9 +155,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
           <button
             type="button"
             onClick={() => setBookmaker("SportyBet")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
               bookmaker === "SportyBet"
-                ? "bg-[#E51D25] text-white shadow-md"
+                ? "bg-[#E51D25] text-white shadow-md font-black"
                 : "text-slate-400 hover:text-white"
             }`}
           >
@@ -152,9 +166,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
           <button
             type="button"
             onClick={() => setBookmaker("Bet9ja")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
               bookmaker === "Bet9ja"
-                ? "bg-[#008234] text-white shadow-md"
+                ? "bg-[#008234] text-white shadow-md font-black"
                 : "text-slate-400 hover:text-white"
             }`}
           >
@@ -163,31 +177,42 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
         </div>
       </div>
 
-      {/* Main Configuration Card */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-[#11161F] border border-white/10 shadow-xl space-y-6">
-        {/* Step 1: Booking Code Input */}
+      {/* Input & Mode Configuration Panel */}
+      <div className="p-5 sm:p-7 rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl space-y-6">
+        {/* Ticket Code Input Field with Paste helper */}
         <div className="space-y-2">
-          <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block">
-            1. Paste {bookmaker} Booking Code
-          </label>
-          <div className="flex gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold uppercase text-slate-300">
+              Input {bookmaker} Booking Code
+            </label>
+            <button
+              type="button"
+              onClick={handlePasteClipboard}
+              className="text-xs font-mono font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+            >
+              <ClipboardPaste className="w-3.5 h-3.5" />
+              <span>Paste from Clipboard</span>
+            </button>
+          </div>
+
+          <div className="relative">
             <input
               type="text"
-              placeholder={`e.g. ${bookmaker === "SportyBet" ? "BC14XYZ" : "B9J88219"}`}
+              placeholder={`Enter or paste your ${bookmaker} booking code (e.g. YK6NTF or B9-XXXX)...`}
               value={bookingCode}
               onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
-              className="flex-1 bg-[#070A0E] border border-white/10 rounded-2xl px-4 py-3 text-sm font-mono font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 tracking-wider"
+              className="w-full bg-[#070A0E] border border-white/10 rounded-2xl py-3.5 px-4 text-sm font-mono font-bold text-white uppercase placeholder:normal-case placeholder-slate-500 focus:outline-none focus:border-emerald-500 shadow-inner"
             />
           </div>
         </div>
 
-        {/* Step 2: 4 Mode Selection */}
-        <div className="space-y-3 pt-3 border-t border-white/10">
-          <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block">
-            2. Choose Editing Mode
+        {/* Mode Selector */}
+        <div className="space-y-3">
+          <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+            Select Modification Mode
           </label>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {editModes.map((mode) => {
               const Icon = mode.icon;
               const isSelected = selectedMode === mode.id;
@@ -196,56 +221,54 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                   key={mode.id}
                   type="button"
                   onClick={() => setSelectedMode(mode.id)}
-                  className={`p-4 rounded-2xl text-left transition border ${
+                  className={`p-4 rounded-2xl border text-left transition ${
                     isSelected
-                      ? `bg-white/[0.06] ${mode.color} shadow-lg ring-1 ring-white/20`
-                      : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04] text-slate-400"
+                      ? "bg-white/[0.08] border-emerald-500/60 shadow-lg"
+                      : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04]"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-4 h-4 text-emerald-400" />
-                    <span className="font-bold text-white text-sm">{mode.title}</span>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Icon className={`w-4 h-4 ${isSelected ? "text-emerald-400" : "text-slate-400"}`} />
+                    <span className="font-bold text-sm text-white">{mode.title}</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                    {mode.description}
-                  </p>
+                  <p className="text-xs text-slate-400">{mode.description}</p>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Step 3: Controls (Split Parts OR Remove Count) */}
-        <div className="pt-3 border-t border-white/10">
+        {/* Dynamic Controls based on Mode */}
+        <div className="pt-2">
           {selectedMode === "SPLIT_TICKET" ? (
             <div className="space-y-2">
-              <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block">
-                3. Number of Split Tickets
+              <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+                Split Into How Many Independent Tickets?
               </label>
-              <div className="flex gap-2">
-                {[2, 3, 4, 5].map((parts) => (
+              <div className="flex items-center gap-2">
+                {[2, 3, 4, 5].map((num) => (
                   <button
-                    key={parts}
+                    key={num}
                     type="button"
-                    onClick={() => setSplitParts(parts)}
+                    onClick={() => setSplitParts(num)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${
-                      splitParts === parts
+                      splitParts === num
                         ? "bg-cyan-500 text-black border-cyan-400 font-black shadow-md"
                         : "bg-white/[0.04] text-slate-300 border-white/10 hover:bg-white/[0.08]"
                     }`}
                   >
-                    {parts} Tickets
+                    {num} Parts
                   </button>
                 ))}
               </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block">
-                3. Number of Games to Remove
+              <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+                Number of Games to Prune / Remove:
               </label>
-              <div className="flex flex-wrap items-center gap-2">
-                {[2, 3, 5, 10].map((num) => (
+              <div className="flex items-center gap-2 flex-wrap">
+                {[1, 2, 3, 5, 8, 10].map((num) => (
                   <button
                     key={num}
                     type="button"
@@ -259,17 +282,6 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                     Remove {num}
                   </button>
                 ))}
-                <div className="flex items-center gap-2 pl-2">
-                  <span className="text-xs text-slate-400 font-mono">Custom:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={removeCount}
-                    onChange={(e) => setRemoveCount(Math.max(1, Number(e.target.value)))}
-                    className="w-20 bg-[#070A0E] border border-white/10 rounded-xl py-1 px-3 text-xs font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -303,36 +315,48 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
       {/* Results View */}
       {result && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 font-semibold">
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 font-semibold shadow-md">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{result.summary_message}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {result.slips.map((slip: any, idx: number) => (
-              <div
-                key={idx}
-                className="p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-lg space-y-3"
-              >
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <div>
-                    <span className="text-[10px] font-mono font-black uppercase text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full">
-                      {result.is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
-                    </span>
-                    <h4 className="text-sm font-bold text-white mt-1">
-                      {slip.legs_count} Surviving Legs •{" "}
-                      <span className="text-emerald-400 font-mono">{slip.total_odds}x Odds</span>
-                    </h4>
-                  </div>
+            {(result.slips || []).map((slip: any, idx: number) => {
+              const sportyCode = slip.sporty_code || slip.booking_code;
+              const bet9jaCode = slip.bet9ja_code;
+              const sportyUrl =
+                slip.sporty_url ||
+                (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
+              const bet9jaUrl =
+                slip.bet9ja_url ||
+                (bet9jaCode ? `https://sports.bet9ja.com/mobile/coupon?couponCode=${bet9jaCode}` : "");
 
-                  <div className="text-right">
+              return (
+                <div
+                  key={idx}
+                  className="p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-xl space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <div>
+                      <span className="text-[10px] font-mono font-black uppercase text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                        {result.is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
+                      </span>
+                      <h4 className="text-sm font-bold text-white mt-1">
+                        {slip.legs_count} Surviving Legs •{" "}
+                        <span className="text-emerald-400 font-mono font-bold">
+                          {slip.total_odds}x Odds
+                        </span>
+                      </h4>
+                    </div>
+
+                    {/* Copy button */}
                     <button
                       type="button"
                       onClick={() => handleCopy(slip.booking_code)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto"
                     >
-                      <span>{slip.booking_code}</span>
+                      <span>Code: {slip.booking_code}</span>
                       {copiedCode === slip.booking_code ? (
                         <Check className="w-3.5 h-3.5 text-emerald-400" />
                       ) : (
@@ -340,50 +364,81 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                       )}
                     </button>
                   </div>
-                </div>
 
-                {/* Surviving legs preview */}
-                <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                  {(slip.surviving_legs || []).map((leg: any, lIdx: number) => (
-                    <div
-                      key={lIdx}
-                      className="p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs"
-                    >
-                      <div className="truncate max-w-[200px]">
-                        <span className="font-semibold text-white">{leg.match}</span>
-                        <div className="text-[10px] text-slate-400">{leg.market}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-mono font-bold text-emerald-400">
-                          {leg.selection}
-                        </span>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          @ {leg.odd}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pruned legs (if any) */}
-                {slip.pruned_legs && slip.pruned_legs.length > 0 && (
-                  <div className="pt-2 border-t border-white/5 space-y-1">
-                    <span className="text-[10px] font-mono uppercase text-rose-400 font-bold block">
-                      Removed Legs ({slip.pruned_legs.length}):
-                    </span>
-                    {slip.pruned_legs.map((pl: any, plIdx: number) => (
-                      <div
-                        key={plIdx}
-                        className="p-1.5 rounded-lg bg-rose-500/5 text-slate-400 text-[11px] flex items-center justify-between line-through"
+                  {/* 1-Click Launchers */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {sportyUrl && (
+                      <a
+                        href={sportyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2 px-3 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
                       >
-                        <span>{pl.match}</span>
-                        <span>{pl.selection} @ {pl.odd}</span>
+                        <Zap className="w-3 h-3" />
+                        <span>SportyBet</span>
+                        <ExternalLink className="w-3 h-3 ml-0.5" />
+                      </a>
+                    )}
+                    {bet9jaUrl && (
+                      <a
+                        href={bet9jaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
+                      >
+                        <Zap className="w-3 h-3" />
+                        <span>Bet9ja</span>
+                        <ExternalLink className="w-3 h-3 ml-0.5" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Surviving legs preview */}
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                    <span className="text-[10px] font-mono text-emerald-400 uppercase font-bold block">
+                      Surviving Safe Legs:
+                    </span>
+                    {(slip.surviving_legs || []).map((leg: any, lIdx: number) => (
+                      <div
+                        key={lIdx}
+                        className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs"
+                      >
+                        <div className="truncate max-w-[200px]">
+                          <span className="font-semibold text-white">{leg.match}</span>
+                          <div className="text-[10px] text-slate-400">{leg.market}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-emerald-400">
+                            {leg.selection}
+                          </span>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            @ {leg.odd}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Pruned legs (if any) */}
+                  {slip.pruned_legs && slip.pruned_legs.length > 0 && (
+                    <div className="pt-2 border-t border-white/5 space-y-1">
+                      <span className="text-[10px] font-mono uppercase text-rose-400 font-bold block">
+                        Pruned Risky Legs ({slip.pruned_legs.length}):
+                      </span>
+                      {slip.pruned_legs.map((pl: any, plIdx: number) => (
+                        <div
+                          key={plIdx}
+                          className="p-1.5 rounded-lg bg-rose-500/5 border border-rose-500/10 text-slate-400 text-[11px] flex items-center justify-between line-through"
+                        >
+                          <span className="truncate max-w-[200px]">{pl.match}</span>
+                          <span>{pl.selection} @ {pl.odd}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -392,4 +447,3 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 };
 
 export default EditGameTab;
-

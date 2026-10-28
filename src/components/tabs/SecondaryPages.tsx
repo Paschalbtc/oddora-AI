@@ -87,65 +87,7 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
   // 1. TODAY'S LEAGUES VIEW (Fixtures WITHOUT Outcomes -> Routes to All Matches)
   // =========================================================================
   if (viewId === "leagues") {
-    const fallbackLeagues = [
-      {
-        id: "fb_epl",
-        league_name: "Premier League",
-        country: "England",
-        sport: "FOOTBALL",
-        match_count: 2,
-        matches: [
-          { id: "1", home_team: "Arsenal", away_team: "Chelsea", kickoff_time: "2026-10-28T17:30:00.000Z", status: "NS" },
-          { id: "2", home_team: "Manchester City", away_team: "Liverpool", kickoff_time: "2026-10-28T20:00:00.000Z", status: "NS" },
-        ],
-      },
-      {
-        id: "fb_laliga",
-        league_name: "La Liga",
-        country: "Spain",
-        sport: "FOOTBALL",
-        match_count: 2,
-        matches: [
-          { id: "3", home_team: "Real Madrid", away_team: "Barcelona", kickoff_time: "2026-10-28T21:00:00.000Z", status: "NS" },
-          { id: "4", home_team: "Atletico Madrid", away_team: "Sevilla", kickoff_time: "2026-10-28T18:45:00.000Z", status: "NS" },
-        ],
-      },
-      {
-        id: "bb_nba",
-        league_name: "NBA",
-        country: "USA",
-        sport: "BASKETBALL",
-        match_count: 2,
-        matches: [
-          { id: "5", home_team: "Boston Celtics", away_team: "Miami Heat", kickoff_time: "2026-10-28T23:30:00.000Z", status: "NS" },
-          { id: "6", home_team: "Denver Nuggets", away_team: "Dallas Mavericks", kickoff_time: "2026-10-28T23:55:00.000Z", status: "NS" },
-        ],
-      },
-      {
-        id: "tt_elite",
-        league_name: "TT Elite Series",
-        country: "Czech Republic",
-        sport: "TABLE_TENNIS",
-        match_count: 2,
-        matches: [
-          { id: "7", home_team: "Dimitrij Ovtcharov", away_team: "Tomokazu Harimoto", kickoff_time: "2026-10-28T14:30:00.000Z", status: "NS" },
-          { id: "8", home_team: "Fan Zhendong", away_team: "Truls Moregard", kickoff_time: "2026-10-28T16:00:00.000Z", status: "NS" },
-        ],
-      },
-      {
-        id: "vb_superlega",
-        league_name: "SuperLega",
-        country: "Italy",
-        sport: "VOLLEYBALL",
-        match_count: 2,
-        matches: [
-          { id: "9", home_team: "Sir Safety Perugia", away_team: "Cucine Lube Civitanova", kickoff_time: "2026-10-28T18:00:00.000Z", status: "NS" },
-          { id: "10", home_team: "Itas Trentino", away_team: "Allianz Milano", kickoff_time: "2026-10-28T19:30:00.000Z", status: "NS" },
-        ],
-      },
-    ];
-
-    const displayLeagues = liveLeagues.length > 0 ? liveLeagues : fallbackLeagues;
+    const displayLeagues = liveLeagues;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-200">
@@ -207,6 +149,12 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
         {isLoadingLeagues ? (
           <div className="p-12 text-center text-slate-400 text-xs font-mono">
             Loading today's live league fixtures across all 4 sports...
+          </div>
+        ) : displayLeagues.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-[#11161F] border border-white/10 text-slate-400 text-xs space-y-2">
+            <Trophy className="w-8 h-8 text-slate-500 mx-auto" />
+            <p className="font-bold text-white">No active matches remaining for this sport today</p>
+            <p className="text-slate-400">All games for this category have concluded. Check All Matches or try another sport filter.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

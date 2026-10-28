@@ -98,10 +98,10 @@ export async function fetchSportyBetLiveEvents(sportId: string = "sr:sport:1"): 
       return events;
     }
   } catch (err) {
-    console.warn("SportyBet live catalog fetch error, using resilient catalog fallback:", err);
+    console.warn("SportyBet live catalog fetch error:", err);
   }
 
-  return getFallbackCatalog();
+  return [];
 }
 
 /**
@@ -346,56 +346,7 @@ export async function decodeSportyBetBookingCode(code: string): Promise<DecodedS
  * Resilient catalog fallback
  */
 function getFallbackCatalog(): any[] {
-  return [
-    {
-      eventId: "sr:match:51882901",
-      homeTeamName: "Arsenal",
-      awayTeamName: "Chelsea",
-      league_name: "Premier League",
-      league_country: "England",
-      estimateStartTime: Date.now() + 7200000,
-    },
-    {
-      eventId: "sr:match:51882902",
-      homeTeamName: "Real Madrid",
-      awayTeamName: "Barcelona",
-      league_name: "La Liga",
-      league_country: "Spain",
-      estimateStartTime: Date.now() + 10800000,
-    },
-    {
-      eventId: "sr:match:51882903",
-      homeTeamName: "Bayern Munich",
-      awayTeamName: "Borussia Dortmund",
-      league_name: "Bundesliga",
-      league_country: "Germany",
-      estimateStartTime: Date.now() + 14400000,
-    },
-    {
-      eventId: "sr:match:51882904",
-      homeTeamName: "Inter Milan",
-      awayTeamName: "AC Milan",
-      league_name: "Serie A",
-      league_country: "Italy",
-      estimateStartTime: Date.now() + 18000000,
-    },
-    {
-      eventId: "sr:match:51882905",
-      homeTeamName: "Paris Saint Germain",
-      awayTeamName: "Marseille",
-      league_name: "Ligue 1",
-      league_country: "France",
-      estimateStartTime: Date.now() + 21600000,
-    },
-    {
-      eventId: "sr:match:51882906",
-      homeTeamName: "Manchester City",
-      awayTeamName: "Liverpool",
-      league_name: "Premier League",
-      league_country: "England",
-      estimateStartTime: Date.now() + 25200000,
-    },
-  ];
+  return [];
 }
 
 function getDynamicDecodedLegs(code: string): DecodedLeg[] {

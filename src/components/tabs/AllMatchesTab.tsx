@@ -64,6 +64,15 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
 
   useEffect(() => {
     fetchMatches();
+
+    // Auto-update daily matches in real time every 60 seconds
+    const interval = setInterval(() => {
+      if (selectedDate === todayStr) {
+        fetchMatches();
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, [selectedSport, currentTier, selectedDate]);
 
   async function fetchMatches() {
@@ -90,19 +99,57 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
     { id: "tennis", label: "Tennis", icon: "🎾" },
   ];
 
-  // Available leagues in current matches
+  // Check if a match has ended
+  const isMatchFinished = (m: any): boolean => {
+    if (!m) return false;
+    const s = (m.status || "").toUpperCase().trim();
+    if (
+      s === "FT" ||
+      s === "AET" ||
+      s === "PEN" ||
+      s === "POSTP" ||
+      s === "CANC" ||
+      s === "FINISHED" ||
+      s === "ENDED" ||
+      s === "SUSPENDED" ||
+      s === "ABANDONED"
+    ) {
+      return true;
+    }
+    if (m.outcome_result === "WON" || m.outcome_result === "LOST") return true;
+    if (m.kickoff_time) {
+      const k = new Date(m.kickoff_time).getTime();
+      if (!isNaN(k)) {
+        const sport = (m.sport || m.sport_type || "football").toLowerCase();
+        let durationMs = 115 * 60 * 1000;
+        if (sport.includes("table")) durationMs = 45 * 60 * 1000;
+        else if (sport.includes("basket")) durationMs = 135 * 60 * 1000;
+        else if (sport.includes("volley")) durationMs = 100 * 60 * 1000;
+        if (Date.now() > k + durationMs) return true;
+      }
+    }
+    return false;
+  };
+
+  // Available leagues in current active matches
   const availableLeagues = useMemo(() => {
+    const isViewingToday = selectedDate === todayStr;
     const set = new Set<string>();
     for (const m of matches || []) {
+      if (isViewingToday && isMatchFinished(m)) continue;
       if (m.league) set.add(m.league);
     }
     return Array.from(set).sort();
-  }, [matches]);
+  }, [matches, selectedDate, todayStr]);
 
-  // Group matches by league
+  // Group matches by league (auto-purging ended matches for today)
   const groupedMatches = useMemo(() => {
+    const isViewingToday = selectedDate === todayStr;
     const q = searchQuery.toLowerCase().trim();
     const filtered = (matches || []).filter((m) => {
+      // In real time: ended matches for today do not show up
+      if (isViewingToday && isMatchFinished(m)) return false;
+
       const matchesSearch =
         !q ||
         m.home_team?.toLowerCase().includes(q) ||
@@ -123,7 +170,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
     }
 
     return groups;
-  }, [matches, searchQuery, selectedLeagueFilter]);
+  }, [matches, searchQuery, selectedLeagueFilter, selectedDate, todayStr]);
 
   const handleAdd = (m: any) => {
     const key = m.id || m.external_fixture_id;

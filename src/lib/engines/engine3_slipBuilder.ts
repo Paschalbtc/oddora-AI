@@ -25,6 +25,7 @@ import { mapMarketToSportyBetIds } from "../sportybetBridge";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { bookUniversalSlip } from "./bookingEngine";
 import { scoreLegDanger } from "../apiFootballStatsBrain";
+import { isMatchEnded } from "../multiSportScheduleFeed";
 
 export const MAX_GAMES_PER_TICKET = 50;
 export const MIN_GAMES_PER_TICKET = 2;
@@ -479,6 +480,9 @@ export async function buildCustomSlip(
 
   for (let i = 0; i < rawMatches.length; i++) {
     const m = rawMatches[i];
+    // Exclude ended matches for today's horizon
+    if (horizon === "today" && isMatchEnded(m)) continue;
+
     const key = `${m.home_team}_vs_${m.away_team}`.toLowerCase();
     if (seenMatches.has(key)) continue;
 

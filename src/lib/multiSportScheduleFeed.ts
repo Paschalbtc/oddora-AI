@@ -145,8 +145,8 @@ async function fetchSportyBetMultiPageCatalog(
         const evDate = new Date(startTime).toISOString().split("T")[0];
 
         // Strict Date & Kickoff Filtering:
-        // Must be today's calendar date and must NOT have already kicked off (startTime > nowMs - 15 mins)
-        if (evDate !== todayStr && startTime < nowMs) continue;
+        // Exclude matches that have already kicked off (startTime < nowMs)
+        if (startTime < nowMs) continue;
 
         const home = (ev.homeTeamName || "").trim();
         const away = (ev.awayTeamName || "").trim();
@@ -310,42 +310,62 @@ async function fetchEspnBasketballFeed(): Promise<MultiSportRawFixture[]> {
 }
 
 /**
- * Curated Fallback Fixtures across all 4 sports for offline / rate-limited resilience
+ * Evaluates whether a match is completed/ended in real time.
+ * Considers explicit status (FT, AET, PEN, CANC, POSTP, FINISHED, ENDED, SUSPENDED, ABANDONED),
+ * outcome settlement (WON, LOST), and elapsed playtime per sport.
  */
-function getCuratedMultiSportSchedule(dateStr: string): MultiSportRawFixture[] {
-  const base = new Date(`${dateStr}T12:00:00.000Z`).getTime();
-  return [
-    // 1. FOOTBALL
-    { id: `fb_c1_${dateStr}`, sport: "FOOTBALL", home_team: "Arsenal", away_team: "Chelsea", league_name: "Premier League", country: "England", kickoff_time: new Date(base + 3600000).toISOString(), status: "NS" },
-    { id: `fb_c2_${dateStr}`, sport: "FOOTBALL", home_team: "Real Madrid", away_team: "Barcelona", league_name: "La Liga", country: "Spain", kickoff_time: new Date(base + 7200000).toISOString(), status: "NS" },
-    { id: `fb_c3_${dateStr}`, sport: "FOOTBALL", home_team: "Bayern Munich", away_team: "Borussia Dortmund", league_name: "Bundesliga", country: "Germany", kickoff_time: new Date(base + 10800000).toISOString(), status: "NS" },
-    { id: `fb_c4_${dateStr}`, sport: "FOOTBALL", home_team: "Inter Milan", away_team: "AC Milan", league_name: "Serie A", country: "Italy", kickoff_time: new Date(base + 14400000).toISOString(), status: "NS" },
-    { id: `fb_c5_${dateStr}`, sport: "FOOTBALL", home_team: "Paris Saint Germain", away_team: "Marseille", league_name: "Ligue 1", country: "France", kickoff_time: new Date(base + 18000000).toISOString(), status: "NS" },
-    { id: `fb_c6_${dateStr}`, sport: "FOOTBALL", home_team: "Manchester City", away_team: "Liverpool", league_name: "Premier League", country: "England", kickoff_time: new Date(base + 21600000).toISOString(), status: "NS" },
-    { id: `fb_c7_${dateStr}`, sport: "FOOTBALL", home_team: "Atletico Madrid", away_team: "Sevilla", league_name: "La Liga", country: "Spain", kickoff_time: new Date(base + 25200000).toISOString(), status: "NS" },
-    { id: `fb_c8_${dateStr}`, sport: "FOOTBALL", home_team: "Juventus", away_team: "Napoli", league_name: "Serie A", country: "Italy", kickoff_time: new Date(base + 28800000).toISOString(), status: "NS" },
+export function isMatchEnded(match: {
+  kickoff_time?: string;
+  status?: string;
+  outcome_result?: string;
+  sport_type?: string;
+  sport?: string;
+}): boolean {
+  if (!match) return false;
 
-    // 2. BASKETBALL
-    { id: `bb_c1_${dateStr}`, sport: "BASKETBALL", home_team: "Boston Celtics", away_team: "Miami Heat", league_name: "NBA", country: "USA", kickoff_time: new Date(base + 5400000).toISOString(), status: "NS" },
-    { id: `bb_c2_${dateStr}`, sport: "BASKETBALL", home_team: "Golden State Warriors", away_team: "LA Lakers", league_name: "NBA", country: "USA", kickoff_time: new Date(base + 9000000).toISOString(), status: "NS" },
-    { id: `bb_c3_${dateStr}`, sport: "BASKETBALL", home_team: "Real Madrid Baloncesto", away_team: "Barcelona Basket", league_name: "EuroLeague", country: "Europe", kickoff_time: new Date(base + 12600000).toISOString(), status: "NS" },
-    { id: `bb_c4_${dateStr}`, sport: "BASKETBALL", home_team: "Denver Nuggets", away_team: "Dallas Mavericks", league_name: "NBA", country: "USA", kickoff_time: new Date(base + 16200000).toISOString(), status: "NS" },
-    { id: `bb_c5_${dateStr}`, sport: "BASKETBALL", home_team: "Olympiacos Piraeus", away_team: "Panathinaikos", league_name: "EuroLeague", country: "Europe", kickoff_time: new Date(base + 19800000).toISOString(), status: "NS" },
+  const s = (match.status || "").toUpperCase().trim();
+  if (
+    s === "FT" ||
+    s === "AET" ||
+    s === "PEN" ||
+    s === "POSTP" ||
+    s === "CANC" ||
+    s === "FINISHED" ||
+    s === "ENDED" ||
+    s === "SUSPENDED" ||
+    s === "ABANDONED"
+  ) {
+    return true;
+  }
 
-    // 3. TABLE TENNIS (Czech Liga Pro, Setka Cup, WTT)
-    { id: `tt_c1_${dateStr}`, sport: "TABLE_TENNIS", home_team: "Fan Zhendong", away_team: "Truls Moregard", league_name: "WTT Champions", country: "International", kickoff_time: new Date(base + 1800000).toISOString(), status: "NS" },
-    { id: `tt_c2_${dateStr}`, sport: "TABLE_TENNIS", home_team: "Dimitrij Ovtcharov", away_team: "Tomokazu Harimoto", league_name: "TT Elite Series", country: "Czech Republic", kickoff_time: new Date(base + 3600000).toISOString(), status: "NS" },
-    { id: `tt_c3_${dateStr}`, sport: "TABLE_TENNIS", home_team: "Lin Shidong", away_team: "Felix Lebrun", league_name: "WTT Contender", country: "International", kickoff_time: new Date(base + 7200000).toISOString(), status: "NS" },
-    { id: `tt_c4_${dateStr}`, sport: "TABLE_TENNIS", home_team: "Petr David", away_team: "Miroslav Sklensky", league_name: "Czech Liga Pro", country: "Czech Republic", kickoff_time: new Date(base + 10800000).toISOString(), status: "NS" },
-    { id: `tt_c5_${dateStr}`, sport: "TABLE_TENNIS", home_team: "Vitalii Kobets", away_team: "Serhii Polishchuk", league_name: "Setka Cup", country: "Ukraine", kickoff_time: new Date(base + 14400000).toISOString(), status: "NS" },
+  if (match.outcome_result === "WON" || match.outcome_result === "LOST") {
+    return true;
+  }
 
-    // 4. VOLLEYBALL (SuperLega, PlusLiga, Champions League)
-    { id: `vb_c1_${dateStr}`, sport: "VOLLEYBALL", home_team: "Sir Safety Perugia", away_team: "Cucine Lube Civitanova", league_name: "SuperLega", country: "Italy", kickoff_time: new Date(base + 4500000).toISOString(), status: "NS" },
-    { id: `vb_c2_${dateStr}`, sport: "VOLLEYBALL", home_team: "Jastrzebski Wegiel", away_team: "ZAKSA Kedzierzyn-Kozle", league_name: "PlusLiga", country: "Poland", kickoff_time: new Date(base + 8100000).toISOString(), status: "NS" },
-    { id: `vb_c3_${dateStr}`, sport: "VOLLEYBALL", home_team: "Itas Trentino", away_team: "Allianz Milano", league_name: "SuperLega", country: "Italy", kickoff_time: new Date(base + 11700000).toISOString(), status: "NS" },
-    { id: `vb_c4_${dateStr}`, sport: "VOLLEYBALL", home_team: "Aluron Zawiercie", away_team: "Asseco Resovia", league_name: "PlusLiga", country: "Poland", kickoff_time: new Date(base + 15300000).toISOString(), status: "NS" },
-    { id: `vb_c5_${dateStr}`, sport: "VOLLEYBALL", home_team: "Berlin Recycling Volleys", away_team: "VfB Friedrichshafen", league_name: "1. Bundesliga", country: "Germany", kickoff_time: new Date(base + 18900000).toISOString(), status: "NS" },
-  ];
+  if (match.kickoff_time) {
+    const kickoffMs = new Date(match.kickoff_time).getTime();
+    if (!isNaN(kickoffMs)) {
+      const sport = (match.sport_type || match.sport || "FOOTBALL").toUpperCase().trim();
+      let durationMs = 115 * 60 * 1000; // 115 mins for Football
+      if (sport === "TABLE_TENNIS") durationMs = 45 * 60 * 1000; // 45 mins
+      else if (sport === "BASKETBALL") durationMs = 135 * 60 * 1000; // 135 mins
+      else if (sport === "VOLLEYBALL") durationMs = 100 * 60 * 1000; // 100 mins
+
+      if (Date.now() > kickoffMs + durationMs) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Curated Fallback Fixtures removed per user instruction.
+ * Only genuine ingested matches are displayed.
+ */
+function getCuratedMultiSportSchedule(_dateStr: string): MultiSportRawFixture[] {
+  return [];
 }
 
 /**
@@ -415,12 +435,7 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
   tsdbSoccer.forEach(addFixture);
   espnBasketball.forEach(addFixture);
 
-  // If catalog is small (e.g. late night or off-season), fill with curated schedule
-  if (matchMap.size < 20) {
-    const curated = getCuratedMultiSportSchedule(todayStr);
-    curated.forEach(addFixture);
-  }
-
+  // Strictly only ingested matches from SportyBet, ESPN & TheSportsDB
   const allRawFixtures = Array.from(matchMap.values());
 
   // 4. Run Analytical Sport Brains on Every Fixture
@@ -586,7 +601,8 @@ export async function getTodayLeaguesSummary(
     }
   }
 
-  const items = rawMatches || [];
+  // Filter out any match that has already ended today in real time
+  const items = (rawMatches || []).filter((m) => !isMatchEnded(m));
   const leagueMap = new Map<string, TodayLeagueItem>();
 
   for (const m of items) {

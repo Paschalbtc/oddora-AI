@@ -27,7 +27,7 @@ import {
 } from "../sportBrains";
 import { fetchSportyBetLiveEvents } from "../sportybetBridge";
 import { generateAndBookDailySlips } from "./engine2_dailyOddsAndBankers";
-import { sync5xDailySchedule, get5xDailySyncSlot } from "../multiSportScheduleFeed";
+import { sync5xDailySchedule, get5xDailySyncSlot, isMatchEnded } from "../multiSportScheduleFeed";
 
 export interface V2MatchRecord {
   id?: string;
@@ -196,19 +196,12 @@ export async function syncMatchesForDate(
     }
   }
 
-  // If still empty (e.g. offline, past date, or future date), generate accurate curated schedule for targetDateStr
+  // Only genuine ingested fixtures are processed
   if (rawFootballFixtures.length === 0) {
-    const mockFootball = getCuratedFootballForDate(targetDateStr);
-    rawFootballFixtures = mockFootball.map((m) => ({
-      fixture: {
-        id: m.id,
-        date: m.kickoff,
-        status: { short: isPastDate ? "FT" : "NS" },
-      },
-      league: { name: m.league, country: m.country },
-      teams: { home: { name: m.home }, away: { name: m.away } },
-      goals: isPastDate ? { home: m.home_score ?? 2, away: m.away_score ?? 1 } : undefined,
-    }));
+    return {
+      synced_count: 0,
+      message: `No live fixtures ingested for ${targetDateStr}.`,
+    };
   }
 
   // Analyze Football fixtures with Football Brain
@@ -500,10 +493,25 @@ export async function getAllMatchesForUI(
     }
   }
 
-  const items = data || [];
+  const todayStr = new Date().toISOString().split("T")[0];
+  const isToday = dateStr === todayStr;
+
+  // In real time: filter out any match that has already ended for today
+  const activeItems = isToday
+    ? (data || []).filter((r: any) => !isMatchEnded(r))
+    : (data || []);
+
+  // Sync state: mark ended matches as FT in background
+  if (isToday) {
+    const endedMatches = (data || []).filter((r: any) => isMatchEnded(r) && r.status !== "FT");
+    if (endedMatches.length > 0) {
+      const endedIds = endedMatches.map((m: any) => m.match_id);
+      supabase.from("oddora_v2_matches").update({ status: "FT" }).in("match_id", endedIds).then();
+    }
+  }
 
   // Format into clean client DTO
-  return items.map((r: any) => {
+  return activeItems.map((r: any) => {
     const isLocked = userTier === "FREE" && !r.is_free_preview;
     const sportLower = (r.sport_type || "football").toLowerCase();
 

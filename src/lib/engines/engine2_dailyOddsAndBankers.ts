@@ -20,6 +20,7 @@
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
 import { bookUniversalSlip, fetchLiveSportyBetCatalog } from "./bookingEngine";
 import { getFixtureDeepStats, scoreLegDanger } from "../apiFootballStatsBrain";
+import { isMatchEnded } from "../multiSportScheduleFeed";
 
 export interface V2DailySlipRecord {
   id?: string;
@@ -116,7 +117,9 @@ export async function generateAndBookDailySlips(): Promise<{
   // Also pull live catalog for maximum SportyBet eventId accuracy
   const liveCatalog = await fetchLiveSportyBetCatalog();
 
-  const matches = (rawMatches || []).map((m: any) => ({
+  const matches = (rawMatches || [])
+    .filter((m: any) => !isMatchEnded(m))
+    .map((m: any) => ({
     id: m.match_id,
     match_id: m.match_id,
     home_team: m.home_team,

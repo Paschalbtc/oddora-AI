@@ -38,7 +38,7 @@ export async function getActiveDirectives(sport?: SportType): Promise<AIDirectiv
   if (now - _cachedDirectives.timestamp < 60000 && _cachedDirectives.data.length > 0) {
     if (!sport) return _cachedDirectives.data;
     return _cachedDirectives.data.filter(
-      (d) => d.sport === "all" || d.sport === sport
+      (d) => d.sport === "all" || d.sport === sport.toLowerCase()
     );
   }
 
@@ -53,17 +53,26 @@ export async function getActiveDirectives(sport?: SportType): Promise<AIDirectiv
       return _cachedDirectives.data || [];
     }
 
+    const mapped: AIDirective[] = data.map((d: any) => ({
+      id: d.id,
+      rule_name: d.directive_rule || d.rule_name || "Active Directives Rule",
+      sport: (d.target_engine || d.sport || "all").toLowerCase(),
+      market_affected: d.market_affected || "all",
+      weight_adjustment: Number(d.weight_adjustment) || 1.0,
+      is_active: d.is_active ?? true,
+      notes: d.directive_rule || "",
+    }));
+
     _cachedDirectives = {
       timestamp: now,
-      data: data as AIDirective[],
+      data: mapped,
     };
 
     if (!sport) return _cachedDirectives.data;
     return _cachedDirectives.data.filter(
-      (d) => d.sport === "all" || d.sport === sport
+      (d) => d.sport === "all" || d.sport === sport.toLowerCase()
     );
   } catch {
     return _cachedDirectives.data || [];
   }
 }
-

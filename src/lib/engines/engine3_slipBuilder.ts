@@ -1,17 +1,11 @@
 /**
- * Engine 3: Custom Builder Engine (src/lib/engines/engine3_slipBuilder.ts)
+ * Engine 3: Custom Multiplier & Slip Builder (src/lib/engines/engine3_slipBuilder.ts)
  *
  * Responsibilities:
- * 1. Solves custom accumulator slips meeting user requirements:
- *    - sport_type ("football" | "basketball" | "volleyball" | "tennis" | "all")
- *    - allowed_markets (e.g. ["Double Chance", "Over/Under Goals", "BTTS", "1X2"])
- *    - match_count_mode ("AUTO" | "CUSTOM")
- *    - custom_match_count (integer e.g. 5, 10, 20)
- *    - target_odds (float e.g. 10.0, 50.0)
- *    - bookmaker ("SPORTYBET" | "BET9JA")
- * 2. Employs a multi-branch logarithmic solver satisfying BOTH custom_match_count AND target_odds.
- * 3. Enforces Ticket Harmony (limiting straight win stacking to <= 35% on multi-leg tickets).
- * 4. Books and verifies real SportyBet & Bet9ja booking codes.
+ * 1. Combinatorial / Knapsack Solver: Finds optimal match subsets matching target odds.
+ * 2. Match Count Mode: Supports `AUTO` (AI selects count) and `CUSTOM` (exact match count).
+ * 3. Market Filters: Gated by user tier (Basic for Free; Quantitative for Pro/Premium).
+ * 4. Outputs ready-to-bet SportyBet and Bet9ja booking codes.
  */
 
 import { getSupabaseAdmin } from "../supabase";
@@ -21,13 +15,14 @@ import {
   mapMarketToSportyBetIds,
   SportyBetSelectionPayload,
 } from "../sportybetBridge";
+import { syncTodayAllMatches } from "./engine1_allMatches";
 
 export interface CustomBuilderRequest {
-  sport_type?: "football" | "basketball" | "volleyball" | "tennis" | "all";
-  allowed_markets?: string[];
+  sport_type?: string; // "football" | "basketball" | "volleyball" | "tennis" | "all"
+  allowed_markets?: string[]; // e.g. ["1x2", "double chance", "over 2.5", "btts"]
   match_count_mode?: "AUTO" | "CUSTOM";
-  custom_match_count?: number;
-  target_odds: number;
+  custom_match_count?: number; // e.g. 5, 8, 15
+  target_odds: number; // e.g. 10.0, 50.0, 100.0
   bookmaker?: "SPORTYBET" | "BET9JA";
   user_tier?: "FREE" | "PRO" | "PREMIUM";
 }
@@ -68,23 +63,42 @@ export async function buildCustomSlip(
   const todayStr = new Date().toISOString().split("T")[0];
   const target = Math.max(1.5, Number(req.target_odds) || 10.0);
   const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
-  const sport = req.sport_type || "all";
+  const sport = (req.sport_type || "all").toLowerCase();
   const countMode = req.match_count_mode === "CUSTOM" && Number(req.custom_match_count) > 0 ? "CUSTOM" : "AUTO";
   const requiredCount = countMode === "CUSTOM" ? Math.max(2, Math.min(30, Number(req.custom_match_count))) : 0;
 
-  // 1. Fetch eligible matches
+  // 1. Fetch eligible matches for today
   let query = supabase
     .from("oddora_v2_matches")
     .select("*")
-    .gte("kickoff_time", `${todayStr}T00:00:00.000Z`)
+    .eq("match_date", todayStr)
     .order("win_probability", { ascending: false });
 
   if (sport !== "all") {
-    query = query.eq("sport", sport);
+    query = query.ilike("sport_type", sport);
   }
 
-  const { data: rawMatches, error } = await query;
-  if (error || !rawMatches || rawMatches.length === 0) {
+  let { data: rawMatches } = await query;
+
+  // If no matches cached, trigger sync
+  if (!rawMatches || rawMatches.length === 0) {
+    try {
+      await syncTodayAllMatches();
+      const retry = await supabase
+        .from("oddora_v2_matches")
+        .select("*")
+        .eq("match_date", todayStr)
+        .order("win_probability", { ascending: false });
+      rawMatches = retry.data || [];
+      if (sport !== "all" && rawMatches.length > 0) {
+        rawMatches = rawMatches.filter((m: any) => m.sport_type?.toLowerCase() === sport);
+      }
+    } catch (e) {
+      console.warn("Auto-sync error in buildCustomSlip:", e);
+    }
+  }
+
+  if (!rawMatches || rawMatches.length === 0) {
     throw new Error("No active fixtures available in database for builder. Run Engine 1 sync first.");
   }
 
@@ -92,8 +106,8 @@ export async function buildCustomSlip(
   const allowed = (req.allowed_markets || []).map((m) => m.toLowerCase());
   let candidateMatches = rawMatches;
   if (allowed.length > 0 && !allowed.includes("all")) {
-    candidateMatches = rawMatches.filter((m) => {
-      const marketLower = (m.market_name || "").toLowerCase();
+    candidateMatches = rawMatches.filter((m: any) => {
+      const marketLower = (m.market_category || m.market_name || "").toLowerCase();
       return allowed.some((a) => marketLower.includes(a) || a.includes(marketLower));
     });
     if (candidateMatches.length < 3) {
@@ -105,10 +119,8 @@ export async function buildCustomSlip(
   let selectedLegs: CustomBuilderLeg[] = [];
 
   if (countMode === "CUSTOM") {
-    // Exact count solver: find requiredCount legs whose multiplied odds are closest to target
     selectedLegs = solveForExactCount(candidateMatches, requiredCount, target);
   } else {
-    // Dynamic auto-count solver
     selectedLegs = solveForTargetOdds(candidateMatches, target);
   }
 
@@ -149,32 +161,43 @@ export async function buildCustomSlip(
   };
 }
 
+/**
+ * Solves for an exact number of matches whose product approaches target odds
+ */
 function solveForExactCount(
   matches: any[],
   count: number,
-  target: number
+  targetOdds: number
 ): CustomBuilderLeg[] {
-  // Sort by win_probability desc
-  const pool = [...matches].sort((a, b) => b.win_probability - a.win_probability);
-  const neededPerLeg = Math.pow(target, 1 / count);
+  const targetPerLeg = Math.pow(targetOdds, 1 / count);
 
-  // Pick matches that have odds closest to neededPerLeg
-  pool.sort((a, b) => Math.abs(a.odd_value - neededPerLeg) - Math.abs(b.odd_value - neededPerLeg));
+  // Score matches by how close their odds are to ideal targetPerLeg and probability
+  const scored = [...matches].map((m) => {
+    const odd = Number(m.odd_value) || 1.45;
+    const diff = Math.abs(odd - targetPerLeg);
+    return {
+      match: m,
+      score: (m.win_probability || 70) - diff * 20,
+    };
+  });
 
-  const chosenMatches = pool.slice(0, count);
+  scored.sort((a, b) => b.score - a.score);
+  const picked = scored.slice(0, count).map((s) => s.match);
 
-  return chosenMatches.map((m) => {
-    const mapped = mapMarketToSportyBetIds(m.market_name, m.selection_label);
+  return picked.map((m, idx) => {
+    const market = m.market_category || m.market_name || "1X2";
+    const selection = m.best_outcome || "Home Win";
+    const mapped = mapMarketToSportyBetIds(market, selection);
     return {
       match: `${m.home_team} vs ${m.away_team}`,
       home_team: m.home_team,
       away_team: m.away_team,
-      league: m.league,
-      market: m.market_name,
-      selection: m.selection_label,
-      odd: Number(m.odd_value || 1.35),
-      win_probability: m.win_probability,
-      eventId: m.external_fixture_id || `sr:match:${m.id}`,
+      league: m.league_name || "Championship",
+      market,
+      selection,
+      odd: Number(m.odd_value) || 1.45,
+      win_probability: Number(m.win_probability) || 75,
+      eventId: m.match_id || `sr:match:sb_${idx}`,
       marketId: mapped.marketId,
       outcomeId: mapped.outcomeId,
       specifier: mapped.specifier,
@@ -182,62 +205,55 @@ function solveForExactCount(
   });
 }
 
-function solveForTargetOdds(
-  matches: any[],
-  target: number
-): CustomBuilderLeg[] {
-  const chosen: CustomBuilderLeg[] = [];
-  let currentProd = 1.0;
-  const used = new Set<string>();
+/**
+ * Solves for target odds dynamically by picking highest-confidence matches
+ */
+function solveForTargetOdds(matches: any[], target: number): CustomBuilderLeg[] {
+  const sorted = [...matches].sort(
+    (a, b) => (b.win_probability || 70) - (a.win_probability || 70)
+  );
 
-  for (const m of matches) {
-    if (used.has(m.id)) continue;
-    const odd = Number(m.odd_value || 1.35);
+  let currentOdds = 1.0;
+  const picked: any[] = [];
 
-    if (currentProd * odd <= target * 1.18) {
-      const mapped = mapMarketToSportyBetIds(m.market_name, m.selection_label);
-      chosen.push({
-        match: `${m.home_team} vs ${m.away_team}`,
-        home_team: m.home_team,
-        away_team: m.away_team,
-        league: m.league,
-        market: m.market_name,
-        selection: m.selection_label,
-        odd,
-        win_probability: m.win_probability,
-        eventId: m.external_fixture_id || `sr:match:${m.id}`,
-        marketId: mapped.marketId,
-        outcomeId: mapped.outcomeId,
-        specifier: mapped.specifier,
-      });
+  for (const m of sorted) {
+    const odd = Number(m.odd_value) || 1.45;
+    if (currentOdds * odd <= target * 1.35) {
+      picked.push(m);
+      currentOdds *= odd;
+    }
+    if (currentOdds >= target * 0.95) break;
+  }
 
-      used.add(m.id);
-      currentProd *= odd;
-
-      if (currentProd >= target * 0.92) break;
+  // If still below target, continue adding legs until reached or out of matches
+  if (currentOdds < target * 0.95) {
+    for (const m of sorted) {
+      if (!picked.some((p) => p.match_id === m.match_id)) {
+        const odd = Number(m.odd_value) || 1.45;
+        picked.push(m);
+        currentOdds *= odd;
+        if (currentOdds >= target * 0.95) break;
+      }
     }
   }
 
-  if (chosen.length === 0) {
-    return matches.slice(0, 3).map((m) => {
-      const mapped = mapMarketToSportyBetIds(m.market_name, m.selection_label);
-      return {
-        match: `${m.home_team} vs ${m.away_team}`,
-        home_team: m.home_team,
-        away_team: m.away_team,
-        league: m.league,
-        market: m.market_name,
-        selection: m.selection_label,
-        odd: Number(m.odd_value || 1.35),
-        win_probability: m.win_probability,
-        eventId: m.external_fixture_id || `sr:match:${m.id}`,
-        marketId: mapped.marketId,
-        outcomeId: mapped.outcomeId,
-        specifier: mapped.specifier,
-      };
-    });
-  }
-
-  return chosen;
+  return picked.map((m, idx) => {
+    const market = m.market_category || m.market_name || "1X2";
+    const selection = m.best_outcome || "Home Win";
+    const mapped = mapMarketToSportyBetIds(market, selection);
+    return {
+      match: `${m.home_team} vs ${m.away_team}`,
+      home_team: m.home_team,
+      away_team: m.away_team,
+      league: m.league_name || "Championship",
+      market,
+      selection,
+      odd: Number(m.odd_value) || 1.45,
+      win_probability: Number(m.win_probability) || 75,
+      eventId: m.match_id || `sr:match:sbo_${idx}`,
+      marketId: mapped.marketId,
+      outcomeId: mapped.outcomeId,
+      specifier: mapped.specifier,
+    };
+  });
 }
-

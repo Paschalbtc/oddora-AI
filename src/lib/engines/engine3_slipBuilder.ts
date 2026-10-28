@@ -24,6 +24,7 @@ import { getSupabaseAdmin } from "../supabase";
 import { mapMarketToSportyBetIds } from "../sportybetBridge";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { bookUniversalSlip } from "./bookingEngine";
+import { scoreLegDanger } from "../apiFootballStatsBrain";
 
 export const MAX_GAMES_PER_TICKET = 50;
 export const MIN_GAMES_PER_TICKET = 2;
@@ -310,12 +311,14 @@ function solveForTargetOdds(
   candidates: CustomBuilderLeg[],
   target: number
 ): CustomBuilderLeg[] {
-  // Sort candidates strictly by highest win probability first
+  // Sort candidates strictly by highest statistical safety rating
   const sorted = [...candidates].sort((a, b) => {
-    if (b.win_probability !== a.win_probability) {
-      return b.win_probability - a.win_probability;
-    }
-    return b.odd - a.odd;
+    const dangerA = scoreLegDanger(a);
+    const dangerB = scoreLegDanger(b);
+    const netA = a.win_probability - dangerA * 0.2;
+    const netB = b.win_probability - dangerB * 0.2;
+    if (netB !== netA) return netB - netA;
+    return b.win_probability - a.win_probability;
   });
 
   let currentOdds = 1.0;

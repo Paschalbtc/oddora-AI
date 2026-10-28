@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncTodayAllMatches, syncMatchesForDate, getAllMatchesForUI } from "@/lib/engines/engine1_allMatches";
+import { get5xDailySyncSlot } from "@/lib/multiSportScheduleFeed";
 import { SportType } from "@/lib/sportBrains";
 
 export async function GET(request: NextRequest) {
@@ -10,10 +11,13 @@ export async function GET(request: NextRequest) {
     const tier = (searchParams.get("tier") || "FREE") as "FREE" | "PRO" | "PREMIUM";
 
     const matches = await getAllMatchesForUI(date, sport, tier);
+    const slotInfo = get5xDailySyncSlot();
 
     return NextResponse.json({
       status: "success",
       date: date || new Date().toISOString().split("T")[0],
+      sync_slot_badge: "Synced 5x Daily • Multi-Sport Live Feed",
+      sync_slot_info: slotInfo,
       count: matches.length,
       data: matches,
     });

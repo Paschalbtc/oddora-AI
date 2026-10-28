@@ -19,6 +19,7 @@
 
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
 import { bookUniversalSlip, fetchLiveSportyBetCatalog } from "./bookingEngine";
+import { getFixtureDeepStats, scoreLegDanger } from "../apiFootballStatsBrain";
 
 export interface V2DailySlipRecord {
   id?: string;
@@ -390,7 +391,24 @@ function solveSubsetForTarget(
   minOdds: number,
   maxOdds: number
 ): any[] {
-  const sorted = [...matches].sort((a, b) => b.win_probability - a.win_probability);
+  // Sort primarily by highest statistical safety (combining win probability and minimizing danger score)
+  const sorted = [...matches].sort((a, b) => {
+    const dangerA = scoreLegDanger({
+      match: `${a.home_team} vs ${a.away_team}`,
+      market: a.market_name,
+      selection: a.selection_label,
+      odd: a.odd_value,
+      win_probability: a.win_probability,
+    });
+    const dangerB = scoreLegDanger({
+      match: `${b.home_team} vs ${b.away_team}`,
+      market: b.market_name,
+      selection: b.selection_label,
+      odd: b.odd_value,
+      win_probability: b.win_probability,
+    });
+    return (b.win_probability - dangerB * 0.25) - (a.win_probability - dangerA * 0.25);
+  });
 
   let currentOdds = 1.0;
   const picked: any[] = [];

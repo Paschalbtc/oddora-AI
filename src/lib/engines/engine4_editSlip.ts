@@ -12,6 +12,7 @@
  */
 
 import { decodeAnyBookingCode, bookUniversalSlip, BookedLeg } from "./bookingEngine";
+import { pruneLegsByStatisticalRisk } from "../apiFootballStatsBrain";
 
 export type EditSlipMode =
   | "SPLIT_TICKET"
@@ -117,35 +118,19 @@ export async function executeEditSlip(
     };
   }
 
-  // MODES 2, 3, 4: PRUNING
+  // MODES 2, 3, 4: PRUNING (Using API-Football Statistical Risk Brain)
   const maxRemovable = Math.max(1, originalLegs.length - 2); // Keep at least 2 legs
   const removeCount = Math.min(maxRemovable, Math.max(1, Number(req.remove_count) || 2));
 
-  let surviving: BookedLeg[] = [];
-  let pruned: BookedLeg[] = [];
+  const pruneResult = pruneLegsByStatisticalRisk(
+    originalLegs,
+    req.mode as any,
+    removeCount,
+    req.split_parts || 2
+  );
 
-  if (req.mode === "LOWEST_PROBABILITY") {
-    // Mode 2: Sort by risk / implied probability (higher odds = lower win probability)
-    const sorted = [...originalLegs].sort((a, b) => b.odd - a.odd);
-    pruned = sorted.slice(0, removeCount);
-    const prunedIds = new Set(pruned.map((p) => p.eventId));
-    surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
-  } else if (req.mode === "RANDOM_TRIM") {
-    // Mode 3: Random trim
-    const shuffled = [...originalLegs].sort(() => 0.5 - Math.random());
-    pruned = shuffled.slice(0, removeCount);
-    const prunedIds = new Set(pruned.map((p) => p.eventId));
-    surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
-  } else if (req.mode === "COMBO_HYBRID") {
-    // Mode 4: Remove both extremes (highest odd trap + lowest odd low-value)
-    const sorted = [...originalLegs].sort((a, b) => b.odd - a.odd);
-    const half = Math.ceil(removeCount / 2);
-    const highest = sorted.slice(0, half);
-    const lowest = sorted.slice(-Math.floor(removeCount / 2));
-    pruned = [...highest, ...lowest];
-    const prunedIds = new Set(pruned.map((p) => p.eventId));
-    surviving = originalLegs.filter((l) => !prunedIds.has(l.eventId));
-  }
+  let surviving: BookedLeg[] = pruneResult.surviving as BookedLeg[];
+  let pruned: BookedLeg[] = (pruneResult.pruned || []) as BookedLeg[];
 
   // Ensure surviving has at least 2 legs
   if (surviving.length < 2) {

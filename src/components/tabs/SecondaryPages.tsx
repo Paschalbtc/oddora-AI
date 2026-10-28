@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Trophy,
   Dumbbell,
@@ -39,120 +39,255 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
   onNavigateTab,
   onSelectTier,
 }) => {
+  // Live Leagues State for viewId === "leagues"
+  const [liveLeagues, setLiveLeagues] = useState<any[]>([]);
+  const [leagueSport, setLeagueSport] = useState<string>("all");
+  const [isLoadingLeagues, setIsLoadingLeagues] = useState<boolean>(true);
+  const [expandedLeagues, setExpandedLeagues] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (viewId === "leagues") {
+      fetchLeagues(leagueSport);
+    }
+  }, [viewId, leagueSport]);
+
+  async function fetchLeagues(sport: string) {
+    setIsLoadingLeagues(true);
+    try {
+      const res = await fetch(`/api/leagues?sport=${sport}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.leagues)) {
+          setLiveLeagues(json.leagues);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load today leagues:", e);
+    } finally {
+      setIsLoadingLeagues(false);
+    }
+  }
+
+  const toggleLeagueExpand = (id: string) => {
+    setExpandedLeagues((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const formatLeagueTime = (iso?: string) => {
+    if (!iso) return "18:00";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "18:00";
+      return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+    } catch {
+      return "18:00";
+    }
+  };
+
   // =========================================================================
   // 1. TODAY'S LEAGUES VIEW (Fixtures WITHOUT Outcomes -> Routes to All Matches)
   // =========================================================================
   if (viewId === "leagues") {
-    const leaguesData = [
+    const fallbackLeagues = [
       {
-        name: "Premier League",
+        id: "fb_epl",
+        league_name: "Premier League",
         country: "England",
+        sport: "FOOTBALL",
+        match_count: 2,
         matches: [
-          { home: "Arsenal", away: "Chelsea", time: "17:30" },
-          { home: "Manchester City", away: "Liverpool", time: "20:00" },
+          { id: "1", home_team: "Arsenal", away_team: "Chelsea", kickoff_time: "2026-10-28T17:30:00.000Z", status: "NS" },
+          { id: "2", home_team: "Manchester City", away_team: "Liverpool", kickoff_time: "2026-10-28T20:00:00.000Z", status: "NS" },
         ],
       },
       {
-        name: "La Liga",
+        id: "fb_laliga",
+        league_name: "La Liga",
         country: "Spain",
+        sport: "FOOTBALL",
+        match_count: 2,
         matches: [
-          { home: "Real Madrid", away: "Barcelona", time: "21:00" },
-          { home: "Atletico Madrid", away: "Sevilla", time: "18:45" },
+          { id: "3", home_team: "Real Madrid", away_team: "Barcelona", kickoff_time: "2026-10-28T21:00:00.000Z", status: "NS" },
+          { id: "4", home_team: "Atletico Madrid", away_team: "Sevilla", kickoff_time: "2026-10-28T18:45:00.000Z", status: "NS" },
         ],
       },
       {
-        name: "Serie A",
-        country: "Italy",
-        matches: [
-          { home: "Inter Milan", away: "AC Milan", time: "19:45" },
-          { home: "Juventus", away: "Roma", time: "17:00" },
-        ],
-      },
-      {
-        name: "Bundesliga",
-        country: "Germany",
-        matches: [
-          { home: "Bayern Munich", away: "Borussia Dortmund", time: "18:30" },
-          { home: "Bayer Leverkusen", away: "RB Leipzig", time: "15:30" },
-        ],
-      },
-      {
-        name: "NBA",
+        id: "bb_nba",
+        league_name: "NBA",
         country: "USA",
+        sport: "BASKETBALL",
+        match_count: 2,
         matches: [
-          { home: "Boston Celtics", away: "Miami Heat", time: "01:00" },
-          { home: "Denver Nuggets", away: "Dallas Mavericks", time: "03:30" },
+          { id: "5", home_team: "Boston Celtics", away_team: "Miami Heat", kickoff_time: "2026-10-28T23:30:00.000Z", status: "NS" },
+          { id: "6", home_team: "Denver Nuggets", away_team: "Dallas Mavericks", kickoff_time: "2026-10-28T23:55:00.000Z", status: "NS" },
+        ],
+      },
+      {
+        id: "tt_elite",
+        league_name: "TT Elite Series",
+        country: "Czech Republic",
+        sport: "TABLE_TENNIS",
+        match_count: 2,
+        matches: [
+          { id: "7", home_team: "Dimitrij Ovtcharov", away_team: "Tomokazu Harimoto", kickoff_time: "2026-10-28T14:30:00.000Z", status: "NS" },
+          { id: "8", home_team: "Fan Zhendong", away_team: "Truls Moregard", kickoff_time: "2026-10-28T16:00:00.000Z", status: "NS" },
+        ],
+      },
+      {
+        id: "vb_superlega",
+        league_name: "SuperLega",
+        country: "Italy",
+        sport: "VOLLEYBALL",
+        match_count: 2,
+        matches: [
+          { id: "9", home_team: "Sir Safety Perugia", away_team: "Cucine Lube Civitanova", kickoff_time: "2026-10-28T18:00:00.000Z", status: "NS" },
+          { id: "10", home_team: "Itas Trentino", away_team: "Allianz Milano", kickoff_time: "2026-10-28T19:30:00.000Z", status: "NS" },
         ],
       },
     ];
+
+    const displayLeagues = liveLeagues.length > 0 ? liveLeagues : fallbackLeagues;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-200">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
-              <Trophy className="w-3.5 h-3.5" />
-              <span>Competitions Master Index</span>
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-mono font-bold text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Synced 5x Daily • Multi-Sport Live Feed
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">
+                {displayLeagues.length} Active Competitions Today
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               Today's Scheduled Leagues & Fixtures
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
-              Fixtures and kickoff times are shown below. Click any league to unlock full quantitative outcomes in All Matches.
+              Browse full schedules and kickoff times. Click any league to inspect calculated AI probabilities in All Matches.
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => onNavigateTab("all_matches")}
-            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition flex items-center gap-1.5 shrink-0"
+            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition flex items-center gap-1.5 shrink-0 shadow-md shadow-emerald-500/20"
           >
             <span>View All AI Outcomes</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {leaguesData.map((league) => (
-            <div
-              key={league.name}
-              className="p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-lg space-y-3"
+        {/* Sport Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: "all", label: "All Sports", icon: "🌐" },
+            { id: "football", label: "Football", icon: "⚽" },
+            { id: "basketball", label: "Basketball", icon: "🏀" },
+            { id: "table_tennis", label: "Table Tennis", icon: "🏓" },
+            { id: "volleyball", label: "Volleyball", icon: "🏐" },
+          ].map((sp) => (
+            <button
+              key={sp.id}
+              type="button"
+              onClick={() => setLeagueSport(sp.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border whitespace-nowrap ${
+                leagueSport === sp.id
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                  : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+              }`}
             >
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div>
-                  <h3 className="font-black text-white text-base">{league.name}</h3>
-                  <span className="text-[11px] font-mono text-slate-400">{league.country}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab("all_matches")}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition flex items-center gap-1"
-                >
-                  <span>View Outcomes</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* Match list WITHOUT outcomes */}
-              <div className="space-y-2">
-                {league.matches.map((m, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs"
-                  >
-                    <div className="font-semibold text-white">
-                      {m.home} <span className="text-slate-500 font-normal">vs</span> {m.away}
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono text-slate-400">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      <span>{m.time}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              <span>{sp.icon}</span>
+              <span>{sp.label}</span>
+            </button>
           ))}
         </div>
+
+        {/* Leagues Grid */}
+        {isLoadingLeagues ? (
+          <div className="p-12 text-center text-slate-400 text-xs font-mono">
+            Loading today's live league fixtures across all 4 sports...
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayLeagues.map((league) => {
+              const isExpanded = !!expandedLeagues[league.id || league.league_name];
+              const matches = league.matches || [];
+              const sportTag = (league.sport || "FOOTBALL").toUpperCase();
+
+              return (
+                <div
+                  key={league.id || league.league_name}
+                  className="p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-lg space-y-3"
+                >
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-white text-base">{league.league_name}</h3>
+                        <span className="px-2 py-0.5 rounded text-[9.5px] font-mono font-bold uppercase bg-white/5 text-slate-300 border border-white/10">
+                          {sportTag === "TABLE_TENNIS" ? "🏓 Table Tennis" : sportTag === "BASKETBALL" ? "🏀 Basketball" : sportTag === "VOLLEYBALL" ? "🏐 Volleyball" : "⚽ Football"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[11px] font-mono text-slate-400">{league.country}</span>
+                        <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                          • {matches.length} {matches.length === 1 ? "Match" : "Matches"} Scheduled
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTab("all_matches")}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition flex items-center gap-1 shrink-0"
+                    >
+                      <span>Analyze</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Match list WITHOUT outcomes (Preserving Pure Schedule Integrity) */}
+                  <div className="space-y-2">
+                    {matches.slice(0, isExpanded ? matches.length : 3).map((m: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs hover:bg-white/[0.05] transition"
+                      >
+                        <div className="font-semibold text-white truncate max-w-[220px] sm:max-w-[280px]">
+                          {m.home_team || m.home} <span className="text-slate-500 font-normal">vs</span> {m.away_team || m.away}
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-slate-400 shrink-0">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>{formatLeagueTime(m.kickoff_time || m.time)}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {matches.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleLeagueExpand(league.id || league.league_name)}
+                        className="w-full py-1.5 text-center text-[11px] font-bold text-slate-400 hover:text-white flex items-center justify-center gap-1 transition rounded-lg hover:bg-white/[0.03]"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <span>Show Less</span>
+                            <ChevronUp className="w-3 h-3" />
+                          </>
+                        ) : (
+                          <>
+                            <span>+{matches.length - 3} More Scheduled Matches</span>
+                            <ChevronDown className="w-3 h-3" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }

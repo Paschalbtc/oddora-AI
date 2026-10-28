@@ -162,15 +162,20 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
       {/* Top Header & Intro */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
-            <Layers className="w-3.5 h-3.5" />
-            <span>AfriOdds-Style Schedule Board • Engine 1</span>
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-mono font-bold text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Synced 5x Daily • Multi-Sport Live Feed
+            </span>
+            <span className="text-[11px] font-mono text-slate-400">
+              Auto-Refreshed Every 4.8h • Kickoff Purge Active
+            </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white">
             Daily All-Matches Master Schedule
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Real-time fixtures analyzed across Football, Basketball, Volleyball & Tennis with win probabilities.
+            Real-time fixtures analyzed across Football, Basketball, Table Tennis & Volleyball with win probabilities.
           </p>
         </div>
 

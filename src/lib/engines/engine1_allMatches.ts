@@ -27,6 +27,7 @@ import {
 } from "../sportBrains";
 import { fetchSportyBetLiveEvents } from "../sportybetBridge";
 import { generateAndBookDailySlips } from "./engine2_dailyOddsAndBankers";
+import { sync5xDailySchedule, get5xDailySyncSlot } from "../multiSportScheduleFeed";
 
 export interface V2MatchRecord {
   id?: string;
@@ -437,14 +438,17 @@ export async function syncMatchesForDate(
 }
 
 /**
- * Convenience wrapper for today's matches
+ * Convenience wrapper for today's matches using the 5x/day multi-sport pipeline
  */
 export async function syncTodayAllMatches(forceRefresh = false): Promise<{
   synced_count: number;
   message: string;
 }> {
-  const todayStr = new Date().toISOString().split("T")[0];
-  return syncMatchesForDate(todayStr, forceRefresh);
+  const result = await sync5xDailySchedule(forceRefresh);
+  return {
+    synced_count: result.synced_count,
+    message: result.message,
+  };
 }
 
 /**
@@ -474,7 +478,11 @@ export async function getAllMatchesForUI(
   // Auto-sync fixtures for this date if not already cached
   if (!data || data.length === 0) {
     try {
-      await syncMatchesForDate(dateStr);
+      if (dateStr === new Date().toISOString().split("T")[0]) {
+        await sync5xDailySchedule();
+      } else {
+        await syncMatchesForDate(dateStr);
+      }
       let retryQuery = supabase
         .from("oddora_v2_matches")
         .select("*")

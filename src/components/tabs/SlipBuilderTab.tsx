@@ -39,19 +39,24 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   const isProOrPremium = currentTier === "PRO" || currentTier === "PREMIUM";
 
   const freeMarkets = [
-    { id: "1x2", label: "1X2 (Straight Win)" },
     { id: "double chance", label: "Double Chance (1X / X2)" },
+    { id: "handicap", label: "Handicap (+1.5 Cushion)" },
     { id: "over 1.5", label: "Over 1.5 Goals" },
+    { id: "dnb", label: "Draw No Bet (DNB)" },
+    { id: "1x2", label: "1X2 (Straight Win)" },
   ];
 
   const advancedMarkets = [
     { id: "over 2.5", label: "Over 2.5 Goals", tier: "PRO" },
-    { id: "btts", label: "Both Teams To Score (GG)", tier: "PRO" },
     { id: "under 3.5", label: "Under 3.5 Goals", tier: "PRO" },
+    { id: "btts", label: "Both Teams To Score (GG)", tier: "PRO" },
+    { id: "1st half", label: "1st Half Over 0.5", tier: "PRO" },
     { id: "total points", label: "Basketball Total Points", tier: "PRO" },
     { id: "point spread", label: "Basketball Point Spread", tier: "PREMIUM" },
     { id: "total sets", label: "Volleyball Total Sets", tier: "PRO" },
+    { id: "set handicap", label: "Volleyball Set Handicap (+1.5)", tier: "PRO" },
     { id: "total games", label: "Tennis Total Games", tier: "PREMIUM" },
+    { id: "game handicap", label: "Tennis Game Handicap (+3.5)", tier: "PREMIUM" },
   ];
 
   const quickOddsPresets = [
@@ -186,11 +191,11 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
         </div>
       </div>
 
-      {/* Beginner Step-by-Step Helper */}
+      {/* High-Probability Compound Helper */}
       <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 text-emerald-300 font-bold">
-          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>How to use: 1. Select target odds (e.g. 5x or 10x). 2. Keep Auto match count. 3. Tap Solve & Book Slip!</span>
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>High-Probability Optimizer: Oddora AI prioritizes 80%–95%+ win-probability outcomes (Handicap +1.5, Double Chance, Over 1.5, DNB) to maximize your ticket's compound mathematical survival rate. Max 50 games.</span>
         </div>
       </div>
 
@@ -250,12 +255,13 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
               Step 2: Sport Category
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 { id: "all", label: "All Sports" },
-                { id: "football", label: "Football" },
-                { id: "basketball", label: "Basketball" },
-                { id: "tennis", label: "Tennis" },
+                { id: "football", label: "⚽ Football" },
+                { id: "basketball", label: "🏀 Basketball" },
+                { id: "volleyball", label: "🏐 Volleyball" },
+                { id: "tennis", label: "🎾 Tennis" },
               ].map((s) => (
                 <button
                   key={s.id}
@@ -275,9 +281,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
           {/* Match Count Mode */}
           <div className="space-y-2">
-            <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-              Step 3: Match Count Mode
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+                Step 3: Match Count Mode
+              </label>
+              <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                Max 50 Games
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -288,7 +299,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
                 }`}
               >
-                Auto (Optimal Odds Solver)
+                Auto (High-Prob Solver)
               </button>
               <button
                 type="button"
@@ -299,26 +310,45 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
                 }`}
               >
-                Custom ({customMatchCount} Matches)
+                Custom ({customMatchCount} Games)
               </button>
             </div>
 
             {matchCountMode === "CUSTOM" && (
-              <div className="flex items-center gap-1.5 pt-1">
-                {[3, 4, 5, 7, 10, 15].map((cnt) => (
-                  <button
-                    key={cnt}
-                    type="button"
-                    onClick={() => setCustomMatchCount(cnt)}
-                    className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold border ${
-                      customMatchCount === cnt
-                        ? "bg-emerald-500 text-black border-emerald-400"
-                        : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
-                    }`}
-                  >
-                    {cnt}
-                  </button>
-                ))}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  {[3, 5, 10, 15, 25, 35, 50].map((cnt) => (
+                    <button
+                      key={cnt}
+                      type="button"
+                      onClick={() => setCustomMatchCount(cnt)}
+                      className={`flex-1 min-w-[38px] py-1 rounded-lg text-xs font-mono font-bold border ${
+                        customMatchCount === cnt
+                          ? "bg-emerald-500 text-black border-emerald-400 font-black"
+                          : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+                      }`}
+                    >
+                      {cnt}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="2"
+                    max="50"
+                    step="1"
+                    value={customMatchCount}
+                    onChange={(e) => setCustomMatchCount(Number(e.target.value))}
+                    className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-xs font-mono font-black text-emerald-400 w-10 text-right">
+                    {customMatchCount}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-mono">
+                  Official bookmaker hard cap: 50 matches max per ticket.
+                </p>
               </div>
             )}
           </div>

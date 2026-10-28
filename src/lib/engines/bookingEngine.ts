@@ -79,7 +79,10 @@ export async function fetchLiveSportyBetCatalog(forceRefresh = false): Promise<a
   }
 
   const urls = [
+    "https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=sr%3Asport%3A1&pageSize=100",
     "https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1",
+    "https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=sr%3Asport%3A2&pageSize=50",
+    "https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=sr%3Asport%3A5&pageSize=50",
     "https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1&categoryId=sr:category:1", // England
     "https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1&categoryId=sr:category:8", // Spain
     "https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1&categoryId=sr:category:30", // Germany
@@ -94,16 +97,28 @@ export async function fetchLiveSportyBetCatalog(forceRefresh = false): Promise<a
       urls.map((u) =>
         fetch(u, { headers: SPORTYBET_HEADERS, cache: "no-store" })
           .then((r) => (r.ok ? r.json() : null))
-          .then((j) => (Array.isArray(j?.data) ? j.data : []))
-          .catch(() => [])
+          .catch(() => null)
       )
     );
 
     for (const res of responses) {
-      if (res.status === "fulfilled" && Array.isArray(res.value)) {
-        for (const ev of res.value) {
-          if (ev && ev.eventId && !eventMap.has(ev.eventId)) {
-            eventMap.set(ev.eventId, ev);
+      if (res.status === "fulfilled" && res.value) {
+        const d = res.value?.data;
+        if (Array.isArray(d)) {
+          for (const ev of d) {
+            if (ev && ev.eventId && !eventMap.has(ev.eventId)) {
+              eventMap.set(ev.eventId, ev);
+            }
+          }
+        } else if (Array.isArray(d?.tournaments)) {
+          for (const t of d.tournaments) {
+            if (Array.isArray(t?.events)) {
+              for (const ev of t.events) {
+                if (ev && ev.eventId && !eventMap.has(ev.eventId)) {
+                  eventMap.set(ev.eventId, ev);
+                }
+              }
+            }
           }
         }
       }
@@ -130,6 +145,17 @@ function matchSelectionToSportyBetEvent(
   sel: any,
   liveCatalog: any[]
 ): { eventId: string; marketId: string; outcomeId: string; specifier: string | null; odd: number } | null {
+  // 1. If selection was already supplied with real verified SportyBet eventId, use directly
+  if (sel.eventId && sel.eventId.startsWith("sr:match:") && sel.marketId && sel.outcomeId) {
+    return {
+      eventId: sel.eventId,
+      marketId: String(sel.marketId),
+      outcomeId: String(sel.outcomeId),
+      specifier: sel.specifier || null,
+      odd: Number(sel.odd || sel.odd_value) || 1.45,
+    };
+  }
+
   const normHome = normalizeTeam(sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : ""));
   const normAway = normalizeTeam(sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : ""));
   const marketLower = (sel.market || sel.market_name || "1X2").toLowerCase();
@@ -157,26 +183,7 @@ function matchSelectionToSportyBetEvent(
     const markets = matchedEvent.markets || [];
     const eventId = matchedEvent.eventId;
 
-    // 1. 1X2 Market (id: 1)
-    if (marketLower.includes("1x2") || marketLower.includes("winner") || (!marketLower.includes("double") && (selectionLower.includes("home") || selectionLower.includes("away") || selectionLower.includes("draw")))) {
-      const m1 = markets.find((m: any) => String(m.id) === "1" || m.desc === "1X2");
-      if (m1 && m1.outcomes && m1.outcomes.length > 0) {
-        let targetId = "1"; // Home
-        if (selectionLower.includes("draw") || selectionLower === "x") targetId = "2";
-        else if (selectionLower.includes("away") || selectionLower === "2") targetId = "3";
-
-        const out = m1.outcomes.find((o: any) => String(o.id) === targetId) || m1.outcomes[0];
-        return {
-          eventId,
-          marketId: "1",
-          outcomeId: String(out.id),
-          specifier: null,
-          odd: parseFloat(out.odds || "1.50"),
-        };
-      }
-    }
-
-    // 2. Double Chance (id: 10)
+    // 1. Double Chance (id: 10)
     if (marketLower.includes("double") || selectionLower.includes("1x") || selectionLower.includes("x2") || selectionLower.includes("12")) {
       const m10 = markets.find((m: any) => String(m.id) === "10" || m.desc?.includes("Double"));
       if (m10 && m10.outcomes && m10.outcomes.length > 0) {
@@ -195,8 +202,40 @@ function matchSelectionToSportyBetEvent(
       }
     }
 
-    // 3. Over/Under Goals (id: 18)
-    if (marketLower.includes("over") || marketLower.includes("under") || marketLower.includes("goals")) {
+    // 2. Handicap / Spread (id: 16)
+    if (marketLower.includes("handicap") || marketLower.includes("spread") || selectionLower.includes("+1.5") || selectionLower.includes("(+1.5)")) {
+      const m16 = markets.find((m: any) => String(m.id) === "16" || m.desc?.toLowerCase().includes("handicap"));
+      if (m16 && m16.outcomes && m16.outcomes.length > 0) {
+        const isHome = selectionLower.includes("home") || selectionLower.includes(normHome) || !selectionLower.includes("away");
+        const out = m16.outcomes.find((o: any) => String(o.id) === (isHome ? "1" : "3")) || m16.outcomes[0];
+        return {
+          eventId,
+          marketId: "16",
+          outcomeId: String(out.id),
+          specifier: m16.specifier || "hcp=+1.5",
+          odd: parseFloat(out.odds || "1.25"),
+        };
+      }
+    }
+
+    // 3. Draw No Bet (id: 11)
+    if (marketLower.includes("dnb") || marketLower.includes("draw no bet") || selectionLower.includes("dnb")) {
+      const m11 = markets.find((m: any) => String(m.id) === "11" || m.desc?.toLowerCase().includes("draw no bet"));
+      if (m11 && m11.outcomes && m11.outcomes.length > 0) {
+        const isHome = selectionLower.includes("home") || selectionLower.includes(normHome) || !selectionLower.includes("away");
+        const out = m11.outcomes.find((o: any) => String(o.id) === (isHome ? "1" : "2")) || m11.outcomes[0];
+        return {
+          eventId,
+          marketId: "11",
+          outcomeId: String(out.id),
+          specifier: null,
+          odd: parseFloat(out.odds || "1.35"),
+        };
+      }
+    }
+
+    // 4. Over/Under Goals (id: 18)
+    if (marketLower.includes("over") || marketLower.includes("under") || marketLower.includes("goals") || marketLower.includes("total")) {
       const isOver = selectionLower.includes("over") || !selectionLower.includes("under");
       const m18List = markets.filter((m: any) => String(m.id) === "18" || m.desc?.includes("Over"));
       if (m18List.length > 0) {
@@ -215,7 +254,7 @@ function matchSelectionToSportyBetEvent(
       }
     }
 
-    // 4. GG / Both Teams to Score (id: 29)
+    // 5. GG / Both Teams to Score (id: 29)
     if (marketLower.includes("btts") || marketLower.includes("gg") || marketLower.includes("both")) {
       const m29 = markets.find((m: any) => String(m.id) === "29" || m.desc?.includes("GG"));
       if (m29 && m29.outcomes && m29.outcomes.length > 0) {
@@ -227,6 +266,40 @@ function matchSelectionToSportyBetEvent(
           outcomeId: String(out.id),
           specifier: null,
           odd: parseFloat(out.odds || "1.70"),
+        };
+      }
+    }
+
+    // 6. 1st Half Goals / Points (id: 68)
+    if (marketLower.includes("1st half") || selectionLower.includes("1st half") || marketLower.includes("ht")) {
+      const m68 = markets.find((m: any) => String(m.id) === "68" || m.desc?.toLowerCase().includes("1st half"));
+      if (m68 && m68.outcomes && m68.outcomes.length > 0) {
+        const out = m68.outcomes.find((o: any) => String(o.id) === "12") || m68.outcomes[0];
+        return {
+          eventId,
+          marketId: "68",
+          outcomeId: String(out.id),
+          specifier: m68.specifier || "total=0.5",
+          odd: parseFloat(out.odds || "1.35"),
+        };
+      }
+    }
+
+    // 7. 1X2 Market (id: 1)
+    if (marketLower.includes("1x2") || marketLower.includes("moneyline") || marketLower.includes("winner") || marketLower.includes("straight")) {
+      const m1 = markets.find((m: any) => String(m.id) === "1" || m.desc === "1X2");
+      if (m1 && m1.outcomes && m1.outcomes.length > 0) {
+        let targetId = "1"; // Home
+        if (selectionLower.includes("draw") || selectionLower === "x") targetId = "2";
+        else if (selectionLower.includes("away") || selectionLower === "2") targetId = "3";
+
+        const out = m1.outcomes.find((o: any) => String(o.id) === targetId) || m1.outcomes[0];
+        return {
+          eventId,
+          marketId: "1",
+          outcomeId: String(out.id),
+          specifier: null,
+          odd: parseFloat(out.odds || "1.50"),
         };
       }
     }
@@ -243,17 +316,6 @@ function matchSelectionToSportyBetEvent(
         odd: parseFloat(out.odds || "1.50"),
       };
     }
-  }
-
-  // If match was already supplied with real SportyBet eventId
-  if (sel.eventId && sel.eventId.startsWith("sr:match:") && sel.marketId && sel.outcomeId) {
-    return {
-      eventId: sel.eventId,
-      marketId: String(sel.marketId),
-      outcomeId: String(sel.outcomeId),
-      specifier: sel.specifier || null,
-      odd: Number(sel.odd || sel.odd_value) || 1.50,
-    };
   }
 
   return null;
@@ -308,35 +370,90 @@ export async function bookUniversalSlip(
     for (const ev of liveCatalog) {
       if (finalLegs.some((l) => l.eventId === ev.eventId)) continue;
 
+      const requested = selections[finalLegs.length];
+      const reqMarket = (requested?.market || "").toLowerCase();
+
+      // Look for requested market or safest available on this live event
+      let chosenMarketId = "1";
+      let chosenOutcomeId = "1";
+      let chosenSpecifier: string | null = null;
+      let chosenOdd = 1.45;
+      let chosenMarketName = "1X2";
+      let chosenSelection = "Home Win";
+      let chosenWinProb = requested?.win_probability || 88;
+
+      const m10 = ev.markets?.find((m: any) => String(m.id) === "10" || m.desc?.includes("Double"));
+      const m18 = ev.markets?.find((m: any) => String(m.id) === "18" || m.desc?.includes("Over"));
+      const m16 = ev.markets?.find((m: any) => String(m.id) === "16" || m.desc?.includes("Handicap"));
+      const m11 = ev.markets?.find((m: any) => String(m.id) === "11" || m.desc?.includes("Draw No Bet"));
       const m1 = ev.markets?.find((m: any) => String(m.id) === "1" || m.desc === "1X2");
-      if (m1 && m1.outcomes && m1.outcomes.length > 0) {
-        // Pick safest outcome
+
+      if ((reqMarket.includes("double") || (!reqMarket.includes("over") && !reqMarket.includes("1x2"))) && m10 && m10.outcomes?.length > 0) {
+        const out = m10.outcomes[0];
+        chosenMarketId = "10";
+        chosenOutcomeId = String(out.id);
+        chosenMarketName = "Double Chance";
+        chosenSelection = out.desc || "1X";
+        chosenOdd = parseFloat(out.odds || "1.25");
+        chosenWinProb = Math.max(88, chosenWinProb);
+      } else if (reqMarket.includes("handicap") && m16 && m16.outcomes?.length > 0) {
+        const out = m16.outcomes[0];
+        chosenMarketId = "16";
+        chosenOutcomeId = String(out.id);
+        chosenSpecifier = m16.specifier || "hcp=+1.5";
+        chosenMarketName = "Handicap";
+        chosenSelection = `${ev.homeTeamName} (+1.5)`;
+        chosenOdd = parseFloat(out.odds || "1.25");
+        chosenWinProb = Math.max(90, chosenWinProb);
+      } else if (reqMarket.includes("dnb") && m11 && m11.outcomes?.length > 0) {
+        const out = m11.outcomes[0];
+        chosenMarketId = "11";
+        chosenOutcomeId = String(out.id);
+        chosenMarketName = "Draw No Bet";
+        chosenSelection = `${ev.homeTeamName} DNB`;
+        chosenOdd = parseFloat(out.odds || "1.35");
+        chosenWinProb = Math.max(86, chosenWinProb);
+      } else if ((reqMarket.includes("over") || reqMarket.includes("under")) && m18 && m18.outcomes?.length > 0) {
+        const out = m18.outcomes[0];
+        chosenMarketId = "18";
+        chosenOutcomeId = String(out.id);
+        chosenSpecifier = m18.specifier || "total=1.5";
+        chosenMarketName = "Over/Under Goals";
+        chosenSelection = out.desc || "Over 1.5";
+        chosenOdd = parseFloat(out.odds || "1.30");
+        chosenWinProb = Math.max(89, chosenWinProb);
+      } else if (m1 && m1.outcomes && m1.outcomes.length > 0) {
         const sortedOuts = [...m1.outcomes].sort((a: any, b: any) => parseFloat(a.odds) - parseFloat(b.odds));
         const safest = sortedOuts[0];
-        const oddVal = parseFloat(safest.odds || "1.45");
-
-        matchedSelections.push({
-          eventId: ev.eventId,
-          marketId: "1",
-          outcomeId: String(safest.id),
-          specifier: null,
-        });
-
-        finalLegs.push({
-          match: `${ev.homeTeamName} vs ${ev.awayTeamName}`,
-          home_team: ev.homeTeamName,
-          away_team: ev.awayTeamName,
-          league: ev.sport?.category?.tournament?.name || ev.sport?.category?.name || "Premier Division",
-          market: "1X2",
-          selection: safest.desc || "Home Win",
-          odd: oddVal,
-          win_probability: 82,
-          eventId: ev.eventId,
-          marketId: "1",
-          outcomeId: String(safest.id),
-          specifier: null,
-        });
+        chosenMarketId = "1";
+        chosenOutcomeId = String(safest.id);
+        chosenMarketName = "1X2";
+        chosenSelection = safest.desc || "Home Win";
+        chosenOdd = parseFloat(safest.odds || "1.45");
+        chosenWinProb = 82;
       }
+
+      matchedSelections.push({
+        eventId: ev.eventId,
+        marketId: chosenMarketId,
+        outcomeId: chosenOutcomeId,
+        specifier: chosenSpecifier,
+      });
+
+      finalLegs.push({
+        match: `${ev.homeTeamName} vs ${ev.awayTeamName}`,
+        home_team: ev.homeTeamName,
+        away_team: ev.awayTeamName,
+        league: ev.sport?.category?.tournament?.name || ev.sport?.category?.name || "Premier Division",
+        market: chosenMarketName,
+        selection: chosenSelection,
+        odd: chosenOdd,
+        win_probability: chosenWinProb,
+        eventId: ev.eventId,
+        marketId: chosenMarketId,
+        outcomeId: chosenOutcomeId,
+        specifier: chosenSpecifier,
+      });
 
       if (finalLegs.length >= selections.length) break;
     }

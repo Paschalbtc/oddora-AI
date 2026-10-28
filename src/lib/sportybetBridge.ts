@@ -114,14 +114,14 @@ export function mapMarketToSportyBetIds(
   const m = (market || "").toLowerCase();
   const s = (selection || "").toLowerCase();
 
-  // 1X2
+  // 1X2 / Moneyline / Match Winner
   if (m.includes("1x2") || m.includes("straight") || m.includes("moneyline") || m.includes("match winner")) {
     if (s.includes("home") || s === "1") return { marketId: "1", outcomeId: "1", specifier: null };
     if (s.includes("draw") || s === "x") return { marketId: "1", outcomeId: "2", specifier: null };
     if (s.includes("away") || s === "2") return { marketId: "1", outcomeId: "3", specifier: null };
   }
 
-  // Double Chance
+  // Double Chance (1X, X2, 12)
   if (m.includes("double chance") || s === "1x" || s === "x2" || s === "12") {
     if (s.includes("1x")) return { marketId: "10", outcomeId: "9", specifier: null };
     if (s.includes("12")) return { marketId: "10", outcomeId: "10", specifier: null };
@@ -129,30 +129,79 @@ export function mapMarketToSportyBetIds(
     return { marketId: "10", outcomeId: "9", specifier: null };
   }
 
-  // Over/Under Goals / Sets / Games
-  if (m.includes("over") || m.includes("under") || m.includes("total")) {
-    const isOver = s.includes("over");
-    let total = "2.5";
-    if (s.includes("1.5")) total = "1.5";
-    else if (s.includes("3.5")) total = "3.5";
-    else if (s.includes("4.5")) total = "4.5";
-    else if (s.includes("210.5")) total = "210.5";
-    else if (s.includes("218.5")) total = "218.5";
-
+  // Draw No Bet (DNB)
+  if (m.includes("draw no bet") || m.includes("dnb") || s.includes("dnb")) {
+    const isHome = s.includes("home") || s.includes("1");
     return {
-      marketId: "18",
-      outcomeId: isOver ? "12" : "13",
-      specifier: `total=${total}`,
+      marketId: "11",
+      outcomeId: isHome ? "1" : "2",
+      specifier: null,
     };
   }
 
-  // Both Teams To Score (GG/NG)
+  // Both Teams To Score (BTTS / GG / NG)
   if (m.includes("both teams to score") || m.includes("btts") || s.includes("btts") || s.includes("gg") || s.includes("ng")) {
     const isYes = s.includes("yes") || s.includes("gg");
     return {
       marketId: "29",
       outcomeId: isYes ? "74" : "76",
       specifier: null,
+    };
+  }
+
+  // Handicap / Point Spread / Sets Handicap
+  if (m.includes("handicap") || m.includes("spread") || s.includes("handicap") || s.includes("+") || (s.includes("-") && !s.includes("under"))) {
+    const isHome = s.includes("home") || s.includes("1") || s.includes("player 1");
+    let hValue = "+1.5";
+    if (s.includes("+1.5") || s.includes("-1.5")) hValue = s.includes("-") ? "-1.5" : "+1.5";
+    else if (s.includes("+2.5") || s.includes("-2.5")) hValue = s.includes("-") ? "-2.5" : "+2.5";
+    else if (s.includes("+3.5") || s.includes("-3.5")) hValue = s.includes("-") ? "-3.5" : "+3.5";
+    else if (s.includes("+4.5") || s.includes("-4.5")) hValue = s.includes("-") ? "-4.5" : "+4.5";
+    else if (s.includes("+7.5") || s.includes("-7.5")) hValue = s.includes("-") ? "-7.5" : "+7.5";
+
+    return {
+      marketId: "16",
+      outcomeId: isHome ? "1" : "3",
+      specifier: `hcp=${hValue}`,
+    };
+  }
+
+  // 1st Half Markets (1st Half Over 0.5, 1st Half 1X2)
+  if (m.includes("1st half") || m.includes("ht") || s.includes("1st half") || s.includes("ht")) {
+    if (s.includes("over") || s.includes("under")) {
+      const isOver = s.includes("over");
+      const total = s.includes("1.5") ? "1.5" : "0.5";
+      return {
+        marketId: "68",
+        outcomeId: isOver ? "12" : "13",
+        specifier: `total=${total}`,
+      };
+    }
+    if (s.includes("1x")) return { marketId: "70", outcomeId: "9", specifier: null };
+    return { marketId: "60", outcomeId: s.includes("2") ? "3" : "1", specifier: null };
+  }
+
+  // Over/Under Goals / Sets / Games / Total Points
+  if (m.includes("over") || m.includes("under") || m.includes("total")) {
+    const isOver = s.includes("over");
+    let total = "2.5";
+    if (s.includes("0.5")) total = "0.5";
+    else if (s.includes("1.5")) total = "1.5";
+    else if (s.includes("3.5")) total = "3.5";
+    else if (s.includes("4.5")) total = "4.5";
+    else if (s.includes("20.5")) total = "20.5";
+    else if (s.includes("21.5")) total = "21.5";
+    else if (s.includes("22.5")) total = "22.5";
+    else if (s.includes("106.5")) total = "106.5";
+    else if (s.includes("178.5")) total = "178.5";
+    else if (s.includes("210.5")) total = "210.5";
+    else if (s.includes("218.5")) total = "218.5";
+    else if (s.includes("225.5")) total = "225.5";
+
+    return {
+      marketId: "18",
+      outcomeId: isOver ? "12" : "13",
+      specifier: `total=${total}`,
     };
   }
 

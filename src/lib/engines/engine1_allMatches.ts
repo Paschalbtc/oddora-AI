@@ -62,28 +62,37 @@ const API_FOOTBALL_KEY =
  * Syncs today's schedule from API-Football & Multi-sport feeds, runs analytical brains,
  * and caches results in Supabase `oddora_v2_matches`.
  */
-export async function syncTodayAllMatches(): Promise<{
+export async function syncTodayAllMatches(forceRefresh = false): Promise<{
   synced_count: number;
   message: string;
 }> {
   const supabase = getSupabaseAdmin();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // 1. Check if matches are already cached for today to protect the 100/day quota
-  try {
-    const { data: existingMatches, error: checkError } = await supabase
-      .from("oddora_v2_matches")
-      .select("match_id, sport_type, is_free_preview")
-      .eq("match_date", todayStr);
+  // 1. Check if matches are already cached with rich all_markets_json for today
+  if (!forceRefresh) {
+    try {
+      const { data: existingMatches, error: checkError } = await supabase
+        .from("oddora_v2_matches")
+        .select("match_id, sport_type, is_free_preview, all_markets_json")
+        .eq("match_date", todayStr);
 
-    if (!checkError && existingMatches && existingMatches.length >= 10) {
-      return {
-        synced_count: existingMatches.length,
-        message: `Fixtures already cached for ${todayStr}. Quota saved.`,
-      };
+      const hasValidMarkets =
+        existingMatches &&
+        existingMatches.length >= 10 &&
+        existingMatches.some(
+          (m: any) => Array.isArray(m.all_markets_json) && m.all_markets_json.length > 0
+        );
+
+      if (!checkError && hasValidMarkets) {
+        return {
+          synced_count: existingMatches.length,
+          message: `Fixtures already cached for ${todayStr}. Quota saved.`,
+        };
+      }
+    } catch (err) {
+      console.warn("Could not check cached fixtures, proceeding with fresh sync:", err);
     }
-  } catch (err) {
-    console.warn("Could not check cached fixtures, proceeding with fresh sync:", err);
   }
 
   const newRecords: Array<{
@@ -208,7 +217,7 @@ export async function syncTodayAllMatches(): Promise<{
       is_over25_candidate: !!analysis.is_over25_candidate,
       internal_ai_reasoning: analysis.internal_ai_reasoning,
       raw_stats_json: analysis.metadata || {},
-      all_markets_json: {},
+      all_markets_json: analysis.metadata?.all_outcomes || [],
       home_score: f.goals?.home ?? null,
       away_score: f.goals?.away ?? null,
       outcome_result: "PENDING",
@@ -244,7 +253,7 @@ export async function syncTodayAllMatches(): Promise<{
       is_over25_candidate: false,
       internal_ai_reasoning: analysis.internal_ai_reasoning,
       raw_stats_json: analysis.metadata || {},
-      all_markets_json: {},
+      all_markets_json: analysis.metadata?.all_outcomes || [],
       home_score: null,
       away_score: null,
       outcome_result: "PENDING",
@@ -277,7 +286,7 @@ export async function syncTodayAllMatches(): Promise<{
       is_over25_candidate: false,
       internal_ai_reasoning: analysis.internal_ai_reasoning,
       raw_stats_json: analysis.metadata || {},
-      all_markets_json: {},
+      all_markets_json: analysis.metadata?.all_outcomes || [],
       home_score: null,
       away_score: null,
       outcome_result: "PENDING",
@@ -310,7 +319,7 @@ export async function syncTodayAllMatches(): Promise<{
       is_over25_candidate: false,
       internal_ai_reasoning: analysis.internal_ai_reasoning,
       raw_stats_json: analysis.metadata || {},
-      all_markets_json: {},
+      all_markets_json: analysis.metadata?.all_outcomes || [],
       home_score: null,
       away_score: null,
       outcome_result: "PENDING",
@@ -431,6 +440,7 @@ export async function getAllMatchesForUI(
       is_free_preview: !!r.is_free_preview,
       is_over25_candidate: !!r.is_over25_candidate,
       match_metadata: r.raw_stats_json || {},
+      all_markets: isLocked ? [] : (r.all_markets_json || []),
     };
   });
 }

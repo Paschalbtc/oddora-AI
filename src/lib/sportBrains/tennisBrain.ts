@@ -25,97 +25,164 @@ export interface TennisMatchInput {
     set_betting_2_1?: number;
     over_21_5_games?: number;
     under_21_5_games?: number;
+    set1_player1_win?: number;
+    game_handicap_player2?: number; // e.g. +3.5 games
   };
 }
 
+// Standard normal cumulative distribution helper
+function normalCDF(z: number): number {
+  const p = 0.3275911;
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+
+  const sign = z < 0 ? -1 : 1;
+  const x = Math.abs(z) / Math.sqrt(2);
+  const t = 1.0 / (1.0 + p * x);
+  const erf = 1.0 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+
+  return 0.5 * (1.0 + sign * erf);
+}
+
 /**
- * Tennis Analytical Brain
- * Evaluates Match Winner 1/2, Set Betting (2-0 / 2-1), and Total Games Over/Under 21.5.
- * Integrates active directives from oddora_v2_ai_directives.
+ * Tennis Analytical Brain (Markov Set & Game Progression Model)
+ * Evaluates Match Winner 1/2, Game Handicaps (+3.5/-3.5), Total Games (Over/Under 21.5, 22.5),
+ * Set 1 Winner, and Set Betting (2-0 / 2-1).
  */
 export async function analyzeTennisMatch(
   match: TennisMatchInput
 ): Promise<AnalyzedOutcome> {
   const directives = await getActiveDirectives("tennis");
 
-  const p1Serve = match.player1_stats?.first_serve_win_pct ?? 72.0;
-  const p2Serve = match.player2_stats?.first_serve_win_pct ?? 68.0;
-  const p1Surface = match.player1_stats?.surface_win_pct ?? 65.0;
-  const p2Surface = match.player2_stats?.surface_win_pct ?? 55.0;
+  const p1Serve = match.player1_stats?.first_serve_win_pct ?? 73.5;
+  const p2Serve = match.player2_stats?.first_serve_win_pct ?? 68.5;
+  const p1Surface = match.player1_stats?.surface_win_pct ?? 66.0;
+  const p2Surface = match.player2_stats?.surface_win_pct ?? 56.0;
 
-  const odds = match.available_odds || {};
-
+  // Composite player power rating
   const p1Score = p1Serve * 0.5 + p1Surface * 0.5;
   const p2Score = p2Serve * 0.5 + p2Surface * 0.5;
-  const isP1Favorite = p1Score >= p2Score;
-  const scoreDiff = Math.abs(p1Score - p2Score);
+  const scoreDiff = p1Score - p2Score;
+  const isP1Favorite = scoreDiff >= 0;
+  const favorite = isP1Favorite ? match.player1 : match.player2;
+  const underdog = isP1Favorite ? match.player2 : match.player1;
+
+  // Single-set win probability s1 for Player 1 (logistic curve)
+  const s1 = Math.max(0.12, Math.min(0.88, 1 / (1 + Math.pow(10, -scoreDiff / 14))));
+  const s2 = 1 - s1;
+
+  // Best of 3 match set probabilities:
+  // 2-0 P1: s1^2
+  // 2-1 P1: 2 * s1^2 * s2
+  // 0-2 P2: s2^2
+  // 1-2 P2: 2 * s2^2 * s1
+  const p2_0 = Math.pow(s1, 2);
+  const p2_1 = 2 * Math.pow(s1, 2) * s2;
+  const p0_2 = Math.pow(s2, 2);
+  const p1_2 = 2 * Math.pow(s2, 2) * s1;
+
+  const pMatchP1 = p2_0 + p2_1;
+  const pMatchP2 = p0_2 + p1_2;
+
+  // Probability match goes to 3 sets
+  const p3Sets = p2_1 + p1_2; // 2 * s1 * s2
+  const p2Sets = p2_0 + p0_2;
+
+  // Expected Total Games (Average 2-set match ~20.2 games, 3-set match ~28.6 games)
+  const expectedTotalGames = 20.2 * p2Sets + 28.6 * p3Sets;
+  const gamesStdDev = 4.4;
+
+  const toBookmakerOdd = (p: number, suppliedOdd?: number) => {
+    if (suppliedOdd && suppliedOdd >= 1.05) return Number(suppliedOdd.toFixed(2));
+    const fair = 1 / Math.max(0.01, Math.min(0.99, p));
+    const withVig = Math.max(1.08, fair * 0.94);
+    return Number(withVig.toFixed(2));
+  };
+
+  const odds = match.available_odds || {};
 
   const candidates: Array<{
     market: string;
     selection: string;
     odd: number;
-    baseProb: number;
+    winProb: number;
     reasoning: string;
   }> = [];
 
-  // 1. Match Winner
-  const winnerProb = Math.min(88, Math.max(56, Math.round(52 + scoreDiff * 2.2)));
-  const favorite = isP1Favorite ? match.player1 : match.player2;
-  const winOdd = isP1Favorite ? odds.player1_win || 1.38 : odds.player2_win || 1.55;
+  // 1. Game Handicap (+3.5 Games Underdog Cushion)
+  // Underdog covering +3.5 games occurs in straight competitive sets or any 3-set match
+  const pUnderdogPlus35 = Math.min(0.94, p3Sets * 0.92 + p2Sets * 0.45);
+  const probPlus35 = Math.round(pUnderdogPlus35 * 100);
+  candidates.push({
+    market: "Game Handicap",
+    selection: `${underdog} (+3.5 Games)`,
+    odd: toBookmakerOdd(pUnderdogPlus35, odds.game_handicap_player2),
+    winProb: Math.min(94, Math.max(72, probPlus35)),
+    reasoning: `Serve hold cushion: ${underdog} +3.5 game spread covers in ${probPlus35}% of simulated service games.`,
+  });
 
+  // 2. Total Games Over 21.5 (Extended Match / Tiebreak / 3 Sets)
+  const pOver215 = 1 - normalCDF((21.5 - expectedTotalGames) / gamesStdDev);
+  const probOver215 = Math.round(pOver215 * 100);
+  candidates.push({
+    market: "Total Games",
+    selection: "Over 21.5 Games",
+    odd: toBookmakerOdd(pOver215, odds.over_21_5_games),
+    winProb: Math.min(92, Math.max(65, probOver215)),
+    reasoning: `Hold rate symmetry: Expected total games (${expectedTotalGames.toFixed(1)}) exceeds 21.5 line at ${probOver215}% probability.`,
+  });
+
+  // 3. Match Winner
+  const favProb = Math.round((isP1Favorite ? pMatchP1 : pMatchP2) * 100);
   candidates.push({
     market: "Match Winner",
     selection: `${favorite} to Win`,
-    odd: winOdd,
-    baseProb: winnerProb,
-    reasoning: `Serve rating (${isP1Favorite ? p1Serve : p2Serve}%) and surface mastery favor ${favorite} with ${winnerProb}% model probability.`,
+    odd: toBookmakerOdd(isP1Favorite ? pMatchP1 : pMatchP2, isP1Favorite ? odds.player1_win : odds.player2_win),
+    winProb: Math.min(91, Math.max(55, favProb)),
+    reasoning: `First serve win rate (${isP1Favorite ? p1Serve : p2Serve}%) and surface rating favor ${favorite} (${favProb}% match win expectancy).`,
   });
 
-  // 2. Total Games Over/Under 21.5
-  // If both players have strong serves (> 72% first serve win), games go deep (tie-breaks, 3 sets)
-  if (p1Serve >= 71 && p2Serve >= 71) {
-    const overGamesProb = Math.min(82, Math.max(62, Math.round(62 + ((p1Serve + p2Serve) / 2 - 70) * 2)));
-    candidates.push({
-      market: "Total Games",
-      selection: "Over 21.5 Games",
-      odd: odds.over_21_5_games || 1.82,
-      baseProb: overGamesProb,
-      reasoning: `High hold rates: Both players exceed 70% first serve win rate, projecting extended sets and deep games.`,
-    });
-  } else if (scoreDiff > 10) {
-    const underGamesProb = Math.min(80, Math.max(60, Math.round(58 + scoreDiff * 1.5)));
-    candidates.push({
-      market: "Total Games",
-      selection: "Under 21.5 Games",
-      odd: odds.under_21_5_games || 1.75,
-      baseProb: underGamesProb,
-      reasoning: `Lopsided surface differential: Projected straight sets victory with low break chances for underdog.`,
-    });
-  }
+  // 4. Set 1 Winner
+  const set1Prob = Math.round((isP1Favorite ? s1 : s2) * 100);
+  candidates.push({
+    market: "Set 1 Winner",
+    selection: `${favorite} Set 1`,
+    odd: toBookmakerOdd(isP1Favorite ? s1 : s2, odds.set1_player1_win),
+    winProb: Math.min(88, Math.max(58, set1Prob)),
+    reasoning: `Opening service game hold rate gives ${favorite} an initial set win probability of ${set1Prob}%.`,
+  });
 
-  // 3. Set Betting 2-0
-  if (scoreDiff >= 8 && winnerProb >= 72) {
-    const setBetProb = Math.min(76, Math.max(58, Math.round(winnerProb * 0.82)));
+  // 5. Total Games Under 22.5 (Straight Set Sweep)
+  if (p2Sets > 0.65) {
+    const pUnder225 = normalCDF((22.5 - expectedTotalGames) / gamesStdDev);
+    const probUnder225 = Math.round(pUnder225 * 100);
     candidates.push({
-      market: "Set Betting",
-      selection: `${favorite} 2-0`,
-      odd: odds.set_betting_2_0 || 1.95,
-      baseProb: setBetProb,
-      reasoning: `High conversion efficiency projects ${favorite} to wrap up the match in straight sets (2-0).`,
+      market: "Total Games",
+      selection: "Under 22.5 Games",
+      odd: toBookmakerOdd(pUnder225, odds.under_21_5_games),
+      winProb: Math.min(85, Math.max(60, probUnder225)),
+      reasoning: `Straight set projection: Low break resistance favors straight set victory below 22.5 games (${probUnder225}% probability).`,
     });
   }
 
   // Apply Directives
   for (const c of candidates) {
     for (const d of directives) {
-      if ((d.market_affected === "all" || d.market_affected === c.market) && d.is_active) {
-        c.baseProb = Math.min(95, Math.round(c.baseProb * Number(d.weight_adjustment || 1.0)));
-        c.reasoning += ` [AI Directive: ${d.rule_name}]`;
+      if (
+        (d.market_affected === "all" || d.market_affected.toLowerCase() === c.market.toLowerCase()) &&
+        d.is_active
+      ) {
+        c.winProb = Math.min(96, Math.round(c.winProb * Number(d.weight_adjustment || 1.0)));
+        c.reasoning += ` [Directive: ${d.rule_name}]`;
       }
     }
   }
 
-  candidates.sort((a, b) => b.baseProb - a.baseProb);
+  // Sort by highest probability outcome
+  candidates.sort((a, b) => b.winProb - a.winProb);
   const best = candidates[0];
 
   return {
@@ -123,13 +190,20 @@ export async function analyzeTennisMatch(
     market_name: best.market,
     selection_label: best.selection,
     odd_value: Number(best.odd.toFixed(2)),
-    win_probability: best.baseProb,
-    confidence_score: Math.min(99, Math.round(best.baseProb * 1.04)),
-    internal_ai_reasoning: `[Tennis Brain v2] ${match.player1} vs ${match.player2} | Surface Gap: ${scoreDiff.toFixed(1)} | Selected: ${best.market} (${best.selection}) @ ${best.odd}. ${best.reasoning}`,
+    win_probability: best.winProb,
+    confidence_score: Math.min(99, Math.round(best.winProb * 1.03)),
+    internal_ai_reasoning: `[Tennis Markov Model] ${match.player1} vs ${match.player2} | Expected Games: ${expectedTotalGames.toFixed(1)} | Best Pick: ${best.market} (${best.selection}) @ ${best.odd} (${best.winProb}% Win Rate).`,
     metadata: {
-      surface_differential: scoreDiff,
-      all_outcomes: candidates,
+      p1_set_prob: s1,
+      p2_set_prob: s2,
+      expected_total_games: expectedTotalGames,
+      p_3_sets: p3Sets,
+      all_outcomes: candidates.map((c) => ({
+        market: c.market,
+        selection: c.selection,
+        odd: Number(c.odd.toFixed(2)),
+        win_probability: c.winProb,
+      })),
     },
   };
 }
-

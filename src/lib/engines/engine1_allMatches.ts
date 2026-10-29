@@ -80,6 +80,15 @@ export async function syncMatchesForDate(
   const supabase = getSupabaseAdmin();
   const todayStr = new Date().toISOString().split("T")[0];
 
+  // For today, delegate directly to the 5x/day multi-sport ingestion engine
+  if (targetDateStr === todayStr) {
+    const res = await sync5xDailySchedule(forceRefresh);
+    return {
+      synced_count: res.synced_count,
+      message: res.message,
+    };
+  }
+
   // 1. Check if matches are already cached with rich all_markets_json for target date
   if (!forceRefresh) {
     try {
@@ -249,145 +258,6 @@ export async function syncMatchesForDate(
     });
   }
 
-  // 3. Multi-sport Fixtures for targetDateStr (Basketball, Volleyball, Table Tennis, Tennis)
-  const multiSportSeeds = getMultiSportScheduleForDate(targetDateStr);
-
-  // Basketball
-  for (const m of multiSportSeeds.basketball) {
-    const analysis = await analyzeBasketballMatch({
-      home_team: m.home_team,
-      away_team: m.away_team,
-      league: m.league,
-    });
-    newRecords.push({
-      match_id: m.id,
-      sport_type: "BASKETBALL",
-      match_date: targetDateStr,
-      league_id: null,
-      league_name: m.league,
-      country: m.country,
-      league_logo: "",
-      home_team: m.home_team,
-      away_team: m.away_team,
-      kickoff_time: m.kickoff,
-      status: isPastDate ? "FT" : "NS",
-      best_outcome: analysis.selection_label,
-      market_category: analysis.market_name,
-      odd_value: analysis.odd_value,
-      win_probability: analysis.win_probability,
-      is_free_preview: false,
-      is_over25_candidate: false,
-      internal_ai_reasoning: analysis.internal_ai_reasoning,
-      raw_stats_json: analysis.metadata || {},
-      all_markets_json: analysis.metadata?.all_outcomes || [],
-      home_score: isPastDate ? 112 : null,
-      away_score: isPastDate ? 104 : null,
-      outcome_result: isPastDate ? "WON" : "PENDING",
-    });
-  }
-
-  // Volleyball
-  for (const m of multiSportSeeds.volleyball) {
-    const analysis = await analyzeVolleyballMatch({
-      home_team: m.home_team,
-      away_team: m.away_team,
-      league: m.league,
-    });
-    newRecords.push({
-      match_id: m.id,
-      sport_type: "VOLLEYBALL",
-      match_date: targetDateStr,
-      league_id: null,
-      league_name: m.league,
-      country: m.country,
-      league_logo: "",
-      home_team: m.home_team,
-      away_team: m.away_team,
-      kickoff_time: m.kickoff,
-      status: isPastDate ? "FT" : "NS",
-      best_outcome: analysis.selection_label,
-      market_category: analysis.market_name,
-      odd_value: analysis.odd_value,
-      win_probability: analysis.win_probability,
-      is_free_preview: false,
-      is_over25_candidate: false,
-      internal_ai_reasoning: analysis.internal_ai_reasoning,
-      raw_stats_json: analysis.metadata || {},
-      all_markets_json: analysis.metadata?.all_outcomes || [],
-      home_score: isPastDate ? 3 : null,
-      away_score: isPastDate ? 1 : null,
-      outcome_result: isPastDate ? "WON" : "PENDING",
-    });
-  }
-
-  // Table Tennis
-  for (const m of multiSportSeeds.table_tennis) {
-    const analysis = await analyzeTableTennisMatch({
-      player1: m.home_team,
-      player2: m.away_team,
-      tournament: m.league,
-    });
-    newRecords.push({
-      match_id: m.id,
-      sport_type: "TABLE_TENNIS",
-      match_date: targetDateStr,
-      league_id: null,
-      league_name: m.league,
-      country: m.country,
-      league_logo: "",
-      home_team: m.home_team,
-      away_team: m.away_team,
-      kickoff_time: m.kickoff,
-      status: isPastDate ? "FT" : "NS",
-      best_outcome: analysis.selection_label,
-      market_category: analysis.market_name,
-      odd_value: analysis.odd_value,
-      win_probability: analysis.win_probability,
-      is_free_preview: false,
-      is_over25_candidate: false,
-      internal_ai_reasoning: analysis.internal_ai_reasoning,
-      raw_stats_json: analysis.metadata || {},
-      all_markets_json: analysis.metadata?.all_outcomes || [],
-      home_score: isPastDate ? 3 : null,
-      away_score: isPastDate ? 1 : null,
-      outcome_result: isPastDate ? "WON" : "PENDING",
-    });
-  }
-
-  // Tennis
-  for (const m of multiSportSeeds.tennis) {
-    const analysis = await analyzeTennisMatch({
-      player1: m.home_team,
-      player2: m.away_team,
-      tournament: m.league,
-    });
-    newRecords.push({
-      match_id: m.id,
-      sport_type: "TENNIS",
-      match_date: targetDateStr,
-      league_id: null,
-      league_name: m.league,
-      country: m.country,
-      league_logo: "",
-      home_team: m.home_team,
-      away_team: m.away_team,
-      kickoff_time: m.kickoff,
-      status: isPastDate ? "FT" : "NS",
-      best_outcome: analysis.selection_label,
-      market_category: analysis.market_name,
-      odd_value: analysis.odd_value,
-      win_probability: analysis.win_probability,
-      is_free_preview: false,
-      is_over25_candidate: false,
-      internal_ai_reasoning: analysis.internal_ai_reasoning,
-      raw_stats_json: analysis.metadata || {},
-      all_markets_json: analysis.metadata?.all_outcomes || [],
-      home_score: isPastDate ? 2 : null,
-      away_score: isPastDate ? 0 : null,
-      outcome_result: isPastDate ? "WON" : "PENDING",
-    });
-  }
-
   // 4. Mark 3 matches per sport as `is_free_preview = true`
   const sports = ["FOOTBALL", "BASKETBALL", "VOLLEYBALL", "TABLE_TENNIS", "TENNIS"] as const;
   for (const s of sports) {
@@ -546,54 +416,4 @@ export async function getAllMatchesForUI(
       outcome_result: r.outcome_result || "PENDING",
     };
   });
-}
-
-/**
- * Curated accurate football matches for a specific date
- */
-function getCuratedFootballForDate(dateStr: string) {
-  const baseTime = new Date(`${dateStr}T16:00:00.000Z`).getTime();
-  return [
-    { id: `ft_1_${dateStr}`, home: "Arsenal", away: "Chelsea", league: "Premier League", country: "England", kickoff: new Date(baseTime + 1800000).toISOString(), home_score: 2, away_score: 1 },
-    { id: `ft_2_${dateStr}`, home: "Manchester City", away: "Liverpool", league: "Premier League", country: "England", kickoff: new Date(baseTime + 5400000).toISOString(), home_score: 3, away_score: 2 },
-    { id: `ft_3_${dateStr}`, home: "Real Madrid", away: "Barcelona", league: "La Liga", country: "Spain", kickoff: new Date(baseTime + 9000000).toISOString(), home_score: 2, away_score: 1 },
-    { id: `ft_4_${dateStr}`, home: "Bayern Munich", away: "Borussia Dortmund", league: "Bundesliga", country: "Germany", kickoff: new Date(baseTime + 12600000).toISOString(), home_score: 3, away_score: 1 },
-    { id: `ft_5_${dateStr}`, home: "Inter Milan", away: "AC Milan", league: "Serie A", country: "Italy", kickoff: new Date(baseTime + 14400000).toISOString(), home_score: 1, away_score: 0 },
-    { id: `ft_6_${dateStr}`, home: "Paris Saint-Germain", away: "Marseille", league: "Ligue 1", country: "France", kickoff: new Date(baseTime + 16200000).toISOString(), home_score: 2, away_score: 0 },
-    { id: `ft_7_${dateStr}`, home: "Bayer Leverkusen", away: "RB Leipzig", league: "Bundesliga", country: "Germany", kickoff: new Date(baseTime + 18000000).toISOString(), home_score: 2, away_score: 2 },
-    { id: `ft_8_${dateStr}`, home: "Atletico Madrid", away: "Sevilla", league: "La Liga", country: "Spain", kickoff: new Date(baseTime + 19800000).toISOString(), home_score: 1, away_score: 0 },
-  ];
-}
-
-/**
- * Multi-sport fixtures strictly aligned with the target date
- */
-function getMultiSportScheduleForDate(dateStr: string) {
-  const baseTime = new Date(`${dateStr}T17:00:00.000Z`).getTime();
-  return {
-    basketball: [
-      { id: `bb_1_${dateStr}`, league: "NBA", country: "USA", home_team: "Boston Celtics", away_team: "Miami Heat", kickoff: new Date(baseTime + 3600000).toISOString() },
-      { id: `bb_2_${dateStr}`, league: "EuroLeague", country: "Europe", home_team: "Real Madrid Baloncesto", away_team: "Barcelona Basket", kickoff: new Date(baseTime + 7200000).toISOString() },
-      { id: `bb_3_${dateStr}`, league: "NBA", country: "USA", home_team: "Golden State Warriors", away_team: "LA Lakers", kickoff: new Date(baseTime + 10800000).toISOString() },
-      { id: `bb_4_${dateStr}`, league: "NBA", country: "USA", home_team: "Denver Nuggets", away_team: "Dallas Mavericks", kickoff: new Date(baseTime + 14400000).toISOString() },
-    ],
-    volleyball: [
-      { id: `vb_1_${dateStr}`, league: "SuperLega", country: "Italy", home_team: "Sir Safety Perugia", away_team: "Cucine Lube Civitanova", kickoff: new Date(baseTime + 2400000).toISOString() },
-      { id: `vb_2_${dateStr}`, league: "PlusLiga", country: "Poland", home_team: "Jastrzebski Wegiel", away_team: "ZAKSA Kedzierzyn-Kozle", kickoff: new Date(baseTime + 6000000).toISOString() },
-      { id: `vb_3_${dateStr}`, league: "SuperLega", country: "Italy", home_team: "Itas Trentino", away_team: "Allianz Milano", kickoff: new Date(baseTime + 9600000).toISOString() },
-      { id: `vb_4_${dateStr}`, league: "PlusLiga", country: "Poland", home_team: "Aluron Zawiercie", away_team: "Asseco Resovia", kickoff: new Date(baseTime + 13200000).toISOString() },
-    ],
-    table_tennis: [
-      { id: `tt_1_${dateStr}`, league: "WTT Champions", country: "International", home_team: "Fan Zhendong", away_team: "Truls Moregard", kickoff: new Date(baseTime + 1800000).toISOString() },
-      { id: `tt_2_${dateStr}`, league: "TT Cup", country: "Europe", home_team: "Dimitrij Ovtcharov", away_team: "Tomokazu Harimoto", kickoff: new Date(baseTime + 4200000).toISOString() },
-      { id: `tt_3_${dateStr}`, league: "WTT Contender", country: "International", home_team: "Lin Shidong", away_team: "Felix Lebrun", kickoff: new Date(baseTime + 7800000).toISOString() },
-      { id: `tt_4_${dateStr}`, league: "Setka Cup", country: "Ukraine", home_team: "Dang Qiu", away_team: "Alexis Lebrun", kickoff: new Date(baseTime + 11400000).toISOString() },
-    ],
-    tennis: [
-      { id: `tn_1_${dateStr}`, league: "ATP Masters", country: "ATP", home_team: "Carlos Alcaraz", away_team: "Daniil Medvedev", kickoff: new Date(baseTime + 1800000).toISOString() },
-      { id: `tn_2_${dateStr}`, league: "ATP Masters", country: "ATP", home_team: "Jannik Sinner", away_team: "Alexander Zverev", kickoff: new Date(baseTime + 5400000).toISOString() },
-      { id: `tn_3_${dateStr}`, league: "WTA 1000", country: "WTA", home_team: "Iga Swiatek", away_team: "Aryna Sabalenka", kickoff: new Date(baseTime + 9000000).toISOString() },
-      { id: `tn_4_${dateStr}`, league: "ATP 500", country: "ATP", home_team: "Holger Rune", away_team: "Stefanos Tsitsipas", kickoff: new Date(baseTime + 12600000).toISOString() },
-    ],
-  };
 }

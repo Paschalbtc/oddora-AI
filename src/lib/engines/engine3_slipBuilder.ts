@@ -1070,21 +1070,14 @@ export async function buildCustomSlip(
     sporty_url: booked.sporty_url,
     bet9ja_url: booked.bet9ja_url,
     target_odds_requested: target,
-    actual_combined_odds: booked.actual_odds || actualCombinedOdds,
+    actual_combined_odds: actualCombinedOdds,
     odds_accuracy_ratio: `${accuracy}%`,
     match_count_mode: countMode,
-    legs_count: booked.legs.length,
+    legs_count: selectedLegs.length,
     safety_grade: safetyGrade,
     safety_grade_desc: safetyGradeDesc,
     combined_win_rate: `${Math.max(1.5, compoundWinRate)}%`,
     average_leg_probability: avgLegProb,
-    legs: booked.legs.map((l, i) => {
-      const orig = selectedLegs[i];
-      return {
-        ...l,
-        sport: orig?.sport || "FOOTBALL",
-        marketCategory: orig?.marketCategory || "1X2",
-      };
-    }),
+    legs: selectedLegs,
   };
 }

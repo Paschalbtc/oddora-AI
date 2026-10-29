@@ -5,11 +5,15 @@ export async function POST(request: NextRequest) {
   try {
     const body: CustomBuilderRequest = await request.json();
 
-    if (!body || !body.target_odds) {
+    if (!body || (!body.target_odds && !body.is_auto_odds)) {
       return NextResponse.json(
         { status: "error", message: "Target odds parameter is required." },
         { status: 400 }
       );
+    }
+
+    if (!body.target_odds && body.is_auto_odds) {
+      body.target_odds = 10.0;
     }
 
     const slip = await buildCustomSlip(body);

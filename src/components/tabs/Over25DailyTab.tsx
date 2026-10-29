@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
+import { useAuth } from "@/context/AuthContext";
 
 export interface Over25DailyTabProps {
   currentTier: UserTier;
@@ -28,6 +29,7 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { isInSlip, toggleLeg } = useBetSlip();
+  const { requireAuth } = useAuth();
   const [specialSlip, setSpecialSlip] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -56,6 +58,9 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   }
 
   const handleCopy = (code?: string) => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to copy verified Over 2.5 booking codes")) {
+      return;
+    }
     if (!code || code.includes("VIP")) {
       onOpenUpgradeModal();
       return;
@@ -66,6 +71,9 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   };
 
   const handleCopyBet9ja = () => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to copy Bet9ja slips")) {
+      return;
+    }
     if (isLocked) {
       onOpenUpgradeModal();
       return;
@@ -345,6 +353,9 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                             <button
                               type="button"
                               onClick={() => {
+                                if (!requireAuth(undefined, "Please create a free account or sign in to add matches to your Bet Slip cart")) {
+                                  return;
+                                }
                                 const teams = (leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`).split(" vs ");
                                 toggleLeg({
                                   id: legId,

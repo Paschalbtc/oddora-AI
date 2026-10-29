@@ -18,6 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
+import { useAuth } from "@/context/AuthContext";
 
 export interface EditGameTabProps {
   currentTier: UserTier;
@@ -34,6 +35,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   currentTier,
   onOpenUpgradeModal,
 }) => {
+  const { requireAuth } = useAuth();
   const [bookmaker, setBookmaker] = useState<"SportyBet" | "Bet9ja">("SportyBet");
   const [bookingCode, setBookingCode] = useState<string>("");
   const [selectedMode, setSelectedMode] = useState<EditMode>("LOWEST_PROBABILITY");
@@ -93,6 +95,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   };
 
   const handleCopyBet9jaMatches = (slip: any) => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to copy edited Bet9ja slips")) return;
     const legs = slip.surviving_legs || slip.legs || [];
     const lines = [
       `Oddora AI - Edited Ticket (${slip.total_odds}x Total Odds)`,
@@ -109,6 +112,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   };
 
   const handleExecute = async () => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to edit and prune tickets")) {
+      return;
+    }
     if (!bookingCode.trim()) {
       setErrorMsg("Please enter or paste your booking code.");
       return;
@@ -144,6 +150,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   };
 
   const handleCopy = (code: string) => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to copy verified booking codes")) return;
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);

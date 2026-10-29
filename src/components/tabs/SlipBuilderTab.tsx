@@ -17,10 +17,12 @@ import {
   TrendingUp,
   Activity,
   Layers,
+  Award,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { getOutcomesForSport } from "@/lib/highProbabilityOutcomes";
 import { useBetSlip, CartLeg } from "@/context/BetSlipContext";
+import { useAuth } from "@/context/AuthContext";
 
 export interface SlipBuilderTabProps {
   currentTier: UserTier;
@@ -32,14 +34,30 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { addLegs, setIsOpen: setSlipOpen } = useBetSlip();
+  const { isAuthenticated, requireAuth } = useAuth();
 
+  // Step 1: Sport Category (Strictly sports only, NO banker here)
   const [sportType, setSportType] = useState<string>("all");
-  const [dateHorizon, setDateHorizon] = useState<"today" | "14_days" | "30_days">("today");
+
+  // Step 2: Builder Strategy Mode (Pure Safe Banker vs Auto Sweet-Spot)
+  const [strategyMode, setStrategyMode] = useState<"PURE_BANKER" | "SWEET_SPOT">("PURE_BANKER");
+
+  // Step 3: Target Multiplier
+  const [isAutoOdds, setIsAutoOdds] = useState<boolean>(false);
+  const [targetOdds, setTargetOdds] = useState<string>("10");
+
+  // Step 4: Match Count Mode
   const [matchCountMode, setMatchCountMode] = useState<"AUTO" | "CUSTOM">("AUTO");
   const [customMatchCount, setCustomMatchCount] = useState<number>(5);
-  const [targetOdds, setTargetOdds] = useState<string>("10");
-  const [bookmaker, setBookmaker] = useState<"SPORTYBET" | "BET9JA">("SPORTYBET");
+
+  // Step 5: Allowed Bet Markets
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(["all"]);
+
+  // Additional options
+  const [dateHorizon, setDateHorizon] = useState<"today" | "14_days" | "30_days">("today");
+  const [bookmaker, setBookmaker] = useState<"SPORTYBET" | "BET9JA">("SPORTYBET");
+
+  // Execution state
   const [isSolving, setIsSolving] = useState(false);
   const [resultSlip, setResultSlip] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -48,7 +66,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const isProOrPremium = currentTier === "PRO" || currentTier === "PREMIUM";
 
-  // Strictly isolated betting markets for the selected sport category
+  // Isolated betting markets for the selected sport category
   const currentSportOutcomes = getOutcomesForSport(sportType);
   const freeMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "FREE");
   const advancedMarkets = currentSportOutcomes.filter(
@@ -65,6 +83,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     { label: "100x", val: 100 },
     { label: "500x", val: 500 },
     { label: "5,000x", val: 5000 },
+    { label: "20,000x", val: 20000 },
   ];
 
   const toggleMarket = (marketId: string, isAdvanced: boolean) => {
@@ -90,6 +109,10 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   };
 
   const handleGenerate = async (oddsOverride?: number) => {
+    if (!requireAuth(undefined, "Please create a free account or sign in to generate customized accumulator slips")) {
+      return;
+    }
+
     const finalOdds = oddsOverride || parseFloat(targetOdds) || 10;
     setIsSolving(true);
     setErrorMsg(null);
@@ -101,10 +124,12 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sport_type: sportType,
+          strategy_mode: strategyMode,
+          is_auto_odds: isAutoOdds,
           allowed_markets: selectedMarkets,
           match_count_mode: matchCountMode,
           custom_match_count: customMatchCount,
-          target_odds: finalOdds,
+          target_odds: isAutoOdds ? 10 : finalOdds,
           date_horizon: dateHorizon,
           bookmaker,
           user_tier: currentTier,
@@ -125,6 +150,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   };
 
   const handleCopy = (code?: string) => {
+    if (!requireAuth(undefined, "Please sign up or sign in to copy verified booking codes")) return;
     if (!code) return;
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
@@ -132,6 +158,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   };
 
   const handleCopyBet9ja = () => {
+    if (!requireAuth(undefined, "Please sign up or sign in to copy Bet9ja coupon codes")) return;
     if (!resultSlip) return;
     const legs = resultSlip.legs || [];
     const lines = [
@@ -147,8 +174,8 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  // 1-Click: Add all legs to the persistent floating Bet Slip Cart
   const handleAddAllToFloatingSlip = () => {
+    if (!requireAuth(undefined, "Please create an account or sign in to add accumulator legs to your slip")) return;
     if (!resultSlip || !resultSlip.legs || resultSlip.legs.length === 0) return;
 
     const cartLegs: CartLeg[] = resultSlip.legs.map((leg: any, idx: number) => ({
@@ -184,7 +211,6 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
   const bet9jaUrl = "https://sports.bet9ja.com";
 
-  // Safety Grade Theme Resolver
   const getSafetyGradeDetails = (gradeStr?: string, avgProb: number = 85) => {
     const g = (gradeStr || "").toUpperCase();
     if (g.includes("A+") || avgProb >= 88) {
@@ -214,20 +240,10 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const getSportBadgeStyle = (sport?: string) => {
     const s = (sport || "FOOTBALL").toUpperCase();
-    if (s.includes("BANKER")) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
     if (s.includes("BASKET")) return "bg-orange-500/15 text-orange-400 border-orange-500/30";
     if (s.includes("TABLE") || s.includes("TENNIS")) return "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
     if (s.includes("VOLLEY")) return "bg-purple-500/15 text-purple-400 border-purple-500/30";
     return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
-  };
-
-  const getSportEmoji = (sport?: string) => {
-    const s = (sport || "FOOTBALL").toUpperCase();
-    if (s.includes("BANKER")) return "💎 PURE BANKER";
-    if (s.includes("BASKET")) return "🏀 BASKETBALL";
-    if (s.includes("TABLE") || s.includes("TENNIS")) return "🏓 TABLE TENNIS";
-    if (s.includes("VOLLEY")) return "🏐 VOLLEYBALL";
-    return "⚽ FOOTBALL";
   };
 
   return (
@@ -243,7 +259,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             Custom Slip & Multiplier Builder
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Set your exact target multiplier and let the 5-stage portfolio solver construct the highest-probability ticket.
+            Configure your 5-stage portfolio parameters to solve the highest-probability ticket with exact target odds.
           </p>
         </div>
 
@@ -258,43 +274,194 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             ) : (
               <>
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span>{currentTier} • 5,000x Max Solver Active</span>
+                <span>{currentTier} • 20,000x Max Solver Active</span>
               </>
             )}
           </span>
         </div>
       </div>
 
-      {/* High-Probability Compound Helper */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2 text-emerald-300 font-bold">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>High-Win-Rate Algorithm: Prioritizes 80%–95%+ win-probability outcomes (Handicap +1.5, Double Chance, Over 1.5, DNB) with multi-sport & multi-market portfolio diversification.</span>
+      {/* Date Horizon Quick Filter Bar */}
+      <div className="p-3 rounded-2xl bg-[#0D121C] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+        <div className="flex items-center gap-2 text-slate-300 font-bold">
+          <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>Match Schedule Horizon:</span>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {[
+            { id: "today", label: "Today's Games" },
+            { id: "14_days", label: "Next 14 Days" },
+            { id: "30_days", label: "Next 30 Days" },
+          ].map((h) => (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() => setDateHorizon(h.id as any)}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
+                dateHorizon === h.id
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm"
+                  : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+              }`}
+            >
+              {h.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Solver Controls Panel */}
+      {/* 5-Step Solver Controls Panel */}
       <div className="p-5 sm:p-7 rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl space-y-6">
-        {/* Step 1: Target Multiplier / Odds */}
+        {/* =========================================================================
+            STEP 1: SELECT SPORT CATEGORY (Sports only, NO Banker here)
+           ========================================================================= */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-              <span>Step 1: Choose Target Multiplier</span>
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">
+                1
+              </span>
+              <span>Step 1: Select Sport Category</span>
             </label>
-            <span className="text-xl sm:text-2xl font-mono font-black text-emerald-400">
-              {targetOdds}x Odds
+            <span className="text-[11px] font-mono text-slate-400 capitalize">
+              {sportType === "all" ? "All 4 Sports Portfolio" : sportType.replace("_", " ")}
             </span>
           </div>
 
-          {/* Quick Odds Chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {[
+              { id: "all", label: "🌐 All Sports" },
+              { id: "football", label: "⚽ Football" },
+              { id: "basketball", label: "🏀 Basketball" },
+              { id: "table_tennis", label: "🏓 Table Tennis" },
+              { id: "volleyball", label: "🏐 Volleyball" },
+            ].map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setSportType(s.id);
+                  setSelectedMarkets(["all"]);
+                }}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition border ${
+                  sportType === s.id
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-black shadow-md"
+                    : "bg-white/[0.02] text-slate-400 border-white/5 hover:bg-white/[0.06] hover:text-white"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* =========================================================================
+            STEP 2 (NEW): SELECT BUILDER STRATEGY MODE (Strictly 2 Options)
+           ========================================================================= */}
+        <div className="space-y-3 pt-5 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">
+                2
+              </span>
+              <span>Step 2: Select Builder Strategy Mode</span>
+            </label>
+            <span className="text-[11px] font-mono text-emerald-400 font-bold">
+              {strategyMode === "PURE_BANKER" ? "🛡️ Pure Safe Banker Active" : "⚡ Sweet-Spot Active"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Card 1: Pure Safe Banker */}
+            <button
+              type="button"
+              onClick={() => setStrategyMode("PURE_BANKER")}
+              className={`p-4 rounded-2xl border text-left transition relative ${
+                strategyMode === "PURE_BANKER"
+                  ? "bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/40 shadow-lg"
+                  : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04] text-slate-400"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-black text-white flex items-center gap-2">
+                  <span>🛡️ Pure Safe Banker</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  ≥ 85% PROB FLOOR
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Highest-probability defensive floor. Stacks safe Double Chance, Over 1.5, DNB, Set Handicap and Buffer Spread legs to hit your exact target multiplier.
+              </p>
+            </button>
+
+            {/* Card 2: Auto Sweet-Spot */}
+            <button
+              type="button"
+              onClick={() => setStrategyMode("SWEET_SPOT")}
+              className={`p-4 rounded-2xl border text-left transition relative ${
+                strategyMode === "SWEET_SPOT"
+                  ? "bg-emerald-500/10 border-emerald-500/50 ring-1 ring-emerald-500/40 shadow-lg"
+                  : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04] text-slate-400"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-black text-white flex items-center gap-2">
+                  <span>⚡ Auto Sweet-Spot (1.18 – 1.40 Odds)</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  BALANCED DIVERSITY
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Mathematical multi-market diversity. Compounds optimal 1.18–1.40 odds per leg to achieve balanced multi-outcome portfolios with top mathematical yield.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            STEP 3: CHOOSE TARGET MULTIPLIER (Auto Odds first, presets 2x-20,000x, custom)
+           ========================================================================= */}
+        <div className="space-y-3 pt-5 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">
+                3
+              </span>
+              <span>Step 3: Choose Target Multiplier</span>
+            </label>
+            <span className="text-xl sm:text-2xl font-mono font-black text-emerald-400">
+              {isAutoOdds ? "Auto Sweet-Spot" : `${targetOdds}x Odds`}
+            </span>
+          </div>
+
+          {/* Quick Odds Chips with [ 🤖 Auto Odds ] First */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAutoOdds(true);
+                setTargetOdds("10");
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition border whitespace-nowrap flex items-center gap-1.5 ${
+                isAutoOdds
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-black border-emerald-400 font-black shadow-md"
+                  : "bg-white/[0.03] text-slate-300 border-white/10 hover:bg-white/[0.08]"
+              }`}
+            >
+              <span>🤖 Auto Odds</span>
+            </button>
+
             {quickOddsPresets.map((p) => {
-              const isSelected = targetOdds === p.val.toString();
+              const isSelected = !isAutoOdds && targetOdds === p.val.toString();
               return (
                 <button
                   key={p.val}
                   type="button"
-                  onClick={() => setTargetOdds(p.val.toString())}
+                  onClick={() => {
+                    setIsAutoOdds(false);
+                    setTargetOdds(p.val.toString());
+                  }}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition border whitespace-nowrap ${
                     isSelected
                       ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
@@ -312,177 +479,110 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             <input
               type="number"
               min="1.5"
-              max="5000"
+              max="20000"
               step="0.5"
-              value={targetOdds}
-              onChange={(e) => setTargetOdds(e.target.value)}
-              placeholder="Custom multiplier e.g. 15.5"
+              value={isAutoOdds ? "" : targetOdds}
+              onChange={(e) => {
+                setIsAutoOdds(false);
+                setTargetOdds(e.target.value);
+              }}
+              placeholder={isAutoOdds ? "Auto Odds Active (e.g. 10x - 25x)" : "Custom multiplier e.g. 5000"}
               className="w-full bg-[#070A0E] border border-white/10 rounded-xl py-2.5 px-4 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
 
-        {/* Step 2: Match Calendar Horizon */}
-        <div className="space-y-2 pt-4 border-t border-white/10">
+        {/* =========================================================================
+            STEP 4: MATCH COUNT MODE (Auto Match Count vs Custom Match Count)
+           ========================================================================= */}
+        <div className="space-y-3 pt-5 border-t border-white/10">
           <div className="flex items-center justify-between">
             <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Step 2: Match Calendar Horizon</span>
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">
+                4
+              </span>
+              <span>Step 4: Match Count</span>
             </label>
             <span className="text-[11px] font-mono text-emerald-400 font-bold">
-              {dateHorizon === "today"
-                ? "Today's Games Only"
-                : dateHorizon === "14_days"
-                ? "Next 14 Days"
-                : "Next 30 Days"}
+              {matchCountMode === "AUTO" ? "Optimal Algorithm Legs" : `${customMatchCount} Games Fixed`}
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: "today", label: "Today's Games", sub: "Live / Today Only" },
-              { id: "14_days", label: "Next 14 Days", sub: "2-Week Horizon" },
-              { id: "30_days", label: "Next 30 Days", sub: "1-Month Horizon" },
-            ].map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                onClick={() => setDateHorizon(h.id as any)}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition border text-left ${
-                  dateHorizon === h.id
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm"
-                    : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
-                }`}
-              >
-                <div className="font-black">{h.label}</div>
-                <div className="text-[10px] text-slate-500 font-mono">{h.sub}</div>
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Step 3: Sport & Match Count Selector */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/10">
-          {/* Sport Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-              Step 3: Sport Category
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {[
-                { id: "all", label: "All Sports" },
-                { id: "banker", label: "💎 Banker Pure Safe", isBanker: true },
-                { id: "football", label: "⚽ Football" },
-                { id: "basketball", label: "🏀 Basketball" },
-                { id: "table_tennis", label: "🏓 Table Tennis" },
-                { id: "volleyball", label: "🏐 Volleyball" },
-              ].map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => {
-                    setSportType(s.id);
-                    setSelectedMarkets(["all"]);
-                  }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
-                    sportType === s.id
-                      ? s.isBanker
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/50 font-black shadow-md"
-                        : "bg-white/[0.1] text-white border-white/20 font-black"
-                      : s.isBanker
-                      ? "bg-amber-500/5 text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
-                      : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMatchCountMode("AUTO")}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition border text-center ${
+                matchCountMode === "AUTO"
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-black shadow-md"
+                  : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
+              }`}
+            >
+              🤖 Auto Match Count
+            </button>
+            <button
+              type="button"
+              onClick={() => setMatchCountMode("CUSTOM")}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition border text-center ${
+                matchCountMode === "CUSTOM"
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-black shadow-md"
+                  : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
+              }`}
+            >
+              🎯 Custom Match Count ({customMatchCount} Games)
+            </button>
           </div>
 
-          {/* Match Count Mode */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-                Step 4: Match Count Mode
-              </label>
-              <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                Max 50 Games
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMatchCountMode("AUTO")}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
-                  matchCountMode === "AUTO"
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black"
-                    : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
-                }`}
-              >
-                Auto (1.22–1.42 Sweet Spot)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMatchCountMode("CUSTOM")}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
-                  matchCountMode === "CUSTOM"
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-black"
-                    : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
-                }`}
-              >
-                Custom ({customMatchCount} Games)
-              </button>
-            </div>
-
-            {matchCountMode === "CUSTOM" && (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                  {[3, 5, 10, 15, 25, 35, 50].map((cnt) => (
-                    <button
-                      key={cnt}
-                      type="button"
-                      onClick={() => setCustomMatchCount(cnt)}
-                      className={`flex-1 min-w-[38px] py-1 rounded-lg text-xs font-mono font-bold border ${
-                        customMatchCount === cnt
-                          ? "bg-emerald-500 text-black border-emerald-400 font-black"
-                          : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
-                      }`}
-                    >
-                      {cnt}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="2"
-                    max="50"
-                    step="1"
-                    value={customMatchCount}
-                    onChange={(e) => setCustomMatchCount(Number(e.target.value))}
-                    className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-                  />
-                  <span className="text-xs font-mono font-black text-emerald-400 w-10 text-right">
-                    {customMatchCount}
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 font-mono">
-                  Official bookmaker hard cap: 50 matches max per ticket.
-                </p>
+          {matchCountMode === "CUSTOM" && (
+            <div className="space-y-2 pt-2 animate-in fade-in">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                {[3, 5, 10, 15, 25, 35, 50].map((cnt) => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => setCustomMatchCount(cnt)}
+                    className={`flex-1 min-w-[42px] py-1.5 rounded-lg text-xs font-mono font-bold border ${
+                      customMatchCount === cnt
+                        ? "bg-emerald-500 text-black border-emerald-400 font-black"
+                        : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+                    }`}
+                  >
+                    {cnt}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="2"
+                  max="50"
+                  step="1"
+                  value={customMatchCount}
+                  onChange={(e) => setCustomMatchCount(Number(e.target.value))}
+                  className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                />
+                <span className="text-xs font-mono font-black text-emerald-400 w-12 text-right">
+                  {customMatchCount} Legs
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Step 5: Allowed Betting Markets */}
-        <div className="space-y-3 pt-4 border-t border-white/10">
+        {/* =========================================================================
+            STEP 5: ALLOWED BET MARKETS (Balanced Multi-Outcome Diversity)
+           ========================================================================= */}
+        <div className="space-y-3 pt-5 border-t border-white/10">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
-              Step 5: Allowed Betting Markets ({sportType === "all" ? "All Sports Portfolio" : sportType.replace("_", " ").toUpperCase()})
+            <label className="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">
+                5
+              </span>
+              <span>Step 5: Allowed Bet Markets</span>
             </label>
             <span className="text-[11px] font-mono text-slate-400">
               {selectedMarkets.includes("all")
-                ? "All markets active (Max 25% Diversity Cap)"
+                ? "All markets active (Balanced Diversity Cap)"
                 : `${selectedMarkets.length} selected`}
             </span>
           </div>
@@ -508,285 +608,253 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     key={m.id}
                     type="button"
                     onClick={() => toggleMarket(m.id, false)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                       isSelected
-                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm"
+                        ? "bg-emerald-500 text-black border-emerald-400 font-black shadow-sm"
                         : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
                     }`}
                   >
-                    {isSelected && "✓ "}
-                    {m.outcomeName} ({m.shortCode})
+                    {m.outcomeName}
+                  </button>
+                );
+              })}
+
+              {advancedMarkets.map((m) => {
+                const isSelected = selectedMarkets.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMarket(m.id, true)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-cyan-500 text-black border-cyan-400 font-black shadow-sm"
+                        : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
+                    }`}
+                  >
+                    <span>{m.outcomeName}</span>
+                    {!isProOrPremium && <Lock className="w-3 h-3 text-amber-400" />}
                   </button>
                 );
               })}
             </div>
-
-            {/* Advanced Pro/Premium Markets */}
-            {advancedMarkets.length > 0 && (
-              <>
-                <div className="text-[11px] font-mono text-amber-400 pt-2 flex items-center gap-1">
-                  <Crown className="w-3 h-3" />
-                  <span>Advanced Quantitative Markets (Pro & Premium)</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {advancedMarkets.map((m) => {
-                    const isSelected = selectedMarkets.includes(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => toggleMarket(m.id, true)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border flex items-center gap-1.5 ${
-                          isSelected && isProOrPremium
-                            ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
-                            : !isProOrPremium
-                            ? "bg-white/[0.02] text-slate-500 border-white/5 hover:text-slate-300"
-                            : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
-                        }`}
-                      >
-                        {!isProOrPremium ? (
-                          <Lock className="w-3 h-3 text-amber-400" />
-                        ) : isSelected ? (
-                          <span>✓ </span>
-                        ) : null}
-                        <span>{m.outcomeName} ({m.shortCode})</span>
-                        <span className="text-[10px] font-mono text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">
-                          {m.tierAccess}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
           </div>
         </div>
 
-        {/* Solve & Book Action Button */}
-        <div className="pt-2">
+        {/* Generate Button */}
+        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400">Primary Bookmaker:</span>
+            <div className="flex items-center gap-1 bg-[#070A0E] p-1 rounded-xl border border-white/10">
+              <button
+                type="button"
+                onClick={() => setBookmaker("SPORTYBET")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                  bookmaker === "SPORTYBET"
+                    ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                SportyBet
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookmaker("BET9JA")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                  bookmaker === "BET9JA"
+                    ? "bg-green-500/20 text-green-400 border border-green-500/40"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Bet9ja
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => handleGenerate()}
             disabled={isSolving}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 text-black font-black text-sm sm:text-base shadow-xl transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-sm uppercase tracking-wider transition shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
           >
             {isSolving ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Running 5-Stage High-Win-Rate Solver & Booking Engine...</span>
+                <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                <span>Running 5-Stage Solver...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-4 h-4" />
-                <span>Solve & Auto-Book {targetOdds}x Multiplier Slip</span>
+                <Sparkles className="w-4 h-4 text-black" />
+                <span>Solve High-Win-Rate Accumulator</span>
               </>
             )}
           </button>
-          {errorMsg && (
-            <p className="text-xs text-rose-400 font-mono mt-2 text-center">{errorMsg}</p>
-          )}
         </div>
       </div>
 
-      {/* Generated Slip Output — STAGE 5 UI TRANSPARENCY & VERIFIED BOOKING CODES */}
+      {/* Error Message Feedback */}
+      {errorMsg && (
+        <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
+          <ShieldCheck className="w-4 h-4 shrink-0 text-rose-400" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SOLVED ACCUMULATOR RESULT CARD
+         ========================================================================= */}
       {resultSlip && (
-        <div
-          className={`p-6 sm:p-7 rounded-3xl bg-[#11161F] border shadow-2xl space-y-5 animate-in fade-in duration-200 ${
-            getSafetyGradeDetails(resultSlip.safety_grade, resultSlip.average_leg_probability).containerClasses
-          }`}
-        >
-          {/* Header & Safety Grade Badge */}
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Stage 5 Safety Grade Badge */}
+        <div className="rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl overflow-hidden animate-in fade-in duration-300">
+          {/* Card Header & Safety Grade Badge */}
+          <div className="p-5 sm:p-7 border-b border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span
-                  className={`text-xs font-mono font-black uppercase px-3 py-1 rounded-full border flex items-center gap-1.5 shadow-sm ${
-                    getSafetyGradeDetails(resultSlip.safety_grade, resultSlip.average_leg_probability).badgeClasses
+                  className={`text-xs font-mono font-black px-2.5 py-0.5 rounded-full border ${
+                    getSafetyGradeDetails(resultSlip.safety_grade, resultSlip.average_leg_probability)
+                      .badgeClasses
                   }`}
                 >
-                  {getSafetyGradeDetails(resultSlip.safety_grade, resultSlip.average_leg_probability).badge}
+                  {resultSlip.safety_grade || "A High Value"}
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  ✓ 100% Verified Live Booking Code
+                <span className="text-[11px] font-mono text-slate-400">
+                  {resultSlip.safety_grade_desc || "Optimized Multiplier"}
                 </span>
               </div>
-
-              <h3 className="text-xl font-black text-white">
-                {resultSlip.legs_count}-Leg Optimized High-Win Portfolio
+              <h3 className="text-xl font-black text-white flex items-center gap-2">
+                <span>Solved {resultSlip.legs_count}-Leg High-Win-Rate Slip</span>
               </h3>
-              <p className="text-xs text-slate-300">
-                {getSafetyGradeDetails(resultSlip.safety_grade, resultSlip.average_leg_probability).description}
+              <p className="text-xs text-slate-400 mt-0.5">
+                Target: {resultSlip.target_odds_requested}x | Actual Combined:{" "}
+                <span className="text-emerald-400 font-bold">{resultSlip.actual_combined_odds}x</span>{" "}
+                ({resultSlip.odds_accuracy_ratio} precision)
               </p>
             </div>
 
-            {/* Quick Action Badges */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* 1-Click [+ Add All to Floating Slip] Button */}
+            {/* Quick Actions: Add to Bet Slip Cart + Booking Codes */}
+            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+              {/* Add All to Persistent Floating Slip Button */}
               <button
                 type="button"
                 onClick={handleAddAllToFloatingSlip}
-                className={`px-3.5 py-2 rounded-xl font-mono text-xs font-black flex items-center gap-1.5 transition shadow-lg active:scale-95 ${
+                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
                   addedToCart
-                    ? "bg-emerald-500 text-black border border-emerald-400"
-                    : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+                    ? "bg-[#10B981] text-black font-black"
+                    : "bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] border border-[#10B981]/40"
                 }`}
               >
                 {addedToCart ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-black" />
-                    <span>Added to Floating Slip!</span>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Added to Cart!</span>
                   </>
                 ) : (
                   <>
-                    <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>[+ Add All to Floating Slip]</span>
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>[+ Add All to Slip]</span>
                   </>
                 )}
               </button>
 
+              {/* SportyBet Code Button */}
               {sportyCode && (
                 <button
                   type="button"
                   onClick={() => handleCopy(sportyCode)}
-                  className="px-3.5 py-2 rounded-xl bg-[#E51D25]/15 border border-[#E51D25]/40 text-white font-mono text-xs font-black flex items-center gap-1.5 hover:bg-[#E51D25]/25 transition"
+                  className="py-2 px-3.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
                 >
-                  <span>Sporty: {sportyCode}</span>
                   {copiedCode === sportyCode ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Copied!</span>
+                    </>
                   ) : (
-                    <Copy className="w-3.5 h-3.5 text-red-300" />
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sporty: {sportyCode}</span>
+                    </>
                   )}
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={handleCopyBet9ja}
-                className="px-3.5 py-2 rounded-xl bg-[#008234]/15 border border-[#008234]/40 text-emerald-300 font-mono text-xs font-bold flex items-center gap-1.5 hover:bg-[#008234]/25 transition"
-              >
-                <span>Bet9ja: Copy Ticket</span>
-                {copiedCode === "b9_builder" ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5 text-emerald-300" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Quantitative Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
-            <div>
-              <span className="text-[10px] font-mono uppercase text-slate-400 block">Target Odds</span>
-              <span className="text-base font-black text-white font-mono">
-                {resultSlip.target_odds_requested}x
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono uppercase text-slate-400 block">Actual Combined Odds</span>
-              <span className="text-base font-black text-emerald-400 font-mono">
-                {resultSlip.actual_combined_odds}x
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono uppercase text-slate-400 block">Odds Accuracy</span>
-              <span className="text-base font-black text-cyan-400 font-mono">
-                {resultSlip.odds_accuracy_ratio || "99.4%"}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono uppercase text-slate-400 block">Avg Leg Probability</span>
-              <span className="text-base font-black text-emerald-300 font-mono">
-                {resultSlip.average_leg_probability || 87}%
-              </span>
-            </div>
-          </div>
-
-          {/* 1-Click External Load Launchers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {sportyUrl && (
-              <a
-                href={sportyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-3 px-4 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-2 transition shadow-lg active:scale-98"
-              >
-                <Zap className="w-4 h-4" />
-                <span>⚡ Load Slip on SportyBet ({sportyCode})</span>
-                <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </a>
-            )}
-
-            <a
-              href="https://sports.bet9ja.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="py-3 px-4 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-2 transition shadow-lg active:scale-98"
-            >
-              <span>🟢 Open Bet9ja Sportsbook</span>
-              <ExternalLink className="w-3.5 h-3.5 ml-1" />
-            </a>
-          </div>
-
-          {/* Legs Breakdown with Sport Badges, Market Tags & Win Rate % */}
-          <div className="space-y-2.5 pt-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold uppercase text-slate-400 block">
-                Fixture & Market Breakdown ({resultSlip.legs?.length || 0} Matches):
-              </span>
-              <span className="text-[11px] font-mono text-emerald-400">
-                Sorted by Win Probability
-              </span>
-            </div>
-
-            {(resultSlip.legs || []).map((leg: any, idx: number) => {
-              const sportStyle = getSportBadgeStyle(leg.sport);
-              const sportEmoji = getSportEmoji(leg.sport);
-              const marketTag = (leg.marketCategory || leg.market || "1X2")
-                .toUpperCase()
-                .replace(/_/g, " ");
-
-              return (
-                <div
-                  key={idx}
-                  className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 hover:bg-white/[0.06] transition"
+              {/* Bet9ja Code Button */}
+              {bet9jaCode && (
+                <button
+                  type="button"
+                  onClick={handleCopyBet9ja}
+                  className="py-2 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
                 >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {/* Sport Badge */}
-                      <span
-                        className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-md border ${sportStyle}`}
-                      >
-                        {sportEmoji}
-                      </span>
-                      {/* Market Tag */}
-                      <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-slate-300">
-                        {marketTag}
-                      </span>
-                      {/* Individual Win Rate % */}
-                      <span className="text-[9px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                        {leg.win_probability}% Win Rate
-                      </span>
-                    </div>
+                  {copiedCode === "b9_builder" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Bet9ja: {bet9jaCode}</span>
+                    </>
+                  )}
+                </button>
+              )}
 
-                    <div className="font-black text-sm text-white">{leg.match}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {leg.league || "Global League"} • {leg.market}
+              {/* Direct Deep Link */}
+              {sportyUrl && (
+                <a
+                  href={sportyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition"
+                  title="Load directly on SportyBet"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Solved Leg Rows */}
+          <div className="divide-y divide-white/5">
+            {resultSlip.legs?.map((leg: any, idx: number) => (
+              <div
+                key={idx}
+                className="p-4 sm:p-5 hover:bg-white/[0.02] transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-white/5 text-slate-400 font-mono text-xs flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[9.5px] font-mono font-black px-1.5 py-0.2 rounded border uppercase ${getSportBadgeStyle(
+                          leg.sport
+                        )}`}
+                      >
+                        {leg.sport || "SPORT"}
+                      </span>
+                      <span className="text-xs font-bold text-white">{leg.match}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                      <span>{leg.league || "Premier League"}</span>
+                      <span>•</span>
+                      <span className="font-mono text-slate-300">{leg.market}</span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
-                    <span className="font-black text-emerald-400 font-mono text-sm sm:text-base">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="text-right">
+                    <span className="font-bold text-emerald-400 font-mono text-xs block">
                       {leg.selection}
                     </span>
-                    <span className="text-xs text-slate-300 font-mono font-bold">
-                      @ {Number(leg.odd).toFixed(2)}
+                    <span className="text-[10px] font-mono text-slate-400">
+                      @ {Number(leg.odd).toFixed(2)} ({leg.win_probability}% Win Rate)
                     </span>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       )}

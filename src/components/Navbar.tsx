@@ -22,6 +22,7 @@ import {
   Flame,
   SlidersHorizontal,
   Grid,
+  LogOut,
 } from "lucide-react";
 import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "@/context/AuthContext";
@@ -61,7 +62,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   isRefreshing = false,
   onOpenAccountModal,
 }) => {
-  const { user, profile: authProfile, isAuthenticated, openAuthModal } = useAuth();
+  const {
+    user,
+    profile: authProfile,
+    isAuthenticated,
+    openAuthModal,
+    requireAuth,
+    signOut,
+  } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -163,6 +171,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   const handleSelectNav = (tabId: WorkspaceTab) => {
+    if (!isAuthenticated && tabId !== "home") {
+      requireAuth(() => {
+        onTabChange(tabId);
+        setIsDropdownOpen(false);
+        setIsMoreDrawerOpen(false);
+      }, `Please sign in or create a free account to access ${tabId.replace(/_/g, " ").toUpperCase()}`);
+      return;
+    }
     onTabChange(tabId);
     setIsDropdownOpen(false);
     setIsMoreDrawerOpen(false);
@@ -357,36 +373,46 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Profile & Plan Trigger / Sign In Button */}
             {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={onOpenAccountModal}
-                title="View & Edit Profile, Manage Plan Mode"
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white transition shadow-sm active:scale-95"
-              >
-                <div className="relative">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
-                    <span>{authProfile?.avatar || "👑"}</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenAccountModal}
+                  title="View & Edit Profile, Manage Plan Mode"
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white transition shadow-sm active:scale-95"
+                >
+                  <div className="relative">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
+                      <span>{authProfile?.avatar || "👑"}</span>
+                    </div>
+                    {/* Status Dot */}
+                    <span
+                      className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#070A0E] ${
+                        currentTier === "PREMIUM"
+                          ? "bg-amber-400"
+                          : currentTier === "PRO"
+                          ? "bg-emerald-400"
+                          : "bg-slate-400"
+                      }`}
+                    />
                   </div>
-                  {/* Status Dot */}
-                  <span
-                    className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#070A0E] ${
-                      currentTier === "PREMIUM"
-                        ? "bg-amber-400"
-                        : currentTier === "PRO"
-                        ? "bg-emerald-400"
-                        : "bg-slate-400"
-                    }`}
-                  />
-                </div>
-                <span className="font-black text-xs hidden sm:inline truncate max-w-[80px]">
-                  {authProfile?.displayName?.split(" ")[0] || "Profile"}
-                </span>
-                <span className="font-black text-xs sm:hidden">Profile</span>
-              </button>
+                  <span className="font-black text-xs hidden sm:inline truncate max-w-[80px]">
+                    {authProfile?.displayName?.split(" ")[0] || "Profile"}
+                  </span>
+                  <span className="font-black text-xs sm:hidden">Profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  title="Log Out of Oddora AI"
+                  className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/10 transition active:scale-95"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => openAuthModal("signup")}
+                onClick={() => openAuthModal("signup", "Create your free account to unlock full platform features")}
                 className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-md transition active:scale-95"
               >
                 <User className="w-3.5 h-3.5 text-black stroke-[3]" />

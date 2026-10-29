@@ -10,7 +10,7 @@ import { SlipBuilderTab } from "./tabs/SlipBuilderTab";
 import { EditGameTab } from "./tabs/EditGameTab";
 import { CopilotTab } from "./tabs/CopilotTab";
 import { SecondaryPages } from "./tabs/SecondaryPages";
-import { CheckCircle2, X, Crown, ShieldCheck, Zap } from "lucide-react";
+import { CheckCircle2, X, Crown, ShieldCheck, Zap, Sparkles } from "lucide-react";
 import { BetSlipProvider } from "@/context/BetSlipContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { FloatingBetSlip } from "./FloatingBetSlip";
@@ -21,7 +21,7 @@ const OddoraWorkspaceInner: React.FC = () => {
   const searchParams = useSearchParams();
   const urlTab = searchParams?.get("tab") as WorkspaceTab | null;
   const urlSport = searchParams?.get("sport");
-  const { user, profile, isAuthenticated, openAuthModal } = useAuth();
+  const { user, profile, isAuthenticated, openAuthModal, requireAuth } = useAuth();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("home");
   const [selectedSportFilter, setSelectedSportFilter] = useState<string>(urlSport || "football");
@@ -79,7 +79,7 @@ const OddoraWorkspaceInner: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleTabChange = (newTab: WorkspaceTab, options?: { sport?: string }) => {
+  const proceedTabChange = (newTab: WorkspaceTab, options?: { sport?: string }) => {
     setActiveTab(newTab);
     if (options?.sport) {
       setSelectedSportFilter(options.sport.toLowerCase());
@@ -98,6 +98,16 @@ const OddoraWorkspaceInner: React.FC = () => {
       }
       window.history.pushState({}, "", url.toString());
     }
+  };
+
+  const handleTabChange = (newTab: WorkspaceTab, options?: { sport?: string }) => {
+    if (!isAuthenticated && newTab !== "home") {
+      requireAuth(() => {
+        proceedTabChange(newTab, options);
+      }, `Please sign up or log in to access ${newTab.replace(/_/g, " ").toUpperCase()} and premium analytical engines.`);
+      return;
+    }
+    proceedTabChange(newTab, options);
   };
 
   const handleTierChange = (newTier: UserTier) => {
@@ -135,6 +145,36 @@ const OddoraWorkspaceInner: React.FC = () => {
 
       {/* Main Content Workspace Container */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-24 md:pb-12">
+        {/* Compulsory Sign-Up Banner for Unauthenticated Visitors */}
+        {!isAuthenticated && (
+          <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-[#0D121C] to-teal-950/40 border border-emerald-500/40 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-400 mb-0.5">
+                  <span>FREE SIGN-UP REQUIRED</span>
+                </div>
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  Create Your Free Account to Unlock All Predictions & 1-Click Booking
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Instant access to verified SportyBet & Bet9ja codes, Slip Builder solver, and daily high-win rate odds.
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => openAuthModal("signup", "Create your free account to unlock all features")}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 active:scale-95"
+              >
+                <span>Create Free Account / Sign In</span>
+              </button>
+            </div>
+          </div>
+        )}
         {activeTab === "home" && (
           <HomeDailyOddsTab
             currentTier={currentTier}

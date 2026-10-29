@@ -2,15 +2,17 @@
  * Engine 4: 4-Mode Edit Game Engine (src/lib/engines/engine4_editSlip.ts)
  *
  * Responsibilities:
- * 1. Decodes SportyBet or Bet9ja booking codes (via live SportyBet API or persistent Supabase registry).
+ * 1. Decodes SportyBet or Bet9ja booking codes via Untouchable Core Booking Vault.
  * 2. Executes 4 distinct pruning & structuring modes:
  *    - Mode 1 (SPLIT_TICKET): Splits ticket into N separate smaller tickets with verified booking codes for each.
  *    - Mode 2 (LOWEST_PROBABILITY): Uses Sport Brains to identify & prune the remove_count lowest-probability legs.
  *    - Mode 3 (RANDOM_TRIM): Randomly removes remove_count legs from the accumulator.
  *    - Mode 4 (COMBO_HYBRID): Trims both high-risk big odds and low-value small odds.
- * 3. Re-books all surviving and split slips with verified SportyBet & Bet9ja booking codes.
+ * 3. Re-books all surviving and split slips via Core Booking Vault with strict preservation
+ *    of original unmodified { eventId, marketId, outcomeId, specifier } and live verification.
  */
 
+import { decodeVaultBookingCode, bookVaultSlip } from "../coreBookingVault";
 import { decodeAnyBookingCode, bookUniversalSlip, BookedLeg } from "./bookingEngine";
 import { pruneLegsByStatisticalRisk } from "../apiFootballStatsBrain";
 
@@ -36,8 +38,8 @@ export interface EditedSlipPayload {
   share_url: string;
   total_odds: number;
   legs_count: number;
-  surviving_legs: BookedLeg[];
-  pruned_legs?: BookedLeg[];
+  surviving_legs: any[];
+  pruned_legs?: any[];
 }
 
 export interface EditSlipResponse {
@@ -58,10 +60,25 @@ export async function executeEditSlip(
     throw new Error("Missing booking_code parameter.");
   }
 
-  // 1. Decode original booking code using Universal Booking Engine
-  const decoded = await decodeAnyBookingCode(code, req.bookmaker || "SportyBet");
+  // 1. Decode original booking code using Core Booking Vault first
+  let decoded = await decodeVaultBookingCode(code, req.bookmaker || "SportyBet");
+  
+  // Fallback to Universal Booking Engine if Vault decode was empty
   if (decoded.status === "error" || !decoded.legs || decoded.legs.length === 0) {
-    throw new Error(decoded.message || `Failed to decode booking code: ${code}`);
+    const universalDecoded = await decodeAnyBookingCode(code, req.bookmaker || "SportyBet");
+    if (universalDecoded.status === "success" && universalDecoded.legs && universalDecoded.legs.length > 0) {
+      decoded = {
+        status: "success",
+        bookmaker: req.bookmaker || "SportyBet",
+        booking_code: code,
+        total_odds: universalDecoded.total_odds,
+        legs_count: universalDecoded.legs.length,
+        legs: universalDecoded.legs as any,
+        share_url: universalDecoded.share_url,
+      };
+    } else {
+      throw new Error(`Failed to decode booking code: ${code}. Verify the code on SportyBet or enter another.`);
+    }
   }
 
   const originalLegs = [...decoded.legs];
@@ -72,7 +89,7 @@ export async function executeEditSlip(
   if (req.mode === "SPLIT_TICKET") {
     const partsCount = Math.max(2, Math.min(5, Number(req.split_parts) || 2));
     const chunkSize = Math.ceil(originalLegs.length / partsCount);
-    const splitChunks: BookedLeg[][] = [];
+    const splitChunks: any[][] = [];
 
     for (let i = 0; i < originalLegs.length; i += chunkSize) {
       splitChunks.push(originalLegs.slice(i, i + chunkSize));
@@ -83,17 +100,31 @@ export async function executeEditSlip(
     for (let idx = 0; idx < splitChunks.length; idx++) {
       const chunk = splitChunks[idx];
       const chunkOdds =
-        Math.round(chunk.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
+        Math.round(chunk.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
 
-      // Book each split chunk with a real verified booking code
-      const bookedChunk = await bookUniversalSlip(chunk, {
+      // Book each split chunk using Core Booking Vault with strict preservation
+      let bookedChunk = await bookVaultSlip(chunk, {
         slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
       });
 
-      const sportyCode = bookedChunk.sportybet_code;
-      const bet9jaCode = bookedChunk.bet9ja_code;
+      // Fallback to bookUniversalSlip if vault encountered external network restriction
+      let sportyCode = bookedChunk.sportybet_code;
+      let bet9jaCode = bookedChunk.bet9ja_code;
+      let sportyUrl = bookedChunk.sporty_url;
+      let bet9jaUrl = bookedChunk.bet9ja_url;
+
+      if (!sportyCode && !bet9jaCode) {
+        const uBooked = await bookUniversalSlip(chunk, {
+          slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
+        });
+        sportyCode = uBooked.sportybet_code;
+        bet9jaCode = uBooked.bet9ja_code;
+        sportyUrl = uBooked.sporty_url;
+        bet9jaUrl = uBooked.bet9ja_url;
+      }
+
       const primaryCode = req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode;
-      const shareUrl = req.bookmaker === "Bet9ja" ? bookedChunk.bet9ja_url : bookedChunk.sporty_url;
+      const shareUrl = req.bookmaker === "Bet9ja" ? bet9jaUrl : sportyUrl;
 
       outputSlips.push({
         slip_index: idx + 1,
@@ -123,14 +154,14 @@ export async function executeEditSlip(
   const removeCount = Math.min(maxRemovable, Math.max(1, Number(req.remove_count) || 2));
 
   const pruneResult = pruneLegsByStatisticalRisk(
-    originalLegs,
+    originalLegs as any,
     req.mode as any,
     removeCount,
     req.split_parts || 2
   );
 
-  let surviving: BookedLeg[] = pruneResult.surviving as BookedLeg[];
-  let pruned: BookedLeg[] = (pruneResult.pruned || []) as BookedLeg[];
+  let surviving: any[] = pruneResult.surviving;
+  let pruned: any[] = pruneResult.pruned || [];
 
   // Ensure surviving has at least 2 legs
   if (surviving.length < 2) {
@@ -138,17 +169,30 @@ export async function executeEditSlip(
     pruned = originalLegs.slice(2);
   }
 
-  const newOdds = Math.round(surviving.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
+  const newOdds = Math.round(surviving.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
 
-  // Book the surviving legs into a real booking code
-  const bookedSurviving = await bookUniversalSlip(surviving, {
+  // Book the surviving legs into a real booking code via Core Booking Vault
+  let bookedSurviving = await bookVaultSlip(surviving, {
     slip_category: "PRUNED_SLIP",
   });
 
-  const sportyCode = bookedSurviving.sportybet_code;
-  const bet9jaCode = bookedSurviving.bet9ja_code;
+  let sportyCode = bookedSurviving.sportybet_code;
+  let bet9jaCode = bookedSurviving.bet9ja_code;
+  let sportyUrl = bookedSurviving.sporty_url;
+  let bet9jaUrl = bookedSurviving.bet9ja_url;
+
+  if (!sportyCode && !bet9jaCode) {
+    const uBooked = await bookUniversalSlip(surviving, {
+      slip_category: "PRUNED_SLIP",
+    });
+    sportyCode = uBooked.sportybet_code;
+    bet9jaCode = uBooked.bet9ja_code;
+    sportyUrl = uBooked.sporty_url;
+    bet9jaUrl = uBooked.bet9ja_url;
+  }
+
   const primaryCode = req.bookmaker === "Bet9ja" ? bet9jaCode : sportyCode;
-  const shareUrl = req.bookmaker === "Bet9ja" ? bookedSurviving.bet9ja_url : bookedSurviving.sporty_url;
+  const shareUrl = req.bookmaker === "Bet9ja" ? bet9jaUrl : sportyUrl;
 
   return {
     original_code: code,

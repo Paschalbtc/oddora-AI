@@ -10,6 +10,7 @@
  */
 
 import { getSupabaseAdmin } from "../supabase";
+import { bookVaultSlip } from "../coreBookingVault";
 import { bookUniversalSlip } from "./bookingEngine";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { isMatchEnded } from "../multiSportScheduleFeed";
@@ -19,10 +20,12 @@ export const MIN_GAMES_PER_TICKET = 2;
 
 export interface CustomBuilderRequest {
   sport_type?: string; // "football" | "basketball" | "volleyball" | "tennis" | "table_tennis" | "all"
+  strategy_mode?: "PURE_BANKER" | "SWEET_SPOT";
+  is_auto_odds?: boolean;
   allowed_markets?: string[]; // e.g. ["all", "double chance", "over 1.5", "dnb", "corners", "spread"]
   match_count_mode?: "AUTO" | "CUSTOM";
   custom_match_count?: number; // e.g. 5, 10, 20 (max 50)
-  target_odds: number; // e.g. 2.0, 5.0, 10.0, 50.0, 100.0
+  target_odds: number; // e.g. 2.0, 5.0, 10.0, 50.0, 500.0, 5000.0
   date_horizon?: "today" | "14_days" | "30_days";
   bookmaker?: "SPORTYBET" | "BET9JA";
   user_tier?: "FREE" | "PRO" | "PREMIUM";
@@ -647,6 +650,42 @@ export function computeSafetyEfficiency(
  *   3. Combinatorial Swapping within +/-6% target odds accuracy
  * =========================================================================
  */
+function buildCustomLeg(item: {
+  matchRow: any;
+  option: CandidateMarketOption;
+  edgeScore: number;
+}): CustomBuilderLeg {
+  return {
+    match: `${item.matchRow.home_team} vs ${item.matchRow.away_team}`,
+    home_team: item.matchRow.home_team,
+    away_team: item.matchRow.away_team,
+    league: item.matchRow.league_name || "Premier Division",
+    market: item.option.marketCategory.replace(/_/g, " "),
+    selection: item.option.outcomeLabel,
+    odd: item.option.oddValue,
+    win_probability: item.option.trueWinProbability,
+    eventId:
+      item.option.eventId ||
+      item.matchRow.sportybet_selection?.eventId ||
+      item.matchRow.match_id,
+    marketId:
+      item.option.marketId ||
+      item.matchRow.sportybet_selection?.marketId ||
+      "1",
+    outcomeId:
+      item.option.outcomeId ||
+      item.matchRow.sportybet_selection?.outcomeId ||
+      "1",
+    specifier:
+      item.option.specifier ??
+      item.matchRow.sportybet_selection?.specifier ??
+      null,
+    sport: item.option.sport,
+    marketCategory: item.option.marketCategory,
+    edgeScore: item.edgeScore,
+  };
+}
+
 function solveHighWinRatePortfolio(
   candidateMatches: Array<{
     matchRow: any;
@@ -661,7 +700,6 @@ function solveHighWinRatePortfolio(
 ): CustomBuilderLeg[] {
   const nowMs = Date.now();
 
-  // 1. Filter out ended fixtures and options below confidence threshold
   // Banker mode requires >= 85% probability pure bankers; standard modes allow down to 70% floor per user requirement
   const minProbFloor = isBankerMode ? 85 : 70;
 
@@ -672,26 +710,28 @@ function solveHighWinRatePortfolio(
     edgeScore: number;
   }> = [];
 
-  // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.30))
+  // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.28) / ln(1.22))
+  const avgOddPerLeg = isBankerMode ? 1.22 : 1.28;
+  const estimatedN = Math.round(Math.log(targetOdds) / Math.log(avgOddPerLeg));
+  const maxAllowableGames = Math.min(MAX_GAMES_PER_TICKET, candidateMatches.length);
   const N =
     exactCount > 0
       ? exactCount
-      : Math.max(2, Math.min(30, Math.round(Math.log(targetOdds) / Math.log(1.30))));
+      : Math.max(2, Math.min(maxAllowableGames, estimatedN));
 
   const targetLogPerLeg = Math.log(targetOdds) / Math.max(2, N);
 
   for (const { matchRow, options } of candidateMatches) {
-    // Exclude ended matches
     if (isMatchEnded(matchRow)) continue;
     if (matchRow.kickoff_time && new Date(matchRow.kickoff_time).getTime() < nowMs) continue;
 
     const matchKey = `${matchRow.home_team}_vs_${matchRow.away_team}`.toLowerCase();
 
     for (const opt of options) {
-      // Stage 2 Trap Elimination: Probability floor
+      // Stage 2 Trap Elimination: Probability floor (85% for Banker, 70% for Sweet-Spot)
       if (opt.trueWinProbability < minProbFloor) continue;
 
-      // In Banker mode: only allow pure banker markets (Double Chance, Over 1.5, Under 3.5/4.5, DNB, Safe Handicap/Spread)
+      // In Banker mode: only allow pure banker markets
       if (isBankerMode) {
         const lbl = opt.outcomeLabel.toLowerCase();
         const cat = opt.marketCategory.toLowerCase();
@@ -774,17 +814,34 @@ function solveHighWinRatePortfolio(
   // PASS 1: Round-Robin Multi-Sport & Multi-Market Selection
   let sportRotationIdx = 0;
 
-  while (picked.length < N && usedMatchKeys.size < validPool.length) {
+  while (usedMatchKeys.size < validPool.length) {
+    if (exactCount > 0 && picked.length >= exactCount) {
+      break;
+    }
+    // If AUTO count mode, stop when target odds is hit or max games reached
+    if (exactCount === 0 && picked.length >= 2) {
+      if (currentOdds >= targetOdds * 0.96) {
+        break;
+      }
+      if (picked.length >= Math.min(MAX_GAMES_PER_TICKET, validPool.length)) {
+        break;
+      }
+    }
+
     let candidateFound = false;
 
     // In All Sports mode, rotate sport by sport
-    const targetSport = isAllSports && activeSports.length > 1
-      ? activeSports[sportRotationIdx % activeSports.length]
-      : null;
+    const targetSport =
+      isAllSports && activeSports.length > 1
+        ? activeSports[sportRotationIdx % activeSports.length]
+        : null;
 
     sportRotationIdx++;
 
-    const candidatesToScan = targetSport ? poolBySport[targetSport] : validPool;
+    const candidatesToScan =
+      targetSport && poolBySport[targetSport]?.length > 0
+        ? poolBySport[targetSport]
+        : validPool;
 
     for (const item of candidatesToScan) {
       if (usedMatchKeys.has(item.matchKey)) continue;
@@ -793,40 +850,33 @@ function solveHighWinRatePortfolio(
       const mSport = item.option.sport;
 
       // Check market diversity cap (max 25%) to ensure multiple outcomes on the ticket
-      if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && picked.length < N - 2) {
+      if (
+        isAllMarkets &&
+        (marketCounts[mCat] || 0) >= maxPerMarket &&
+        picked.length < N - 2 &&
+        validPool.length > 20
+      ) {
         continue;
       }
 
       // Check sport diversity cap
-      if (isAllSports && (sportCounts[mSport] || 0) >= maxPerSport && picked.length < N - 2) {
+      if (
+        isAllSports &&
+        (sportCounts[mSport] || 0) >= maxPerSport &&
+        picked.length < N - 2 &&
+        validPool.length > 20
+      ) {
         continue;
       }
 
       const legOdd = item.option.oddValue;
 
       // In AUTO mode, stop if adding this leg would massively overshoot target
-      if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.06) {
+      if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.15) {
         continue;
       }
 
-      const customLeg: CustomBuilderLeg = {
-        match: `${item.matchRow.home_team} vs ${item.matchRow.away_team}`,
-        home_team: item.matchRow.home_team,
-        away_team: item.matchRow.away_team,
-        league: item.matchRow.league_name || "Premier Division",
-        market: item.option.marketCategory.replace(/_/g, " "),
-        selection: item.option.outcomeLabel,
-        odd: item.option.oddValue,
-        win_probability: item.option.trueWinProbability,
-        eventId: item.option.eventId || item.matchRow.sportybet_selection?.eventId || item.matchRow.match_id,
-        marketId: item.option.marketId || item.matchRow.sportybet_selection?.marketId || "1",
-        outcomeId: item.option.outcomeId || item.matchRow.sportybet_selection?.outcomeId || "1",
-        specifier: item.option.specifier ?? item.matchRow.sportybet_selection?.specifier ?? null,
-        sport: item.option.sport,
-        marketCategory: item.option.marketCategory,
-        edgeScore: item.edgeScore,
-      };
-
+      const customLeg = buildCustomLeg(item);
       picked.push({ matchKey: item.matchKey, leg: customLeg });
       usedMatchKeys.add(item.matchKey);
       marketCounts[mCat] = (marketCounts[mCat] || 0) + 1;
@@ -837,72 +887,57 @@ function solveHighWinRatePortfolio(
     }
 
     if (!candidateFound) {
-      // Fallback: pick any remaining candidate to ensure ticket reaches full size
+      // Fallback: pick any best remaining candidate
       for (const item of validPool) {
         if (usedMatchKeys.has(item.matchKey)) continue;
+        const legOdd = item.option.oddValue;
+        if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.18) {
+          continue;
+        }
 
-        const customLeg: CustomBuilderLeg = {
-          match: `${item.matchRow.home_team} vs ${item.matchRow.away_team}`,
-          home_team: item.matchRow.home_team,
-          away_team: item.matchRow.away_team,
-          league: item.matchRow.league_name || "Premier Division",
-          market: item.option.marketCategory.replace(/_/g, " "),
-          selection: item.option.outcomeLabel,
-          odd: item.option.oddValue,
-          win_probability: item.option.trueWinProbability,
-          eventId: item.option.eventId || item.matchRow.sportybet_selection?.eventId || item.matchRow.match_id,
-          marketId: item.option.marketId || item.matchRow.sportybet_selection?.marketId || "1",
-          outcomeId: item.option.outcomeId || item.matchRow.sportybet_selection?.outcomeId || "1",
-          specifier: item.option.specifier ?? item.matchRow.sportybet_selection?.specifier ?? null,
-          sport: item.option.sport,
-          marketCategory: item.option.marketCategory,
-          edgeScore: item.edgeScore,
-        };
-
+        const customLeg = buildCustomLeg(item);
         picked.push({ matchKey: item.matchKey, leg: customLeg });
         usedMatchKeys.add(item.matchKey);
-        currentOdds *= item.option.oddValue;
+        currentOdds *= legOdd;
+        candidateFound = true;
         break;
       }
-    }
-
-    if (exactCount === 0 && currentOdds >= targetOdds * 0.95 && picked.length >= 2) {
-      break;
+      if (!candidateFound) break;
     }
   }
 
-  // PASS 2: Combinatorial Swap Optimization (Up to 500 iterations for both AUTO and CUSTOM)
-  // Guarantees ticket always hits target odds within +/- 5% accuracy
+  // If in AUTO mode and still below targetOdds * 0.96, continue accumulating remaining candidates up to 50 legs!
+  if (exactCount === 0 && currentOdds < targetOdds * 0.96 && picked.length < MAX_GAMES_PER_TICKET) {
+    for (const item of validPool) {
+      if (usedMatchKeys.has(item.matchKey)) continue;
+      const legOdd = item.option.oddValue;
+      const customLeg = buildCustomLeg(item);
+      picked.push({ matchKey: item.matchKey, leg: customLeg });
+      usedMatchKeys.add(item.matchKey);
+      currentOdds *= legOdd;
+      if (currentOdds >= targetOdds * 0.96 || picked.length >= MAX_GAMES_PER_TICKET) {
+        break;
+      }
+    }
+  }
+
+  // PASS 2: Combinatorial Swap Optimization (Up to 1000 iterations for both AUTO and CUSTOM)
+  // Guarantees ticket always lands within [targetOdds * 0.96, targetOdds * 1.12]
   let bestLegs = picked.map((p) => p.leg);
   let bestCombinedOdds = bestLegs.reduce((acc, l) => acc * l.odd, 1.0);
   let bestDiff = Math.abs(bestCombinedOdds - targetOdds);
 
   const swapCandidates = validPool.filter((p) => !usedMatchKeys.has(p.matchKey));
 
-  if (swapCandidates.length > 0) {
-    for (let iter = 0; iter < 500; iter++) {
-      if (bestDiff / targetOdds <= 0.05) break; // Reached within +/- 5% precision!
+  if (swapCandidates.length > 0 && bestLegs.length > 0) {
+    for (let iter = 0; iter < 1000; iter++) {
+      if (bestCombinedOdds >= targetOdds * 0.96 && bestCombinedOdds <= targetOdds * 1.12) {
+        break; // Within target precision window!
+      }
 
       const randIdx = Math.floor(Math.random() * bestLegs.length);
       const randCand = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
-
-      const candidateLeg: CustomBuilderLeg = {
-        match: `${randCand.matchRow.home_team} vs ${randCand.matchRow.away_team}`,
-        home_team: randCand.matchRow.home_team,
-        away_team: randCand.matchRow.away_team,
-        league: randCand.matchRow.league_name || "Premier Division",
-        market: randCand.option.marketCategory.replace(/_/g, " "),
-        selection: randCand.option.outcomeLabel,
-        odd: randCand.option.oddValue,
-        win_probability: randCand.option.trueWinProbability,
-        eventId: randCand.option.eventId || randCand.matchRow.sportybet_selection?.eventId || randCand.matchRow.match_id,
-        marketId: randCand.option.marketId || randCand.matchRow.sportybet_selection?.marketId || "1",
-        outcomeId: randCand.option.outcomeId || randCand.matchRow.sportybet_selection?.outcomeId || "1",
-        specifier: randCand.option.specifier ?? randCand.matchRow.sportybet_selection?.specifier ?? null,
-        sport: randCand.option.sport,
-        marketCategory: randCand.option.marketCategory,
-        edgeScore: randCand.edgeScore,
-      };
+      const candidateLeg = buildCustomLeg(randCand);
 
       const testLegs = [...bestLegs];
       testLegs[randIdx] = candidateLeg;
@@ -934,20 +969,21 @@ export async function buildCustomSlip(
   const supabase = getSupabaseAdmin();
   const todayStr = new Date().toISOString().split("T")[0];
   const sport = (req.sport_type || "all").toLowerCase();
-  const isBanker = sport === "banker" || (req.allowed_markets || []).includes("banker");
+  const strategyMode =
+    req.strategy_mode ||
+    (sport === "banker" || (req.allowed_markets || []).includes("banker") ? "PURE_BANKER" : "SWEET_SPOT");
+  const isBanker = strategyMode === "PURE_BANKER";
   const userTier = (req.user_tier || "FREE").toUpperCase();
 
   let target = Math.max(1.5, Number(req.target_odds) || 10.0);
 
-  // Subscription plan bound for Banker category: Pure bankers tailored by user tier
-  if (isBanker) {
-    if (userTier === "FREE") {
-      target = Math.min(3.0, target);
-    } else if (userTier === "PRO") {
-      target = Math.min(10.0, target);
-    } else {
-      target = Math.min(50.0, target);
-    }
+  // Subscription plan tier bounds: Free max 15x, Pro max 500x, Premium max 20,000x
+  if (userTier === "FREE") {
+    target = Math.min(15.0, target);
+  } else if (userTier === "PRO") {
+    target = Math.min(500.0, target);
+  } else {
+    target = Math.min(20000.0, target);
   }
 
   const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
@@ -1012,7 +1048,7 @@ export async function buildCustomSlip(
         retryQuery = retryQuery.gte("match_date", todayStr).lte("match_date", futureDate.toISOString().split("T")[0]);
       }
 
-      if (sport !== "all") {
+      if (sport !== "all" && sport !== "banker") {
         if (sport === "tennis" || sport === "table_tennis") {
           retryQuery = retryQuery.in("sport_type", ["TENNIS", "TABLE_TENNIS", "tennis", "table_tennis"]);
         } else {
@@ -1103,16 +1139,30 @@ export async function buildCustomSlip(
       selectedLegs.reduce((acc, l) => acc * (l.win_probability / 100), 1.0) * 1000
     ) / 10;
 
-  // 4. Book authentic verified live booking codes via bookingEngine
-  const booked = await bookUniversalSlip(selectedLegs, {
+  // 4. Book authentic verified live booking codes via Core Booking Vault
+  let booked = await bookVaultSlip(selectedLegs, {
     slip_category: "CUSTOM_SOLVER",
     target_odds: target,
   });
 
-  const sportyCode = booked.sportybet_code;
-  const bet9jaCode = booked.bet9ja_code;
+  let sportyCode = booked.sportybet_code;
+  let bet9jaCode = booked.bet9ja_code;
+  let sportyUrl = booked.sporty_url;
+  let bet9jaUrl = booked.bet9ja_url;
+
+  if (!sportyCode && !bet9jaCode) {
+    const uBooked = await bookUniversalSlip(selectedLegs, {
+      slip_category: "CUSTOM_SOLVER",
+      target_odds: target,
+    });
+    sportyCode = uBooked.sportybet_code;
+    bet9jaCode = uBooked.bet9ja_code;
+    sportyUrl = uBooked.sporty_url;
+    bet9jaUrl = uBooked.bet9ja_url;
+  }
+
   const primaryCode = bookmaker === "BET9JA" ? bet9jaCode : sportyCode;
-  const shareUrl = bookmaker === "BET9JA" ? booked.bet9ja_url : booked.sporty_url;
+  const shareUrl = bookmaker === "BET9JA" ? bet9jaUrl : sportyUrl;
 
   return {
     bookmaker,
@@ -1120,8 +1170,8 @@ export async function buildCustomSlip(
     sporty_code: sportyCode,
     bet9ja_code: bet9jaCode,
     share_url: shareUrl,
-    sporty_url: booked.sporty_url,
-    bet9ja_url: booked.bet9ja_url,
+    sporty_url: sportyUrl,
+    bet9ja_url: bet9jaUrl,
     target_odds_requested: target,
     actual_combined_odds: actualCombinedOdds,
     odds_accuracy_ratio: `${accuracy}%`,

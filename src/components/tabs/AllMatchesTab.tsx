@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
+import { useAuth } from "@/context/AuthContext";
 
 export interface AllMatchesTabProps {
   currentTier: UserTier;
@@ -43,6 +44,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
   initialSport,
 }) => {
   const { isInSlip, toggleLeg } = useBetSlip();
+  const { requireAuth } = useAuth();
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
@@ -594,6 +596,9 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    if (!requireAuth(undefined, "Please create a free account or sign in to add matches to your Bet Slip cart")) {
+                                      return;
+                                    }
                                     toggleLeg({
                                       id: matchKey,
                                       eventId: m.match_metadata?.eventId || matchKey,

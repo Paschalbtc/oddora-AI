@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
+import { useAuth } from "@/context/AuthContext";
 
 export interface HomeDailyOddsTabProps {
   currentTier: UserTier;
@@ -39,6 +40,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { isInSlip, toggleLeg } = useBetSlip();
+  const { isAuthenticated, requireAuth } = useAuth();
   // Results summary state
   const [resultsSummary, setResultsSummary] = useState({
     bankers_win_rate: 87.5,
@@ -86,6 +88,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   }
 
   const handleCopy = (code: string) => {
+    if (!requireAuth(undefined, "Please create an account or sign in to copy verified booking codes")) {
+      return;
+    }
     if (!code || code.includes("VIP")) {
       onOpenUpgradeModal();
       return;
@@ -109,6 +114,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   };
 
   const handleCopyBet9ja = (slip: any) => {
+    if (!requireAuth(undefined, "Please create an account or sign in to copy verified Bet9ja slips")) {
+      return;
+    }
     const text = formatBet9jaSlipText(slip);
     navigator.clipboard.writeText(text);
     setCopiedCode("b9_" + slip.slip_type);
@@ -499,6 +507,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  if (!requireAuth(undefined, "Please create a free account or sign in to add selections to your Bet Slip cart")) {
+                                    return;
+                                  }
                                   const teams = (leg.match || "Home vs Away").split(" vs ");
                                   toggleLeg({
                                     id: legId,

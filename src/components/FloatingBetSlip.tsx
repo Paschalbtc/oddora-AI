@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useBetSlip } from "@/context/BetSlipContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   Ticket,
   X,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 export const FloatingBetSlip: React.FC = () => {
+  const { requireAuth } = useAuth();
   const {
     legs,
     totalOdds,
@@ -362,7 +364,10 @@ export const FloatingBetSlip: React.FC = () => {
                   <button
                     type="button"
                     disabled={isBooking}
-                    onClick={() => bookSlip("SportyBet")}
+                    onClick={() => {
+                      if (!requireAuth(undefined, "Please create a free account or sign in to book your Bet Slip")) return;
+                      bookSlip("SportyBet");
+                    }}
                     className="py-3 px-3 rounded-xl bg-[#E51D25] hover:bg-[#cf1820] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-lg active:scale-98 disabled:opacity-50"
                   >
                     {isBooking ? (
@@ -376,7 +381,10 @@ export const FloatingBetSlip: React.FC = () => {
                   <button
                     type="button"
                     disabled={isBooking}
-                    onClick={() => bookSlip("Bet9ja")}
+                    onClick={() => {
+                      if (!requireAuth(undefined, "Please create a free account or sign in to book your Bet Slip")) return;
+                      bookSlip("Bet9ja");
+                    }}
                     className="py-3 px-3 rounded-xl bg-[#008234] hover:bg-[#006f2b] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-lg active:scale-98 disabled:opacity-50"
                   >
                     {isBooking ? (

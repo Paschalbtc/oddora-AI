@@ -18,8 +18,11 @@ import {
   Mail,
   Wallet,
   Trophy,
+  LogOut,
+  LogIn,
 } from "lucide-react";
 import { UserTier, WorkspaceTab } from "./Navbar";
+import { useAuth } from "@/context/AuthContext";
 
 export interface UserProfileData {
   displayName: string;
@@ -60,35 +63,40 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onNavigateTab,
   onProfileSaved,
 }) => {
+  const { user, profile: authProfile, updateProfile, signOut, openAuthModal, isAuthenticated } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<"profile" | "plan">("profile");
   const [profile, setProfile] = useState<UserProfileData>(DEFAULT_USER_PROFILE);
   const [isSaved, setIsSaved] = useState(false);
 
-  // Load from localStorage
+  // Sync profile when opened
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("oddora_user_profile");
-        if (stored) {
-          setProfile({ ...DEFAULT_USER_PROFILE, ...JSON.parse(stored) });
-        }
-      } catch {
-        // Ignore fallback
-      }
+    if (authProfile) {
+      setProfile((prev) => ({
+        ...prev,
+        displayName: authProfile.displayName || prev.displayName,
+        email: authProfile.email || prev.email,
+        phone: authProfile.phone || prev.phone,
+        avatar: authProfile.avatar || prev.avatar,
+        preferredBookmaker: authProfile.preferredBookmaker || prev.preferredBookmaker,
+        favoriteSports: authProfile.favoriteSports || prev.favoriteSports,
+        defaultStake: authProfile.defaultStake || prev.defaultStake,
+      }));
     }
-  }, [isOpen]);
+  }, [authProfile, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("oddora_user_profile", JSON.stringify(profile));
-      } catch {
-        // Ignore
-      }
-    }
+    updateProfile({
+      displayName: profile.displayName,
+      email: profile.email,
+      phone: profile.phone,
+      avatar: profile.avatar,
+      preferredBookmaker: profile.preferredBookmaker,
+      favoriteSports: profile.favoriteSports,
+      defaultStake: profile.defaultStake,
+    });
     setIsSaved(true);
     if (onProfileSaved) onProfileSaved(profile);
     setTimeout(() => setIsSaved(false), 2500);
@@ -343,7 +351,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {/* Submit Save Button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2.5">
                 <button
                   type="submit"
                   className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 active:scale-98"
@@ -360,6 +368,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </>
                   )}
                 </button>
+
+                {/* Account Sign In / Sign Out Action */}
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signOut();
+                      onClose();
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 font-bold text-xs transition flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out ({authProfile.email})</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openAuthModal("signup");
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-white font-bold text-xs transition flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Sign In or Register with Google / X</span>
+                  </button>
+                )}
               </div>
             </form>
           )}
@@ -408,7 +443,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {
                     id: "PRO" as UserTier,
                     name: "Pro VIP Pass",
-                    price: "₦7,500 / month",
+                    price: "₦5,000 / month",
                     desc: "100% Matches Unlocked + 50x Slips + Over 2.5 Daily Ticket + Multi-market Builder.",
                     badge: "POPULAR",
                     color: "border-emerald-500/40 bg-emerald-500/[0.04]",
@@ -416,7 +451,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   {
                     id: "PREMIUM" as UserTier,
                     name: "Premium VIP Pass",
-                    price: "₦18,000 / quarter",
+                    price: "₦10,000 / month",
                     desc: "100x & 200x Slips + 50-game Slip Builder + 4-Mode Ticket Splitting + VIP Support.",
                     badge: "VIP UNLIMITED",
                     color: "border-amber-500/40 bg-amber-500/[0.04]",

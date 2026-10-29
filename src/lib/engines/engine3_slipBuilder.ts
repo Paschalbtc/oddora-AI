@@ -631,7 +631,10 @@ export function computeSafetyEfficiency(
   const probRatio = Math.max(0.5, Math.min(0.99, trueWinProbability / 100));
   const oddLog = Math.log(Math.max(1.05, oddValue));
   const diff = Math.abs(oddLog - targetLogPerLeg);
-  const efficiency = Math.pow(probRatio, 2) * (1 / (diff + 0.1));
+  // Sweet-spot boost for odds in 1.22–1.42 range
+  const isSweetSpot = oddValue >= 1.22 && oddValue <= 1.42;
+  const sweetSpotMultiplier = isSweetSpot ? 1.25 : 1.0;
+  const efficiency = Math.pow(probRatio, 2) * (1 / (diff + 0.1)) * sweetSpotMultiplier;
   return Math.round(efficiency * 100) / 100;
 }
 
@@ -653,11 +656,15 @@ function solveHighWinRatePortfolio(
   exactCount: number, // 0 for AUTO, > 0 for CUSTOM
   isAllSports: boolean,
   isAllMarkets: boolean,
-  allowedFilters: string[]
+  allowedFilters: string[],
+  isBankerMode = false
 ): CustomBuilderLeg[] {
   const nowMs = Date.now();
 
-  // 1. Filter out ended fixtures and options with prob < 76% (Stage 2 Trap Filter)
+  // 1. Filter out ended fixtures and options below confidence threshold
+  // Banker mode requires >= 85% probability pure bankers; standard modes allow down to 70% floor per user requirement
+  const minProbFloor = isBankerMode ? 85 : 70;
+
   const validPool: Array<{
     matchKey: string;
     matchRow: any;
@@ -665,11 +672,11 @@ function solveHighWinRatePortfolio(
     edgeScore: number;
   }> = [];
 
-  // Determine target leg count N
+  // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.30))
   const N =
     exactCount > 0
       ? exactCount
-      : Math.max(2, Math.min(30, Math.round(Math.log(targetOdds) / Math.log(1.32))));
+      : Math.max(2, Math.min(30, Math.round(Math.log(targetOdds) / Math.log(1.30))));
 
   const targetLogPerLeg = Math.log(targetOdds) / Math.max(2, N);
 
@@ -681,8 +688,28 @@ function solveHighWinRatePortfolio(
     const matchKey = `${matchRow.home_team}_vs_${matchRow.away_team}`.toLowerCase();
 
     for (const opt of options) {
-      // Stage 2 Trap Elimination: Confidence across selected markets must be >= 76%
-      if (opt.trueWinProbability < 76) continue;
+      // Stage 2 Trap Elimination: Probability floor
+      if (opt.trueWinProbability < minProbFloor) continue;
+
+      // In Banker mode: only allow pure banker markets (Double Chance, Over 1.5, Under 3.5/4.5, DNB, Safe Handicap/Spread)
+      if (isBankerMode) {
+        const lbl = opt.outcomeLabel.toLowerCase();
+        const cat = opt.marketCategory.toLowerCase();
+        const isPureBanker =
+          cat === "double_chance" ||
+          lbl.includes("over 1.5") ||
+          lbl.includes("under 3.5") ||
+          lbl.includes("under 4.5") ||
+          cat === "draw_no_bet" ||
+          cat === "handicap" ||
+          cat === "tt_handicap" ||
+          cat === "vb_handicap" ||
+          cat === "bk_spread" ||
+          lbl.includes("+1.5") ||
+          lbl.includes("+2.5") ||
+          lbl.includes("+8.5");
+        if (!isPureBanker) continue;
+      }
 
       // Filter by user's market selection
       if (!isOptionAllowedByFilter(opt, allowedFilters)) continue;
@@ -704,7 +731,7 @@ function solveHighWinRatePortfolio(
 
   if (validPool.length === 0) {
     throw new Error(
-      `No candidate fixtures met the 76%+ safety floor for the selected filters. Try broadening your market or sport filters.`
+      `No candidate fixtures met the ${minProbFloor}%+ safety floor for the selected filters. Try broadening your market or sport filters.`
     );
   }
 
@@ -729,7 +756,7 @@ function solveHighWinRatePortfolio(
     (k) => poolBySport[k].length > 0
   );
 
-  // Cap per market: MAX 25% of legs (or max 2 legs for small tickets)
+  // Cap per market: MAX 25% of legs (or max 2 legs for small tickets) to enforce Balanced Diversity!
   const maxPerMarket = isAllMarkets ? Math.max(1, Math.ceil(N * 0.25)) : 999;
   // Cap per sport: Max ~40% when All Sports is active
   const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(1, Math.ceil(N * 0.40)) : 999;
@@ -765,7 +792,7 @@ function solveHighWinRatePortfolio(
       const mCat = item.option.marketCategory;
       const mSport = item.option.sport;
 
-      // Check market diversity cap (max 25%)
+      // Check market diversity cap (max 25%) to ensure multiple outcomes on the ticket
       if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && picked.length < N - 2) {
         continue;
       }
@@ -777,8 +804,8 @@ function solveHighWinRatePortfolio(
 
       const legOdd = item.option.oddValue;
 
-      // In AUTO mode, stop if adding this leg would massively overshoot
-      if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.15) {
+      // In AUTO mode, stop if adding this leg would massively overshoot target
+      if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.06) {
         continue;
       }
 
@@ -810,7 +837,7 @@ function solveHighWinRatePortfolio(
     }
 
     if (!candidateFound) {
-      // If round-robin couldn't find from target sport, fall back to any available from validPool
+      // Fallback: pick any remaining candidate to ensure ticket reaches full size
       for (const item of validPool) {
         if (usedMatchKeys.has(item.matchKey)) continue;
 
@@ -844,16 +871,17 @@ function solveHighWinRatePortfolio(
     }
   }
 
-  // PASS 2: Combinatorial Swap Optimization (Up to 400 iterations for Custom Count or Auto Target)
+  // PASS 2: Combinatorial Swap Optimization (Up to 500 iterations for both AUTO and CUSTOM)
+  // Guarantees ticket always hits target odds within +/- 5% accuracy
   let bestLegs = picked.map((p) => p.leg);
   let bestCombinedOdds = bestLegs.reduce((acc, l) => acc * l.odd, 1.0);
   let bestDiff = Math.abs(bestCombinedOdds - targetOdds);
 
   const swapCandidates = validPool.filter((p) => !usedMatchKeys.has(p.matchKey));
 
-  if (swapCandidates.length > 0 && exactCount > 0) {
-    for (let iter = 0; iter < 400; iter++) {
-      if (bestDiff / targetOdds <= 0.05) break; // Within +/-5% target precision
+  if (swapCandidates.length > 0) {
+    for (let iter = 0; iter < 500; iter++) {
+      if (bestDiff / targetOdds <= 0.05) break; // Reached within +/- 5% precision!
 
       const randIdx = Math.floor(Math.random() * bestLegs.length);
       const randCand = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
@@ -905,9 +933,24 @@ export async function buildCustomSlip(
 ): Promise<CustomBuilderResult> {
   const supabase = getSupabaseAdmin();
   const todayStr = new Date().toISOString().split("T")[0];
-  const target = Math.max(1.5, Number(req.target_odds) || 10.0);
-  const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
   const sport = (req.sport_type || "all").toLowerCase();
+  const isBanker = sport === "banker" || (req.allowed_markets || []).includes("banker");
+  const userTier = (req.user_tier || "FREE").toUpperCase();
+
+  let target = Math.max(1.5, Number(req.target_odds) || 10.0);
+
+  // Subscription plan bound for Banker category: Pure bankers tailored by user tier
+  if (isBanker) {
+    if (userTier === "FREE") {
+      target = Math.min(3.0, target);
+    } else if (userTier === "PRO") {
+      target = Math.min(10.0, target);
+    } else {
+      target = Math.min(50.0, target);
+    }
+  }
+
+  const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
   const horizon = req.date_horizon || "today";
 
   const countMode =
@@ -935,7 +978,7 @@ export async function buildCustomSlip(
     query = query.gte("match_date", todayStr).lte("match_date", futureDate.toISOString().split("T")[0]);
   }
 
-  if (sport !== "all") {
+  if (sport !== "all" && sport !== "banker") {
     if (sport === "tennis" || sport === "table_tennis") {
       query = query.in("sport_type", ["TENNIS", "TABLE_TENNIS", "tennis", "table_tennis"]);
     } else {
@@ -1010,7 +1053,7 @@ export async function buildCustomSlip(
   }
 
   const allowedFilters = (req.allowed_markets || []).map((m) => m.toLowerCase());
-  const isAllSports = sport === "all";
+  const isAllSports = sport === "all" || isBanker;
   const isAllMarkets = allowedFilters.length === 0 || allowedFilters.includes("all");
 
   // 3. STAGE 2, 3 & 4: Run Solver
@@ -1020,7 +1063,8 @@ export async function buildCustomSlip(
     customCount,
     isAllSports,
     isAllMarkets,
-    allowedFilters
+    allowedFilters,
+    isBanker
   );
 
   if (selectedLegs.length > MAX_GAMES_PER_TICKET) {

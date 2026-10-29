@@ -463,6 +463,17 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
  */
 export function getOutcomesForSport(sport: string): HighProbOutcome[] {
   const norm = (sport || "").toUpperCase().trim();
+  if (norm === "BANKER") {
+    // Pure Banker Markets across all sports (Highest win rate >= 86%)
+    return [
+      ...HIGH_PROBABILITY_OUTCOMES.FOOTBALL.filter(
+        (o) => o.shortCode === "1X" || o.shortCode === "X2" || o.shortCode === "O1.5" || o.shortCode === "U3.5" || o.shortCode === "DNB1" || o.shortCode.includes("+1.5")
+      ),
+      ...HIGH_PROBABILITY_OUTCOMES.BASKETBALL.filter((o) => o.shortCode.includes("+8.5") || o.shortCode.includes("O_ALT")),
+      ...HIGH_PROBABILITY_OUTCOMES.TABLE_TENNIS.filter((o) => o.shortCode.includes("+1.5S") || o.shortCode.includes("+2.5S")),
+      ...HIGH_PROBABILITY_OUTCOMES.VOLLEYBALL.filter((o) => o.shortCode.includes("+1.5S") || o.shortCode.includes("+2.5S")),
+    ];
+  }
   if (norm === "FOOTBALL") return HIGH_PROBABILITY_OUTCOMES.FOOTBALL;
   if (norm === "TABLE_TENNIS" || norm === "TABLE TENNIS" || norm === "TENNIS") return HIGH_PROBABILITY_OUTCOMES.TABLE_TENNIS;
   if (norm === "BASKETBALL") return HIGH_PROBABILITY_OUTCOMES.BASKETBALL;

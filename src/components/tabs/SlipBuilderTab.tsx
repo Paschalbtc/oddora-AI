@@ -214,6 +214,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const getSportBadgeStyle = (sport?: string) => {
     const s = (sport || "FOOTBALL").toUpperCase();
+    if (s.includes("BANKER")) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
     if (s.includes("BASKET")) return "bg-orange-500/15 text-orange-400 border-orange-500/30";
     if (s.includes("TABLE") || s.includes("TENNIS")) return "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
     if (s.includes("VOLLEY")) return "bg-purple-500/15 text-purple-400 border-purple-500/30";
@@ -222,6 +223,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const getSportEmoji = (sport?: string) => {
     const s = (sport || "FOOTBALL").toUpperCase();
+    if (s.includes("BANKER")) return "💎 PURE BANKER";
     if (s.includes("BASKET")) return "🏀 BASKETBALL";
     if (s.includes("TABLE") || s.includes("TENNIS")) return "🏓 TABLE TENNIS";
     if (s.includes("VOLLEY")) return "🏐 VOLLEYBALL";
@@ -368,6 +370,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 { id: "all", label: "All Sports" },
+                { id: "banker", label: "💎 Banker Pure Safe", isBanker: true },
                 { id: "football", label: "⚽ Football" },
                 { id: "basketball", label: "🏀 Basketball" },
                 { id: "table_tennis", label: "🏓 Table Tennis" },
@@ -382,7 +385,11 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                   }}
                   className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
                     sportType === s.id
-                      ? "bg-white/[0.1] text-white border-white/20 font-black"
+                      ? s.isBanker
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/50 font-black shadow-md"
+                        : "bg-white/[0.1] text-white border-white/20 font-black"
+                      : s.isBanker
+                      ? "bg-amber-500/5 text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
                       : "bg-white/[0.02] text-slate-400 border-white/5 hover:text-white"
                   }`}
                 >

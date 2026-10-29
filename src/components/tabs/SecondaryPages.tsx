@@ -557,7 +557,7 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
       {
         id: "PRO",
         name: "Pro Pass",
-        price: "₦7,500",
+        price: "₦5,000",
         period: "per month",
         desc: "Unrestricted access to all multi-sport matches and advanced daily slips.",
         features: [
@@ -573,8 +573,8 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
       {
         id: "PREMIUM",
         name: "Premium VIP",
-        price: "₦18,000",
-        period: "per quarter",
+        price: "₦10,000",
+        period: "per month",
         desc: "Full VIP suite for serious sports investors and high-multiplier accumulators.",
         features: [
           "All Pro Features Included",
@@ -903,7 +903,7 @@ const AffiliatePartnerHubView: React.FC = () => {
             </span>
             <h4 className="font-black text-white text-sm">Audience Subscribes</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              When a user signs up and activates Pro Pass (₦7,500/mo) or Premium VIP (₦18,000/qtr), they are locked to your partner ID forever.
+              When a user signs up and activates Pro Pass (₦5,000/mo) or Premium VIP (₦10,000/mo), they are locked to your partner ID forever.
             </p>
           </div>
 
@@ -913,7 +913,7 @@ const AffiliatePartnerHubView: React.FC = () => {
             </span>
             <h4 className="font-black text-white text-sm">Earn 30% Monthly Payout</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Receive ₦2,250 every month per Pro user and ₦5,400 every quarter per VIP subscriber, sent automatically to your bank account or USDT address.
+              Receive ₦1,500 every month per Pro user and ₦3,000 every month per VIP subscriber, sent automatically to your bank account or USDT address.
             </p>
           </div>
         </div>
@@ -1066,8 +1066,8 @@ const AffiliatePartnerHubView: React.FC = () => {
               <tr>
                 <td className="py-3 text-slate-300">da***@gmail.com</td>
                 <td className="py-3 text-emerald-400 font-bold">Pro Pass</td>
-                <td className="py-3 text-slate-400">₦7,500/mo</td>
-                <td className="py-3 text-white font-black">+₦2,250.00</td>
+                <td className="py-3 text-slate-400">₦5,000/mo</td>
+                <td className="py-3 text-white font-black">+₦1,500.00</td>
                 <td className="py-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     Paid
@@ -1077,8 +1077,8 @@ const AffiliatePartnerHubView: React.FC = () => {
               <tr>
                 <td className="py-3 text-slate-300">ch***@yahoo.com</td>
                 <td className="py-3 text-purple-400 font-bold">Premium VIP</td>
-                <td className="py-3 text-slate-400">₦18,000/qtr</td>
-                <td className="py-3 text-white font-black">+₦5,400.00</td>
+                <td className="py-3 text-slate-400">₦10,000/mo</td>
+                <td className="py-3 text-white font-black">+₦3,000.00</td>
                 <td className="py-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     Paid
@@ -1088,8 +1088,8 @@ const AffiliatePartnerHubView: React.FC = () => {
               <tr>
                 <td className="py-3 text-slate-300">em***@gmail.com</td>
                 <td className="py-3 text-emerald-400 font-bold">Pro Pass</td>
-                <td className="py-3 text-slate-400">₦7,500/mo</td>
-                <td className="py-3 text-white font-black">+₦2,250.00</td>
+                <td className="py-3 text-slate-400">₦5,000/mo</td>
+                <td className="py-3 text-white font-black">+₦1,500.00</td>
                 <td className="py-3 text-right">
                   <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     Paid

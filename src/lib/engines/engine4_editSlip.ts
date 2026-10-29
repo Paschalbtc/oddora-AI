@@ -101,9 +101,9 @@ export async function executeEditSlip(
         sporty_code: sportyCode,
         bet9ja_code: bet9jaCode,
         share_url: shareUrl,
-        total_odds: chunkOdds,
-        legs_count: chunk.length,
-        surviving_legs: chunk,
+        total_odds: bookedChunk.actual_odds || chunkOdds,
+        legs_count: (bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : chunk).length,
+        surviving_legs: bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : chunk,
       });
     }
 
@@ -162,9 +162,9 @@ export async function executeEditSlip(
         sporty_code: sportyCode,
         bet9ja_code: bet9jaCode,
         share_url: shareUrl,
-        total_odds: newOdds,
-        legs_count: surviving.length,
-        surviving_legs: surviving,
+        total_odds: bookedSurviving.actual_odds || newOdds,
+        legs_count: (bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : surviving).length,
+        surviving_legs: bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : surviving,
         pruned_legs: pruned,
       },
     ],

@@ -263,7 +263,7 @@ async function fetchEspnSoccerFeed(): Promise<MultiSportRawFixture[]> {
       const homeComp = comp?.competitors?.find((c: any) => c.homeAway === "home");
       const awayComp = comp?.competitors?.find((c: any) => c.homeAway === "away");
       const dateStr = ev.date ? new Date(ev.date).toISOString().split("T")[0] : todayStr;
-      if (dateStr !== todayStr) continue;
+      if (dateStr < todayStr) continue; // Skip past matches, allow today and upcoming future games
 
       list.push({
         id: `espn_${ev.id || Math.random()}`,
@@ -639,11 +639,14 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
     // Designate first 3 matches per sport as free preview
     sportCounts[f.sport] = (sportCounts[f.sport] || 0) + 1;
     const isFreePreview = sportCounts[f.sport] <= 3;
+    const fixtureDate = f.kickoff_time
+      ? new Date(f.kickoff_time).toISOString().split("T")[0]
+      : todayStr;
 
     newRecords.push({
       match_id: eventId,
       sport_type: f.sport,
-      match_date: todayStr,
+      match_date: fixtureDate,
       league_name: f.league_name,
       country: f.country,
       league_logo: f.league_logo || "",

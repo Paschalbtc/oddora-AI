@@ -213,6 +213,10 @@ export async function generateAndBookDailySlips(): Promise<{
     selection: "Over 2.5",
     odd: 1.85,
     win_probability: m.win_probability,
+    marketId: "18",
+    outcomeId: "12",
+    specifier: "total=2.5",
+    eventId: m.sportybet_selection?.eventId || m.match_id,
   }));
 
   const over25Booked = await bookUniversalSlip(over25LegsInput, {

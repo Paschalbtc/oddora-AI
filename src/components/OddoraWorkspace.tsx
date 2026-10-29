@@ -12,13 +12,16 @@ import { CopilotTab } from "./tabs/CopilotTab";
 import { SecondaryPages } from "./tabs/SecondaryPages";
 import { CheckCircle2, X, Crown, ShieldCheck, Zap } from "lucide-react";
 import { BetSlipProvider } from "@/context/BetSlipContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { FloatingBetSlip } from "./FloatingBetSlip";
 import { ProfileModal } from "./ProfileModal";
+import { AuthModal } from "./AuthModal";
 
 const OddoraWorkspaceInner: React.FC = () => {
   const searchParams = useSearchParams();
   const urlTab = searchParams?.get("tab") as WorkspaceTab | null;
   const urlSport = searchParams?.get("sport");
+  const { user, profile, isAuthenticated, openAuthModal } = useAuth();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("home");
   const [selectedSportFilter, setSelectedSportFilter] = useState<string>(urlSport || "football");
@@ -26,6 +29,13 @@ const OddoraWorkspaceInner: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+  // Sync tier with profile tier if set
+  useEffect(() => {
+    if (profile?.tier) {
+      setCurrentTier(profile.tier);
+    }
+  }, [profile?.tier]);
 
   // Capture referral code on visit
   useEffect(() => {
@@ -200,6 +210,9 @@ const OddoraWorkspaceInner: React.FC = () => {
         }}
       />
 
+      {/* Global Auth Modal (Login / Sign Up / Google / X) */}
+      <AuthModal />
+
       {/* Interactive Global Floating Bet Slip */}
       <FloatingBetSlip />
 
@@ -226,9 +239,11 @@ export const OddoraWorkspace: React.FC = () => {
         </div>
       }
     >
-      <BetSlipProvider>
-        <OddoraWorkspaceInner />
-      </BetSlipProvider>
+      <AuthProvider>
+        <BetSlipProvider>
+          <OddoraWorkspaceInner />
+        </BetSlipProvider>
+      </AuthProvider>
     </Suspense>
   );
 };

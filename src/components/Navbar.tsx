@@ -24,6 +24,7 @@ import {
   Grid,
 } from "lucide-react";
 import { OddoraLogo } from "./OddoraLogo";
+import { useAuth } from "@/context/AuthContext";
 
 export type WorkspaceTab =
   | "home"
@@ -60,6 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isRefreshing = false,
   onOpenAccountModal,
 }) => {
+  const { user, profile: authProfile, isAuthenticated, openAuthModal } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -353,30 +355,44 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Profile & Plan Trigger (Accessible on both Mobile & Desktop) */}
-            <button
-              type="button"
-              onClick={onOpenAccountModal}
-              title="View & Edit Profile, Manage Plan Mode"
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white transition shadow-sm active:scale-95"
-            >
-              <div className="relative">
-                <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
-                  <User className="w-3.5 h-3.5" />
+            {/* Profile & Plan Trigger / Sign In Button */}
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={onOpenAccountModal}
+                title="View & Edit Profile, Manage Plan Mode"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white transition shadow-sm active:scale-95"
+              >
+                <div className="relative">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
+                    <span>{authProfile?.avatar || "👑"}</span>
+                  </div>
+                  {/* Status Dot */}
+                  <span
+                    className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#070A0E] ${
+                      currentTier === "PREMIUM"
+                        ? "bg-amber-400"
+                        : currentTier === "PRO"
+                        ? "bg-emerald-400"
+                        : "bg-slate-400"
+                    }`}
+                  />
                 </div>
-                {/* Status Dot */}
-                <span
-                  className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#070A0E] ${
-                    currentTier === "PREMIUM"
-                      ? "bg-amber-400"
-                      : currentTier === "PRO"
-                      ? "bg-emerald-400"
-                      : "bg-slate-400"
-                  }`}
-                />
-              </div>
-              <span className="font-black text-xs">Profile</span>
-            </button>
+                <span className="font-black text-xs hidden sm:inline truncate max-w-[80px]">
+                  {authProfile?.displayName?.split(" ")[0] || "Profile"}
+                </span>
+                <span className="font-black text-xs sm:hidden">Profile</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("signup")}
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-md transition active:scale-95"
+              >
+                <User className="w-3.5 h-3.5 text-black stroke-[3]" />
+                <span>Sign In</span>
+              </button>
+            )}
 
             {/* Force Refresh Button */}
             {onRefresh && (
@@ -429,23 +445,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => {
                 setIsMoreDrawerOpen(false);
-                if (onOpenAccountModal) onOpenAccountModal();
+                if (isAuthenticated) {
+                  if (onOpenAccountModal) onOpenAccountModal();
+                } else {
+                  openAuthModal("signup");
+                }
               }}
               className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-amber-500/15 border border-emerald-500/35 flex items-center justify-between text-left transition hover:border-emerald-500/60"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg font-bold">
-                  <User className="w-5 h-5 text-emerald-400" />
+                  {isAuthenticated ? (
+                    <span>{authProfile?.avatar || "👑"}</span>
+                  ) : (
+                    <User className="w-5 h-5 text-emerald-400" />
+                  )}
                 </div>
                 <div>
                   <div className="font-black text-xs text-white flex items-center gap-2">
-                    <span>My Profile & Settings</span>
+                    <span>{isAuthenticated ? authProfile?.displayName || "My Profile" : "Sign In / Create Account"}</span>
                     <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
                       {currentTier} PLAN
                     </span>
                   </div>
                   <div className="text-[10px] text-slate-300">
-                    Edit name, bookmaker preference & manage VIP Plan Mode
+                    {isAuthenticated ? "Edit profile & manage plan mode" : "1-Click Google, X, or Email sign in"}
                   </div>
                 </div>
               </div>

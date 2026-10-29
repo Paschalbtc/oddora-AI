@@ -46,15 +46,21 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
-  const yesterdayStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
-  }, []);
-
   const tomorrowStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+
+  const nextDayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split("T")[0];
+  }, []);
+
+  const dayAfterNextStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
     return d.toISOString().split("T")[0];
   }, []);
 
@@ -271,25 +277,12 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
 
       {/* Date Navigation & Calendar Switcher */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
-        {/* Quick Date Buttons: Yesterday / Today / Tomorrow */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedDate(yesterdayStr)}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
-              selectedDate === yesterdayStr
-                ? "bg-white/[0.12] text-white border-white/25 shadow-sm font-black"
-                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
-            }`}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span>Yesterday</span>
-          </button>
-
+        {/* Quick Date Buttons: Today / Tomorrow / Next Day / +3 Days */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setSelectedDate(todayStr)}
-            className={`flex-1 sm:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border whitespace-nowrap ${
               selectedDate === todayStr
                 ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
                 : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
@@ -301,14 +294,37 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
           <button
             type="button"
             onClick={() => setSelectedDate(tomorrowStr)}
-            className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border whitespace-nowrap ${
               selectedDate === tomorrowStr
-                ? "bg-white/[0.12] text-white border-white/25 shadow-sm font-black"
+                ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
                 : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
             }`}
           >
             <span>Tomorrow</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedDate(nextDayStr)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border whitespace-nowrap ${
+              selectedDate === nextDayStr
+                ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
+                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <span>Next Day</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedDate(dayAfterNextStr)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border whitespace-nowrap ${
+              selectedDate === dayAfterNextStr
+                ? "bg-emerald-500 text-black border-emerald-400 shadow-md font-black"
+                : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <span>+3 Days</span>
           </button>
         </div>
 
@@ -317,13 +333,14 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300">
             <Calendar className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden md:inline text-slate-400">Date:</span>
-            <span className="text-white bg-black/40 px-2 py-0.5 rounded-md border border-white/10">
+            <span className="text-white bg-black/40 px-2 py-0.5 rounded-md border border-white/10 font-mono">
               {selectedDate}
             </span>
           </div>
 
           <input
             type="date"
+            min={todayStr}
             value={selectedDate}
             onChange={(e) => {
               if (e.target.value) setSelectedDate(e.target.value);

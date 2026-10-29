@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/supabase";
 import { isMatchEnded } from "@/lib/multiSportScheduleFeed";
+import { syncMatchesForDate } from "@/lib/engines/engine1_allMatches";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const items = rawData || [];
+    let items = rawData || [];
+
+    // If future date or empty cache for upcoming games, fetch and populate
+    if (items.length === 0 && targetDate >= todayStr) {
+      try {
+        await syncMatchesForDate(targetDate);
+        const { data: freshData } = await query;
+        if (freshData && freshData.length > 0) {
+          items = freshData;
+        }
+      } catch (syncErr) {
+        console.warn("On-demand sync notice in matches-cached:", syncErr);
+      }
+    }
 
     // Filter out ended matches in real time for today
     const activeItems = isToday

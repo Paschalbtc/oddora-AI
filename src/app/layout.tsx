@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Oddora AI V2 - Quantitative Sports Intelligence & Slip Solver",
   description: "Next-generation sports analytical engine with automated booking code synthesis",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 3,
+  userScalable: true,
 };
 
 export default function RootLayout({

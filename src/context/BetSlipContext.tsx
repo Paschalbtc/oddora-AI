@@ -183,9 +183,9 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Format selections for /api/bookmaker
       const selectionsPayload = legs.map((leg) => ({
-        eventId: leg.sportybetSelection?.eventId || leg.matchId,
-        marketId: leg.sportybetSelection?.marketId || "1",
-        outcomeId: leg.sportybetSelection?.outcomeId || "1",
+        eventId: leg.sportybetSelection?.eventId || leg.matchId || leg.eventId,
+        marketId: leg.sportybetSelection?.marketId || undefined,
+        outcomeId: leg.sportybetSelection?.outcomeId || undefined,
         specifier: leg.sportybetSelection?.specifier || null,
         home_team: leg.homeTeam,
         away_team: leg.awayTeam,

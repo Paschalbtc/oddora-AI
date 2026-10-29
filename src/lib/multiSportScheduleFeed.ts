@@ -109,78 +109,120 @@ async function fetchSportyBetMultiPageCatalog(
 ): Promise<MultiSportRawFixture[]> {
   const fixtures: MultiSportRawFixture[] = [];
   const nowMs = Date.now();
-  const todayStr = new Date().toISOString().split("T")[0];
+  const seenEventIds = new Set<string>();
 
-  for (let page = 1; page <= maxPages; page++) {
-    try {
-      const url = `https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=${encodeURIComponent(
-        sportId
-      )}&pageSize=100&pageNum=${page}`;
+  // Use SportyBet active wapUpcomingEvents endpoints across major categories
+  const targetUrls: string[] = [
+    `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}`,
+  ];
 
-      const res = await fetch(url, {
+  if (sportId === "sr:sport:1") {
+    // Football: Query top football territories for rich multi-league coverage
+    const topCategories = [
+      "sr:category:1",   // England
+      "sr:category:8",   // Spain
+      "sr:category:30",  // Germany
+      "sr:category:31",  // Italy
+      "sr:category:7",   // France
+      "sr:category:4",   // International
+      "sr:category:352", // India / Asia
+    ];
+    for (const cat of topCategories) {
+      targetUrls.push(
+        `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1&categoryId=${encodeURIComponent(cat)}`
+      );
+    }
+  } else {
+    // Other sports: query standard and extended timelines
+    targetUrls.push(
+      `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}&timeline=24`,
+      `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}&timeline=48`
+    );
+  }
+
+  const responses = await Promise.allSettled(
+    targetUrls.map((u) =>
+      fetch(u, {
         headers: BROWSER_HEADERS,
         cache: "no-store",
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(5000),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+    )
+  );
+
+  for (const res of responses) {
+    if (res.status !== "fulfilled" || !res.value) continue;
+    const json = res.value;
+    let rawEvents: any[] = [];
+
+    if (Array.isArray(json?.data)) {
+      rawEvents = json.data;
+    } else if (Array.isArray(json?.data?.tournaments)) {
+      for (const t of json.data.tournaments) {
+        if (Array.isArray(t?.events)) rawEvents.push(...t.events);
+      }
+    }
+
+    for (const ev of rawEvents) {
+      if (!ev || !ev.eventId || seenEventIds.has(ev.eventId)) continue;
+
+      const startTime = Number(ev.estimateStartTime);
+      // Strictly upcoming games (exclude already kicked-off matches)
+      if (startTime && startTime < nowMs) continue;
+
+      const home = (ev.homeTeamName || "").trim();
+      const away = (ev.awayTeamName || "").trim();
+      if (!home || !away) continue;
+
+      seenEventIds.add(ev.eventId);
+
+      // Parse standard 1X2 / Over 1.5 odds from raw markets if present
+      const oddsMap: Record<string, number> = {};
+      if (Array.isArray(ev.markets)) {
+        const m1 = ev.markets.find(
+          (m: any) => String(m.id) === "1" || String(m.id) === "186"
+        );
+        if (m1 && Array.isArray(m1.outcomes)) {
+          const h = m1.outcomes.find(
+            (o: any) => String(o.id) === "1" || String(o.id) === "4"
+          );
+          const d = m1.outcomes.find((o: any) => String(o.id) === "2");
+          const a = m1.outcomes.find(
+            (o: any) => String(o.id) === "3" || String(o.id) === "5"
+          );
+          if (h?.odds) oddsMap.home_win = Number(h.odds);
+          if (d?.odds) oddsMap.draw = Number(d.odds);
+          if (a?.odds) oddsMap.away_win = Number(a.odds);
+        }
+      }
+
+      const leagueName =
+        ev.sport?.category?.tournament?.name ||
+        ev.tournament?.name ||
+        ev.league_name ||
+        `${sportName} Championship`;
+      const countryName =
+        ev.sport?.category?.name ||
+        ev.tournament?.categoryName ||
+        ev.league_country ||
+        "International";
+
+      fixtures.push({
+        id: String(ev.eventId),
+        sport: sportName,
+        home_team: home,
+        away_team: away,
+        league_name: leagueName,
+        country: countryName,
+        kickoff_time: startTime
+          ? new Date(startTime).toISOString()
+          : new Date(nowMs + 3600000).toISOString(),
+        status: "NS",
+        raw_markets: ev.markets || [],
+        available_odds: oddsMap,
       });
-
-      if (!res.ok) break;
-
-      const json = await res.json();
-      let rawEvents: any[] = [];
-
-      if (Array.isArray(json?.data)) {
-        rawEvents = json.data;
-      } else if (Array.isArray(json?.data?.tournaments)) {
-        for (const t of json.data.tournaments) {
-          if (Array.isArray(t?.events)) rawEvents.push(...t.events);
-        }
-      }
-
-      if (rawEvents.length === 0) break;
-
-      for (const ev of rawEvents) {
-        if (!ev || !ev.eventId || !ev.estimateStartTime) continue;
-
-        const startTime = Number(ev.estimateStartTime);
-        const evDate = new Date(startTime).toISOString().split("T")[0];
-
-        // Strict Date & Kickoff Filtering:
-        // Exclude matches that have already kicked off (startTime < nowMs)
-        if (startTime < nowMs) continue;
-
-        const home = (ev.homeTeamName || "").trim();
-        const away = (ev.awayTeamName || "").trim();
-        if (!home || !away) continue;
-
-        // Parse standard 1X2 / Over 1.5 odds from raw markets if present
-        const oddsMap: Record<string, number> = {};
-        if (Array.isArray(ev.markets)) {
-          const m1 = ev.markets.find((m: any) => String(m.id) === "1" || String(m.id) === "186");
-          if (m1 && Array.isArray(m1.outcomes)) {
-            const h = m1.outcomes.find((o: any) => String(o.id) === "1" || String(o.id) === "4");
-            const d = m1.outcomes.find((o: any) => String(o.id) === "2");
-            const a = m1.outcomes.find((o: any) => String(o.id) === "3" || String(o.id) === "5");
-            if (h?.odds) oddsMap.home_win = Number(h.odds);
-            if (d?.odds) oddsMap.draw = Number(d.odds);
-            if (a?.odds) oddsMap.away_win = Number(a.odds);
-          }
-        }
-
-        fixtures.push({
-          id: String(ev.eventId),
-          sport: sportName,
-          home_team: home,
-          away_team: away,
-          league_name: ev.tournament?.name || ev.league_name || `${sportName} League`,
-          country: ev.tournament?.categoryName || ev.league_country || "International",
-          kickoff_time: new Date(startTime).toISOString(),
-          status: "NS",
-          raw_markets: ev.markets || [],
-          available_odds: oddsMap,
-        });
-      }
-    } catch {
-      break;
     }
   }
 

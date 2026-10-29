@@ -248,60 +248,104 @@ export const FloatingBetSlip: React.FC = () => {
 
                 {/* Booking Code Display (When Generated) */}
                 {bookedTicket && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 space-y-2 animate-in fade-in duration-150">
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 space-y-2.5 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-emerald-300 flex items-center gap-1.5">
                         <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>{bookedTicket.bookmaker} Booking Code</span>
+                        <span>
+                          {bookedTicket.bookmaker === "SportyBet"
+                            ? "Verified SportyBet Code"
+                            : "Bet9ja Slip Selections"}
+                        </span>
                       </span>
                       <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
                         100% READY
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/50 border border-emerald-500/30">
-                      <span className="font-mono font-black text-white text-base tracking-widest">
-                        {bookedTicket.bookingCode}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(bookedTicket.bookingCode)}
-                        className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center gap-1 transition"
-                      >
-                        {copiedCode === bookedTicket.bookingCode ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
                     {bookedTicket.bookmaker === "SportyBet" ? (
-                      <a
-                        href={bookedTicket.shareUrl || `http://www.sportybet.com/ng/?shareCode=${bookedTicket.bookingCode}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full py-2.5 rounded-xl bg-[#E51D25] hover:bg-[#c91820] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
-                      >
-                        <Zap className="w-3.5 h-3.5" />
-                        <span>⚡ Load Slip Directly on SportyBet</span>
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
+                      <>
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/50 border border-emerald-500/30">
+                          <span className="font-mono font-black text-white text-base tracking-widest">
+                            {bookedTicket.bookingCode}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(bookedTicket.bookingCode)}
+                            className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center gap-1 transition"
+                          >
+                            {copiedCode === bookedTicket.bookingCode ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        <a
+                          href={
+                            bookedTicket.shareUrl ||
+                            `http://www.sportybet.com/ng/?shareCode=${bookedTicket.bookingCode}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2.5 rounded-xl bg-[#E51D25] hover:bg-[#c91820] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>⚡ Load Slip Directly on SportyBet</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={handleCopyBet9jaSelections}
-                        className="w-full py-2.5 rounded-xl bg-[#008234] hover:bg-[#006e2b] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
-                      >
-                        <span>📋 Copy {legs.length} Matches for Bet9ja</span>
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </button>
+                      <>
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/50 border border-emerald-500/30">
+                          <span className="font-mono font-bold text-white text-xs">
+                            {legs.length} Matches • {totalOdds}x Odds
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyBet9jaSelections}
+                            className="px-3 py-1 rounded-lg bg-[#008234] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition"
+                          >
+                            {copiedCode === "b9_matches" ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy Matches</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCopyBet9jaSelections}
+                            className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98 border border-white/10"
+                          >
+                            <span>📋 Copy Ticket</span>
+                          </button>
+                          <a
+                            href="https://sports.bet9ja.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2.5 rounded-xl bg-[#008234] hover:bg-[#006e2b] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
+                          >
+                            <span>🟢 Open Bet9ja</span>
+                            <ExternalLink className="w-3 h-3 ml-0.5" />
+                          </a>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -353,3 +397,4 @@ export const FloatingBetSlip: React.FC = () => {
 };
 
 export default FloatingBetSlip;
+

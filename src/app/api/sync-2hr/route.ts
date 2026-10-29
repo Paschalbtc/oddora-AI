@@ -50,3 +50,4 @@ async function handleSync(request: NextRequest) {
     );
   }
 }
+

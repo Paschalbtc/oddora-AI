@@ -92,6 +92,22 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
     }
   };
 
+  const handleCopyBet9jaMatches = (slip: any) => {
+    const legs = slip.surviving_legs || slip.legs || [];
+    const lines = [
+      `Oddora AI - Edited Ticket (${slip.total_odds}x Total Odds)`,
+      ...legs.map(
+        (l: any, i: number) =>
+          `${i + 1}. ${l.match} | Pick: ${l.selection} @ ${Number(l.odd || 1.45).toFixed(2)}`
+      ),
+      `Total Odds: ${slip.total_odds}x`,
+      "Place on Bet9ja: https://sports.bet9ja.com",
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedCode("b9_" + (slip.slip_index || "edited"));
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
   const handleExecute = async () => {
     if (!bookingCode.trim()) {
       setErrorMsg("Please enter or paste your booking code.");
@@ -354,43 +370,68 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                     </div>
 
                     {/* Copy button */}
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(slip.booking_code)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto"
-                    >
-                      <span>Code: {slip.booking_code}</span>
-                      {copiedCode === slip.booking_code ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5 text-emerald-300" />
-                      )}
-                    </button>
+                    {bookmaker === "SportyBet" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(slip.booking_code)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto"
+                      >
+                        <span>Code: {slip.booking_code}</span>
+                        {copiedCode === slip.booking_code ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-emerald-300" />
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyBet9jaMatches(slip)}
+                        className="px-3 py-1.5 rounded-xl bg-[#008234]/20 border border-[#008234]/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-[#008234]/30 transition self-start sm:self-auto"
+                      >
+                        <span>📋 Copy {slip.legs_count} Matches</span>
+                        {copiedCode === "b9_" + (slip.slip_index || "edited") ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-emerald-300" />
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {/* 1-Click Launchers */}
                   <div className="grid grid-cols-2 gap-2">
-                    {sportyUrl && (
+                    {bookmaker === "SportyBet" ? (
                       <a
-                        href={sportyUrl}
+                        href={sportyUrl || `http://www.sportybet.com/ng/?shareCode=${slip.booking_code}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="py-2 px-3 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
+                        className="col-span-2 py-2 px-3 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
                       >
-                        <Zap className="w-3 h-3" />
-                        <span>SportyBet</span>
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>⚡ Load Slip Directly on SportyBet</span>
                         <ExternalLink className="w-3 h-3 ml-0.5" />
                       </a>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyBet9jaMatches(slip)}
+                          className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center flex items-center justify-center gap-1 transition shadow-md border border-white/10"
+                        >
+                          <span>📋 Copy Ticket</span>
+                        </button>
+                        <a
+                          href="https://sports.bet9ja.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
+                        >
+                          <span>🟢 Open Bet9ja</span>
+                          <ExternalLink className="w-3 h-3 ml-0.5" />
+                        </a>
+                      </>
                     )}
-                    <a
-                      href="https://sports.bet9ja.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2 px-3 rounded-xl bg-[#008234] hover:bg-emerald-700 text-white font-black text-xs text-center flex items-center justify-center gap-1 transition shadow-md active:scale-98"
-                    >
-                      <span>🟢 Open Bet9ja</span>
-                      <ExternalLink className="w-3 h-3 ml-0.5" />
-                    </a>
                   </div>
 
                   {/* Surviving legs preview */}

@@ -25,6 +25,10 @@ import {
   LogOut,
   Sun,
   Moon,
+  Headphones,
+  ChevronRight,
+  Mail,
+  MessageSquare,
 } from "lucide-react";
 import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "@/context/AuthContext";
@@ -77,6 +81,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isProfileAccordionOpen, setIsProfileAccordionOpen] = useState(true);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -111,73 +117,109 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "copilot" as WorkspaceTab, label: "Copilot", icon: Bot },
   ];
 
-  // Dropdown / More Menu Items (Includes Over 2.5 and all extended tools)
+  // Complete 10 Core Operational Tools & Hubs (Exact order requested)
   const secondaryNavItems = [
     {
-      id: "over_25" as WorkspaceTab,
-      label: "Over 2.5 Goals Daily",
+      id: "over_25",
+      targetTab: "over_25" as WorkspaceTab,
+      label: "Over 2.5 Goals Daily Tickets",
       icon: Flame,
       desc: "Special 7-Match High xG Ticket",
       tag: "HOT",
-      tagColor: "text-amber-400 bg-amber-500/10 border-amber-500/30",
+      tagColor: "text-amber-500 bg-amber-500/10 border-amber-500/30",
     },
     {
-      id: "edit_game" as WorkspaceTab,
+      id: "auto_25",
+      targetTab: "over_25" as WorkspaceTab,
+      label: "Automatic Daily Tickets Generation (2.5 Goals)",
+      icon: Sparkles,
+      desc: "Instant Algorithmic 2.5 Goals Solver",
+      tag: "AUTO",
+      tagColor: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30",
+    },
+    {
+      id: "edit_game",
+      targetTab: "edit_game" as WorkspaceTab,
       label: "Edit Game Engine",
       icon: SlidersHorizontal,
       desc: "Split, Prune & Re-Book Slips",
       tag: "4 MODES",
-      tagColor: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+      tagColor: "text-cyan-500 bg-cyan-500/10 border-cyan-500/30",
     },
     {
-      id: "leagues" as WorkspaceTab,
-      label: "Today's Leagues",
+      id: "leagues",
+      targetTab: "leagues" as WorkspaceTab,
+      label: "Today's League",
       icon: Trophy,
       desc: "EPL, UCL, La Liga, Serie A",
       tag: "FIXTURES",
-      tagColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+      tagColor: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30",
     },
     {
-      id: "other_sports" as WorkspaceTab,
+      id: "other_sports",
+      targetTab: "other_sports" as WorkspaceTab,
       label: "Other Sports Hub",
       icon: Dumbbell,
       desc: "Basketball, Volleyball & Tennis",
       tag: "3 SPORTS",
-      tagColor: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+      tagColor: "text-purple-500 bg-purple-500/10 border-purple-500/30",
     },
     {
-      id: "market_guide" as WorkspaceTab,
-      label: "Bet Markets Guide",
+      id: "market_guide",
+      targetTab: "market_guide" as WorkspaceTab,
+      label: "Bet Market Guide",
       icon: BookOpen,
       desc: "Beginner Encyclopedia A-Z",
       tag: "GUIDE",
-      tagColor: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+      tagColor: "text-blue-500 bg-blue-500/10 border-blue-500/30",
     },
     {
-      id: "how_it_works" as WorkspaceTab,
+      id: "how_it_works",
+      targetTab: "how_it_works" as WorkspaceTab,
       label: "How It Works",
       icon: HelpCircle,
       desc: "Step-by-step onboarding tutorial",
       tag: "HELP",
-      tagColor: "text-teal-400 bg-teal-500/10 border-teal-500/30",
+      tagColor: "text-teal-500 bg-teal-500/10 border-teal-500/30",
     },
     {
-      id: "pricing" as WorkspaceTab,
-      label: "Pricing & VIP Plans",
+      id: "pricing",
+      targetTab: "pricing" as WorkspaceTab,
+      label: "Pricing & VIP Plan",
       icon: Crown,
       desc: "Free, Pro & Premium VIP tiers",
       tag: "PLANS",
-      tagColor: "text-amber-400 bg-amber-500/10 border-amber-500/30",
+      tagColor: "text-amber-500 bg-amber-500/10 border-amber-500/30",
     },
     {
-      id: "affiliates" as WorkspaceTab,
-      label: "Affiliate Hub",
+      id: "affiliates",
+      targetTab: "affiliates" as WorkspaceTab,
+      label: "Affiliates Hub",
       icon: Share2,
       desc: "Earn 30% monthly commission",
       tag: "EARN",
-      tagColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+      tagColor: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30",
+    },
+    {
+      id: "support",
+      targetTab: null,
+      label: "Support",
+      icon: Headphones,
+      desc: "24/7 VIP Help & Technical Support",
+      tag: "24/7",
+      tagColor: "text-rose-500 bg-rose-500/10 border-rose-500/30",
     },
   ];
+
+  const handleNavClick = (item: (typeof secondaryNavItems)[number]) => {
+    if (item.id === "support") {
+      setIsSupportModalOpen(true);
+      return;
+    }
+    if (item.targetTab) {
+      handleSelectNav(item.targetTab);
+    }
+  };
 
   const handleSelectNav = (tabId: WorkspaceTab) => {
     if (!isAuthenticated && tabId !== "home") {
@@ -347,13 +389,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   {secondaryNavItems.map((item) => {
                     const ItemIcon = item.icon;
-                    const isItemActive = activeTab === item.id;
+                    const isItemActive = item.targetTab ? activeTab === item.targetTab : false;
                     return (
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => handleSelectNav(item.id)}
-                        className={`w-full text-left p-2.5 rounded-xl transition flex items-center justify-between text-xs font-semibold ${
+                        onClick={() => handleNavClick(item)}
+                        className={`w-full text-left p-2.5 rounded-xl transition flex items-center justify-between text-xs font-semibold cursor-pointer ${
                           isItemActive
                             ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                             : "text-slate-700 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/[0.06]"
@@ -728,135 +770,286 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* HAND-TUNED THEME SWITCHER TOGGLE */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 pl-1">
-                  {theme === "light" ? (
-                    <Sun className="w-4 h-4 text-amber-500 shrink-0" />
-                  ) : (
-                    <Moon className="w-4 h-4 text-cyan-400 shrink-0" />
-                  )}
-                  <span>Appearance:</span>
-                </div>
-
-                <div className="flex items-center bg-white dark:bg-black/40 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
+              {/* INTERNAL SCROLL CONTAINER (max-h-[80vh] overflow-y-auto to prevent mobile clipping) */}
+              <div className="flex-1 overflow-y-auto max-h-[80vh] space-y-4 pr-1 pb-16 no-scrollbar">
+                {/* 2. PROFILE & SETTINGS ACCORDION */}
+                <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.03] overflow-hidden transition-all shadow-xs shrink-0">
+                  {/* Accordion Header Toggle */}
                   <button
                     type="button"
-                    onClick={() => setTheme("light")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                      theme === "light"
-                        ? "bg-emerald-500 text-white shadow-sm font-black"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
+                    onClick={() => setIsProfileAccordionOpen(!isProfileAccordionOpen)}
+                    className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-white/[0.05] transition cursor-pointer"
+                    aria-expanded={isProfileAccordionOpen}
                   >
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>Light</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTheme("dark")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                      theme === "dark"
-                        ? "bg-[#11161F] text-emerald-400 shadow-sm border border-emerald-500/30 font-black"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <Moon className="w-3.5 h-3.5" />
-                    <span>Dark</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Profile & Plan Mode Access Button in Drawer */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMoreDrawerOpen(false);
-                  if (isAuthenticated) {
-                    if (onOpenAccountModal) onOpenAccountModal();
-                  } else {
-                    openAuthModal("signup");
-                  }
-                }}
-                className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-teal-500/10 dark:to-amber-500/15 border-2 border-emerald-500/30 dark:border-emerald-500/35 flex items-center justify-between text-left transition hover:border-emerald-500 shadow-sm shrink-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg font-bold">
-                    {isAuthenticated ? (
-                      <span>{authProfile?.avatar || "👑"}</span>
-                    ) : (
-                      <User className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>{isAuthenticated ? authProfile?.displayName || "My Profile" : "Sign In / Create Account"}</span>
-                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        {currentTier} PLAN
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-600 dark:text-slate-300">
-                      {isAuthenticated ? "Edit profile & manage plan mode" : "1-Click Google, X, or Email sign in"}
-                    </div>
-                  </div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 -rotate-90" />
-              </button>
-
-              {/* Navigation Items List (1-Column cleanly scrollable on mobile, zero cut-off) */}
-              <div className="flex-1 space-y-2 pb-24 overflow-y-auto">
-                <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block px-1">
-                  All Pages & Predictive Brains
-                </span>
-                {secondaryNavItems.map((item) => {
-                  const ItemIcon = item.icon;
-                  const isItemActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleSelectNav(item.id)}
-                      className={`w-full p-3 rounded-2xl text-left border flex items-center justify-between transition cursor-pointer ${
-                        isItemActive
-                          ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 shadow-sm"
-                          : "bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 dark:hover:bg-white/[0.06]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-white dark:bg-white/[0.05] border border-slate-200 dark:border-transparent flex items-center justify-center shrink-0 shadow-xs">
-                          <ItemIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-base font-bold shrink-0">
+                        {isAuthenticated ? (authProfile?.avatar || "👑") : <User className="w-4 h-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-xs text-slate-900 dark:text-white truncate">
+                            {isAuthenticated ? (authProfile?.displayName || "My Profile") : "Sign In & Settings"}
+                          </span>
+                          <span
+                            className={`text-[9px] font-mono font-black px-1.5 py-0.2 rounded-full border shrink-0 ${
+                              currentTier === "PREMIUM"
+                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                                : currentTier === "PRO"
+                                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                                : "bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-white/20"
+                            }`}
+                          >
+                            {currentTier} PLAN
+                          </span>
                         </div>
-                        <div className="truncate">
-                          <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{item.label}</div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{item.desc}</div>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                          {isAuthenticated ? (authProfile?.email || "Manage personal info & theme") : "1-Click sign in & appearance"}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 dark:text-slate-300 transition-transform duration-200 shrink-0 ${
+                        isProfileAccordionOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Accordion Body Content */}
+                  {isProfileAccordionOpen && (
+                    <div className="p-3.5 pt-0 space-y-3 border-t border-slate-200 dark:border-white/10 mt-1">
+                      {/* Manage Personal Information Button */}
+                      {isAuthenticated ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMoreDrawerOpen(false);
+                            if (onOpenAccountModal) onOpenAccountModal();
+                          }}
+                          className="w-full p-2.5 rounded-xl bg-white dark:bg-white/[0.05] border border-slate-200 dark:border-white/10 hover:border-emerald-500/40 transition flex items-center justify-between text-left group cursor-pointer shadow-xs"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                              <User className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                Personal Information & Profile
+                              </span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                                Edit display name, phone, avatar & stake
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMoreDrawerOpen(false);
+                            openAuthModal("signup", "Create your free account to unlock full features");
+                          }}
+                          className="w-full p-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-98 cursor-pointer"
+                        >
+                          <User className="w-4 h-4 stroke-[3]" />
+                          <span>Sign In / Create Free Account</span>
+                        </button>
+                      )}
+
+                      {/* Appearance: Clean Light Mode / Dark Mode Switch */}
+                      <div className="p-2.5 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between shadow-xs">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          {theme === "light" ? (
+                            <Sun className="w-3.5 h-3.5 text-amber-500" />
+                          ) : (
+                            <Moon className="w-3.5 h-3.5 text-cyan-400" />
+                          )}
+                          <span>Appearance</span>
+                        </span>
+                        <div className="flex items-center bg-slate-100 dark:bg-black/50 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={() => setTheme("light")}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              theme === "light"
+                                ? "bg-emerald-500 text-white font-black shadow-xs"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            }`}
+                          >
+                            <Sun className="w-3 h-3" />
+                            <span>Light</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTheme("dark")}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              theme === "dark"
+                                ? "bg-[#11161F] text-emerald-400 font-black border border-emerald-500/30 shadow-xs"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            }`}
+                          >
+                            <Moon className="w-3 h-3" />
+                            <span>Dark</span>
+                          </button>
                         </div>
                       </div>
-                      <span
-                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 ${item.tagColor}`}
-                      >
-                        {item.tag}
-                      </span>
-                    </button>
-                  );
-                })}
 
-                {/* Logout Button in Drawer when Authenticated */}
-                {isAuthenticated && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMoreDrawerOpen(false);
-                      signOut();
-                    }}
-                    className="w-full p-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center gap-2 text-xs font-bold transition hover:bg-rose-100 dark:hover:bg-rose-500/20 active:scale-98 cursor-pointer mt-4"
-                  >
-                    <LogOut className="w-4 h-4 shrink-0" />
-                    <span>Log Out of Oddora AI</span>
-                  </button>
-                )}
+                      {/* Logout Option if Authenticated */}
+                      {isAuthenticated && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMoreDrawerOpen(false);
+                            signOut();
+                          }}
+                          className="w-full p-2.5 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 transition flex items-center gap-2 font-bold text-xs cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span>Log Out of Oddora AI</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 1. ALL 10 OPERATIONAL TOOLS & HUBS (Exact Order Requested) */}
+                <div className="space-y-2">
+                  <div className="px-1 flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      All Operational Tools & Ticket Hubs
+                    </span>
+                    <span className="text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      10 TOOLS
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {secondaryNavItems.map((item) => {
+                      const ItemIcon = item.icon;
+                      const isItemActive = item.targetTab ? activeTab === item.targetTab : false;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleNavClick(item)}
+                          className={`w-full p-3 rounded-2xl text-left border flex items-center justify-between transition cursor-pointer ${
+                            isItemActive
+                              ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 shadow-sm"
+                              : "bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 dark:hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-white dark:bg-white/[0.05] border border-slate-200 dark:border-transparent flex items-center justify-center shrink-0 shadow-xs">
+                              <ItemIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div className="truncate">
+                              <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                {item.label}
+                              </div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                {item.desc}
+                              </div>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 ${item.tagColor}`}
+                          >
+                            {item.tag}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Dedicated Support Modal Dialog */}
+            {isSupportModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+                <div className="w-full max-w-md bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-slate-900 dark:text-white">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <Headphones className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                          Oddora AI Support Desk
+                        </h3>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                          24/7 VIP Customer & Technical Assistance
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsSupportModalOpen(false)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs">
+                    <a
+                      href="mailto:support@oddora.ai"
+                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between hover:border-emerald-500/40 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white block">Email Support</span>
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">support@oddora.ai</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">Send Email →</span>
+                    </a>
+
+                    <a
+                      href="https://t.me/OddoraAI"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between hover:border-cyan-500/40 transition group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+                          <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white block">Telegram VIP Channel</span>
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">@OddoraAI</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 font-mono">Join Telegram →</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSupportModalOpen(false);
+                        setIsMoreDrawerOpen(false);
+                        handleSelectNav("copilot");
+                      }}
+                      className="w-full p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-between text-emerald-700 dark:text-emerald-400 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                          <Bot className="w-4 h-4" />
+                        </div>
+                        <div className="text-left">
+                          <span className="font-bold block">Live AI Betting Copilot</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Ask algorithmic questions & generate tickets</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold font-mono">Launch →</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </header>

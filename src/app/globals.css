@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --background: #F8FAFC;
@@ -7,7 +9,7 @@
     --card-surface: #FFFFFF;
     --card-border: #E2E8F0;
     --text-primary: #0F172A;
-    --text-secondary: #64748B;
+    --text-secondary: #475569;
     --brand-emerald: #059669;
     --brand-gold: #D97706;
   }
@@ -65,9 +67,12 @@ html.light .bg-\[\#070d1e\],
 html.light .bg-\[\#070D1E\],
 html.light .bg-\[\#0b0f17\],
 html.light .bg-\[\#0c111a\],
+html.light .bg-\[\#070A0E\]\/60,
 html.light .bg-\[\#070A0E\]\/95,
 html.light .bg-\[\#070A0E\]\/98 {
   background-color: #F8FAFC !important;
+  background-image: none !important;
+  border-color: #E2E8F0 !important;
 }
 
 /* Card Surfaces & Elevated Containers */
@@ -76,26 +81,45 @@ html.light .bg-\[\#11161f\],
 html.light .bg-\[\#0D121C\],
 html.light .bg-\[\#0d121c\],
 html.light .bg-\[\#0E141E\],
-html.light .bg-\[\#0e141e\] {
+html.light .bg-\[\#0e141e\],
+html.light .bg-\[\#1A1A24\],
+html.light .bg-\[\#1a1a24\],
+html.light .bg-\[\#111622\],
+html.light .bg-\[\#121824\],
+html.light .bg-\[\#0e131d\],
+html.light .bg-\[\#1a1205\],
+html.light .bg-\[\#072018\] {
   background-color: #FFFFFF !important;
-  border-color: rgba(226, 232, 240, 0.9) !important;
+  background-image: none !important;
+  border-color: #E2E8F0 !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  color: #0F172A !important;
 }
 
-/* Secondary Container Fill / Sub-Cards */
+/* Secondary Container Fill / Sub-Cards / Inner Boxes */
 html.light .bg-white\/\[0\.02\],
 html.light .bg-white\/\[0\.03\],
 html.light .bg-white\/\[0\.04\],
 html.light .bg-white\/\[0\.05\],
 html.light .bg-white\/\[0\.06\],
 html.light .bg-white\/\[0\.08\],
-html.light .bg-white\/\[0\.1\] {
+html.light .bg-white\/\[0\.1\],
+html.light .bg-black\/20,
+html.light .bg-black\/30,
+html.light .bg-black\/40,
+html.light .bg-black\/50,
+html.light .bg-black\/60:not(.fixed) {
   background-color: #F1F5F9 !important;
+  background-image: none !important;
   border-color: #E2E8F0 !important;
+  color: #0F172A !important;
 }
 
+html.light .hover\:bg-white\/\[0\.03\]:hover,
 html.light .hover\:bg-white\/\[0\.04\]:hover,
+html.light .hover\:bg-white\/\[0\.05\]:hover,
 html.light .hover\:bg-white\/\[0\.06\]:hover,
+html.light .hover\:bg-white\/\[0\.08\]:hover,
 html.light .hover\:bg-white\/\[0\.1\]:hover,
 html.light .hover\:bg-white\/10:hover {
   background-color: #E2E8F0 !important;
@@ -111,57 +135,81 @@ html.light .border-white\/\[0\.08\] {
   border-color: #E2E8F0 !important;
 }
 
-/* Text Overrides in Light Mode */
-html.light h1.text-white,
-html.light h2.text-white,
-html.light h3.text-white,
-html.light h4.text-white,
-html.light p.text-white,
-html.light div.text-white,
-html.light span.text-white,
-html.light a.text-white {
+/* High-Contrast Typography in Light Mode */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
   color: #0F172A !important;
 }
 
-/* Ensure solid action buttons maintain white text */
-html.light button.bg-emerald-500 span,
-html.light button.bg-emerald-600 span,
-html.light button.bg-red-600 span,
-html.light button.bg-rose-500 span,
-html.light button.bg-blue-600 span,
-html.light button.bg-cyan-500 span,
-html.light .bg-emerald-500.text-white,
-html.light .bg-red-600.text-white,
-html.light .bg-rose-500.text-white,
-html.light .bg-blue-600.text-white {
-  color: #FFFFFF !important;
-}
-
-/* Emerald Buttons with text-black maintain rich contrasting black */
-html.light button.text-black,
-html.light span.text-black {
-  color: #000000 !important;
+html.light .text-white {
+  color: #0F172A !important;
 }
 
 html.light .text-slate-100,
 html.light .text-slate-200 {
-  color: #1E293B !important;
+  color: #0F172A !important;
 }
 
 html.light .text-slate-300,
 html.light .text-slate-400 {
-  color: #64748B !important;
+  color: #475569 !important;
 }
 
 html.light .text-slate-500 {
-  color: #94A3B8 !important;
+  color: #64748B !important;
 }
 
 html.light .hover\:text-white:hover {
   color: #0F172A !important;
 }
 
-/* Brand Accents - Vibrant Emerald & Rich Gold */
+/* Preserve crisp white text on colored solid buttons & badges */
+html.light button.bg-emerald-500 *,
+html.light button.bg-emerald-600 *,
+html.light button.bg-red-600 *,
+html.light button.bg-rose-500 *,
+html.light button.bg-rose-600 *,
+html.light button.bg-blue-600 *,
+html.light button.bg-cyan-500 *,
+html.light button.bg-cyan-600 *,
+html.light button.bg-amber-500 *,
+html.light button.bg-amber-600 *,
+html.light button.bg-\[\#E51D25\] *,
+html.light button.bg-\[\#008234\] *,
+html.light button.bg-\[\#10B981\] *,
+html.light button.bg-\[\#059669\] *,
+html.light .bg-emerald-500.text-white,
+html.light .bg-emerald-600.text-white,
+html.light .bg-red-600.text-white,
+html.light .bg-rose-500.text-white,
+html.light .bg-rose-600.text-white,
+html.light .bg-blue-600.text-white,
+html.light .bg-\[\#E51D25\].text-white,
+html.light .bg-\[\#008234\].text-white,
+html.light .bg-\[\#10B981\].text-white,
+html.light .bg-emerald-500 .text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-red-600 .text-white,
+html.light .bg-rose-500 .text-white,
+html.light .bg-rose-600 .text-white,
+html.light .bg-blue-600 .text-white,
+html.light .bg-\[\#E51D25\] .text-white,
+html.light .bg-\[\#008234\] .text-white,
+html.light .bg-\[\#10B981\] .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Explicit text-black buttons maintain deep black text */
+html.light .text-black,
+html.light .text-black * {
+  color: #000000 !important;
+}
+
+/* Brand Accents - Vibrant Emerald, Rich Amber & Sky Cyan */
 html.light .text-emerald-400,
 html.light .text-emerald-300 {
   color: #059669 !important;
@@ -193,6 +241,7 @@ html.light .bg-emerald-500\/15,
 html.light .bg-emerald-500\/20 {
   background-color: rgba(5, 150, 105, 0.1) !important;
   border-color: rgba(5, 150, 105, 0.25) !important;
+  color: #059669 !important;
 }
 
 html.light .bg-amber-500\/10,
@@ -200,6 +249,7 @@ html.light .bg-amber-500\/15,
 html.light .bg-amber-500\/20 {
   background-color: rgba(217, 119, 6, 0.1) !important;
   border-color: rgba(217, 119, 6, 0.25) !important;
+  color: #D97706 !important;
 }
 
 html.light .bg-cyan-500\/10,
@@ -207,6 +257,7 @@ html.light .bg-cyan-500\/15,
 html.light .bg-cyan-500\/20 {
   background-color: rgba(2, 132, 199, 0.1) !important;
   border-color: rgba(2, 132, 199, 0.25) !important;
+  color: #0284C7 !important;
 }
 
 /* Form Inputs, Selects & Textareas */
@@ -234,7 +285,7 @@ html.light textarea::placeholder {
 html.light .bg-black\/85,
 html.light .bg-black\/80,
 html.light .bg-black\/75 {
-  background-color: rgba(15, 23, 42, 0.55) !important;
+  background-color: rgba(15, 23, 42, 0.6) !important;
 }
 
 /* Headers & Sticky Bars */

@@ -147,19 +147,19 @@ const OddoraWorkspaceInner: React.FC = () => {
       <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-24 md:pb-12">
         {/* Compulsory Sign-Up Banner for Unauthenticated Visitors */}
         {!isAuthenticated && (
-          <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-[#0D121C] to-teal-950/40 border border-emerald-500/40 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-white dark:bg-gradient-to-r dark:from-emerald-950/40 dark:via-[#0D121C] dark:to-teal-950/40 border-2 border-[#00C896] dark:border-emerald-500/40 shadow-sm dark:shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-400 mb-0.5">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">
                   <span>FREE SIGN-UP REQUIRED</span>
                 </div>
-                <h3 className="text-sm sm:text-base font-black text-white">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
                   Create Your Free Account to Unlock All Predictions & 1-Click Booking
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   Instant access to verified SportyBet & Bet9ja codes, Slip Builder solver, and daily high-win rate odds.
                 </p>
               </div>

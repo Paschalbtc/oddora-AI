@@ -105,18 +105,18 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Hero Spotlight Card */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1a1205] via-[#11161F] to-[#072018] border-2 border-amber-500/50 shadow-[0_0_40px_rgba(245,158,11,0.2)] relative overflow-hidden">
+      <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-[#1a1205] dark:via-[#11161F] dark:to-[#072018] border-2 border-amber-500/50 shadow-sm dark:shadow-[0_0_40px_rgba(245,158,11,0.2)] relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
-              <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-black uppercase bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+              <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
               <span>SPECIAL OVER 2.5 GOALS MASTER ACCUMULATOR</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold">
+              <span className="text-xs font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold">
                 ✓ 100% Real-Time Verified Codes
               </span>
             </div>
@@ -124,44 +124,44 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
 
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
                 Daily Over 2.5 Goals Ticket
               </h2>
-              <p className="text-xs sm:text-sm text-slate-300 max-w-xl mt-1">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-xl mt-1">
                 Selected by the Football Brain when combined team xG and scoring averages exceed 2.85. Auto-booked into verified SportyBet & Bet9ja slips.
               </p>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium mt-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-medium mt-1">
                 <span>💡 Beginner Tip: You win if 3 or more total goals are scored (e.g. 2-1, 3-0, 2-2).</span>
               </div>
             </div>
 
             <div className="text-left sm:text-right shrink-0">
-              <span className="text-xs text-slate-400 font-mono block">Combined Odds:</span>
-              <span className="text-3xl sm:text-4xl font-black text-amber-400 font-mono">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono block">Combined Odds:</span>
+              <span className="text-3xl sm:text-4xl font-black text-amber-500 dark:text-amber-400 font-mono">
                 {specialSlip?.actual_odds ? `${Number(specialSlip.actual_odds).toFixed(2)}x` : "16.85x"}
               </span>
             </div>
           </div>
 
           {/* Goal Synergy Metric Bar */}
-          <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-amber-400 shrink-0" />
+              <Activity className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
               <div>
-                <span className="font-bold text-white">Algorithm xG Synergy Rating: </span>
-                <span className="text-amber-400 font-mono font-bold">3.45 Expected Goals/Match</span>
+                <span className="font-bold text-slate-900 dark:text-white">Algorithm xG Synergy Rating: </span>
+                <span className="text-amber-600 dark:text-amber-400 font-mono font-bold">3.45 Expected Goals/Match</span>
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-48">
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                 <div className="bg-gradient-to-r from-emerald-500 to-amber-400 h-full w-[88%]" />
               </div>
-              <span className="font-mono font-bold text-emerald-400 text-[11px]">88%</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-[11px]">88%</span>
             </div>
           </div>
 
           {/* Booking Codes Strip & 1-Click Load Buttons */}
-          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-white/10">
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-200 dark:border-white/10">
             {isLocked ? (
               <div className="w-full p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-2">

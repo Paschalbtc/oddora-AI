@@ -135,7 +135,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       {/* =========================================================================
           LIVE TELEMETRY PULSE BANNER
          ========================================================================= */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-[#11161F] to-cyan-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/10 dark:via-[#11161F] dark:to-cyan-500/10 border-2 border-[#00C896] dark:border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg">
         <div className="flex items-center gap-2.5">
           <span className="relative flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -143,14 +143,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-black text-emerald-400 uppercase tracking-wider">
+              <span className="text-xs font-mono font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
                 Live Bridge Online
               </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.2 rounded-full border border-emerald-500/30 font-bold">
+              <span className="text-[10px] bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 font-mono px-2 py-0.2 rounded-full border border-emerald-500/30 font-bold">
                 SportyBet & Bet9ja Verified
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 mt-0.5">
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
               Official order sharing active: Every generated code directly loads in official bookmaker betslips.
             </p>
           </div>
@@ -161,7 +161,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             href="https://www.sportybet.com/ng/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-lg bg-[#E51D25]/15 hover:bg-[#E51D25]/30 border border-[#E51D25]/40 text-red-300 text-[11px] font-bold flex items-center gap-1 transition"
+            className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-[#E51D25]/15 dark:hover:bg-[#E51D25]/30 border border-red-200 dark:border-[#E51D25]/40 text-red-700 dark:text-red-300 text-[11px] font-bold flex items-center gap-1 transition"
           >
             <span>SportyBet NG</span>
             <ExternalLink className="w-3 h-3" />
@@ -170,7 +170,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             href="https://sports.bet9ja.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-lg bg-[#008234]/15 hover:bg-[#008234]/30 border border-[#008234]/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition"
+            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-[#008234]/15 dark:hover:bg-[#008234]/30 border border-emerald-200 dark:border-[#008234]/40 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition"
           >
             <span>Bet9ja</span>
             <ExternalLink className="w-3 h-3" />
@@ -181,19 +181,19 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       {/* =========================================================================
           BEGINNER QUICK-START ONBOARDING BANNER (Always Visible & Friendly)
          ========================================================================= */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#11161F] to-[#11161F] border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-[#11161F] dark:to-[#11161F] border-2 border-[#00C896] dark:border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-xl">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-black text-white text-sm sm:text-base">
+            <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
               New to Oddora AI? Here is how to play today:
             </h3>
-            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              1. Check our <strong className="text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+              1. Check our <strong className="text-emerald-700 dark:text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
               <br />
-              2. Tap <strong className="text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-400">"Copy Matches"</strong> to place on Bet9ja.
+              2. Tap <strong className="text-red-700 dark:text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-700 dark:text-emerald-400">"Copy Matches"</strong> to place on Bet9ja.
             </p>
           </div>
         </div>
@@ -202,11 +202,11 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
           <button
             type="button"
             onClick={() => onNavigateTab("how_it_works")}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition border border-white/10"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition border border-slate-200 dark:border-white/10"
           >
-            <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+            <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Platform Guide</span>
-            <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           </button>
         </div>
       </div>

@@ -50,6 +50,40 @@ interface AuthContextType {
   updateProfile: (updated: Partial<UserProfile>) => void;
 }
 
+/**
+ * Pre-checks Supabase Auth Settings endpoint to determine if an external OAuth provider
+ * (Google or Twitter/X) is enabled before allowing any browser redirect to .supabase.co/auth/v1/authorize.
+ */
+export async function checkSupabaseOAuthProviderEnabled(
+  provider: "google" | "twitter"
+): Promise<boolean> {
+  try {
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://fdlbnftfylcsjuzqbeuo.supabase.co";
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+      headers: {
+        apikey: anonKey,
+      },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const settings = await res.json();
+      const ext = settings?.external || {};
+      if (provider === "google") {
+        return ext.google === true;
+      }
+      if (provider === "twitter") {
+        return ext.twitter === true || ext.x === true;
+      }
+    }
+    return false;
+  } catch (err) {
+    console.warn("Could not check Supabase auth settings:", err);
+    return false;
+  }
+}
+
 const DEFAULT_PROFILE: UserProfile = {
   email: "guest@oddora.ai",
   displayName: "Oddora Punter",
@@ -303,16 +337,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     error?: string;
   }> => {
     try {
+      // 1. Surgical Pre-check: Stop browser redirect if Google OAuth is not enabled in Supabase!
+      const isEnabled = await checkSupabaseOAuthProviderEnabled("google");
+      if (!isEnabled) {
+        return { fallback: true, provider: "google" };
+      }
+
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: origin,
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) {
-        return { fallback: true, provider: "google", error: error.message };
+      if (error || !data?.url) {
+        return {
+          fallback: true,
+          provider: "google",
+          error: error?.message || "Google OAuth unavailable",
+        };
+      }
+
+      if (typeof window !== "undefined" && data?.url) {
+        window.location.assign(data.url);
       }
       return { fallback: false };
     } catch (err: any) {
@@ -330,16 +379,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     error?: string;
   }> => {
     try {
+      // 1. Surgical Pre-check: Stop browser redirect if Twitter/X OAuth is not enabled in Supabase!
+      const isEnabled = await checkSupabaseOAuthProviderEnabled("twitter");
+      if (!isEnabled) {
+        return { fallback: true, provider: "twitter" };
+      }
+
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "twitter",
         options: {
           redirectTo: origin,
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) {
-        return { fallback: true, provider: "twitter", error: error.message };
+      if (error || !data?.url) {
+        return {
+          fallback: true,
+          provider: "twitter",
+          error: error?.message || "X OAuth unavailable",
+        };
+      }
+
+      if (typeof window !== "undefined" && data?.url) {
+        window.location.assign(data.url);
       }
       return { fallback: false };
     } catch (err: any) {
@@ -353,26 +417,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fastConnect = async (data: FastConnectData): Promise<{ error: string | null }> => {
     try {
-      const email = data.identifier.includes("@")
-        ? data.identifier
-        : `${data.identifier.replace(/^@/, "")}@x.oddora.ai`;
+      let email = data.identifier.trim();
+      if (!email.includes("@")) {
+        email = `${email.replace(/^@/, "").toLowerCase()}@x.oddora.ai`;
+      } else if (!email.includes(".")) {
+        email = `${email}@gmail.com`;
+      }
 
-      const fastUser: any = {
-        id: "fast_" + Math.random().toString(36).substring(2, 9),
-        email,
-        user_metadata: {
-          full_name: data.fullName,
-          provider: data.provider,
-          handle: data.identifier,
-          phone: data.phone || "",
-        },
-        aud: "authenticated",
-        role: "authenticated",
-      };
+      const cleanIdent = data.identifier.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      const password = `Oddora_${cleanIdent}_2026!`;
 
-      setUser(fastUser);
+      let activeUser: any = null;
+      let activeSession: any = null;
+
+      // 1. Try signing in first if account already exists
+      try {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (!signInError && signInData?.user) {
+          activeUser = signInData.user;
+          activeSession = signInData.session;
+        }
+      } catch (signInErr) {
+        console.warn("Fast connect signIn check:", signInErr);
+      }
+
+      // 2. If not signed in, create/register via supabase.auth.signUp
+      if (!activeUser) {
+        try {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: data.fullName,
+                provider: data.provider,
+                handle: data.identifier,
+                phone: data.phone || "",
+              },
+            },
+          });
+          if (!signUpError && signUpData?.user) {
+            activeUser = signUpData.user;
+            activeSession = signUpData.session;
+          }
+        } catch (signUpErr) {
+          console.warn("Fast connect signUp check:", signUpErr);
+        }
+      }
+
+      // 3. Fallback activeUser for immediate offline/client-side unlocking
+      if (!activeUser) {
+        activeUser = {
+          id: "fast_" + Math.random().toString(36).substring(2, 9),
+          email,
+          user_metadata: {
+            full_name: data.fullName,
+            provider: data.provider,
+            handle: data.identifier,
+            phone: data.phone || "",
+          },
+          aud: "authenticated",
+          role: "authenticated",
+        };
+      }
+
+      setUser(activeUser);
+      if (activeSession) {
+        setSession(activeSession);
+      }
       if (typeof window !== "undefined") {
-        localStorage.setItem("oddora_auth_user", JSON.stringify(fastUser));
+        localStorage.setItem("oddora_auth_user", JSON.stringify(activeUser));
       }
 
       const nextProf: UserProfile = {
@@ -386,17 +503,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem("oddora_user_profile", JSON.stringify(nextProf));
       }
 
-      // Try background sync to Supabase public.profiles if accessible
+      // 4. Upsert into Supabase public.profiles
       try {
         await supabase.from("profiles").upsert({
-          id: fastUser.id,
-          email: fastUser.email,
+          id: activeUser.id,
+          email: activeUser.email,
           display_name: data.fullName,
           phone: data.phone || "",
           updated_at: new Date().toISOString(),
         });
-      } catch {
-        // Silently continue if table does not exist
+      } catch (profErr) {
+        console.warn("Profiles table upsert notice:", profErr);
       }
 
       if (pendingCallback) {

@@ -521,3 +521,4 @@ export async function decodeVaultBookingCode(
     message: `Booking code "${cleanCode}" could not be found or has expired. Please verify your code.`,
   };
 }
+

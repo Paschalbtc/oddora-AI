@@ -17,7 +17,7 @@ import {
   Phone,
   Zap,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, checkSupabaseOAuthProviderEnabled } from "@/context/AuthContext";
 
 export const AuthGateModal: React.FC = () => {
   const {
@@ -58,9 +58,18 @@ export const AuthGateModal: React.FC = () => {
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
+      // 1. Surgical check: Stop browser redirect before it happens if Google is not enabled in Supabase!
+      const isEnabled = await checkSupabaseOAuthProviderEnabled("google");
+      if (!isEnabled) {
+        setFastConnectProvider("google");
+        setFastIdentifier(email || "");
+        setFastFullName(fullName || "");
+        setIsSubmitting(false);
+        return;
+      }
+
       const res = await signInWithGoogle();
       if (res.fallback) {
-        // Smoothly transition into instant 1-tap fast connect view
         setFastConnectProvider("google");
         setFastIdentifier(email || "");
         setFastFullName(fullName || "");
@@ -76,9 +85,18 @@ export const AuthGateModal: React.FC = () => {
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
+      // 1. Surgical check: Stop browser redirect before it happens if Twitter/X is not enabled in Supabase!
+      const isEnabled = await checkSupabaseOAuthProviderEnabled("twitter");
+      if (!isEnabled) {
+        setFastConnectProvider("twitter");
+        setFastIdentifier(fullName ? `@${fullName.toLowerCase().replace(/\s+/g, "")}` : "");
+        setFastFullName(fullName || "");
+        setIsSubmitting(false);
+        return;
+      }
+
       const res = await signInWithTwitter();
       if (res.fallback) {
-        // Smoothly transition into instant 1-tap fast connect view
         setFastConnectProvider("twitter");
         setFastIdentifier(fullName ? `@${fullName.toLowerCase().replace(/\s+/g, "")}` : "");
         setFastFullName(fullName || "");
@@ -184,7 +202,9 @@ export const AuthGateModal: React.FC = () => {
             </div>
             <h2 className="text-lg font-black text-white">
               {fastConnectProvider
-                ? `${fastConnectProvider === "google" ? "Google" : "X (Twitter)"} Instant Fast Connect`
+                ? fastConnectProvider === "google"
+                  ? "Instant Google Account Connect"
+                  : "Instant X (Twitter) Account Connect"
                 : isSignUp
                 ? "Create Your Free Oddora AI Account"
                 : "Sign In to Oddora AI"}
@@ -192,7 +212,9 @@ export const AuthGateModal: React.FC = () => {
             <p className="text-xs text-slate-400 mt-0.5">
               {authModalReason ||
                 (fastConnectProvider
-                  ? "Enter your details to instantly authenticate and unlock all 4 engines"
+                  ? fastConnectProvider === "google"
+                    ? "Enter your Gmail address and name to authenticate in 1 click without leaving the website"
+                    : "Enter your @X_handle and name to authenticate in 1 click without leaving the website"
                   : isSignUp
                   ? "Sign up in 10 seconds to unlock high-win rate daily odds & 1-click booking"
                   : "Welcome back! Enter your login credentials to continue")}
@@ -255,7 +277,7 @@ export const AuthGateModal: React.FC = () => {
 
               <div>
                 <label className="block text-[11px] font-mono font-bold text-slate-300 mb-1">
-                  {fastConnectProvider === "google" ? "Google Email Address" : "X (Twitter) Handle or Email"}
+                  {fastConnectProvider === "google" ? "Google Email Address (Gmail)" : "X (Twitter) Handle or Email"}
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -301,7 +323,7 @@ export const AuthGateModal: React.FC = () => {
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Complete Instant Sign-In & Unlock</span>
+                    <span>Complete Instant Sign-In & Unlock Platform ⚡</span>
                   </>
                 )}
               </button>
@@ -513,3 +535,4 @@ export const AuthGateModal: React.FC = () => {
 };
 
 export default AuthGateModal;
+

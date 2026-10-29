@@ -55,7 +55,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   // Additional options
   const [dateHorizon, setDateHorizon] = useState<"today" | "14_days" | "30_days">("today");
-  const [bookmaker, setBookmaker] = useState<"SPORTYBET" | "BET9JA">("SPORTYBET");
+  const [bookmaker] = useState<"SPORTYBET">("SPORTYBET");
 
   // Execution state
   const [isSolving, setIsSolving] = useState(false);
@@ -157,16 +157,6 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const handleCopyBet9ja = () => {
-    if (!requireAuth(undefined, "Please sign up or sign in to copy Bet9ja coupon codes")) return;
-    if (!resultSlip) return;
-    const raw = resultSlip.bet9ja_code || resultSlip.bet9jaCode || "B9BUILDER";
-    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    navigator.clipboard.writeText(clean);
-    setCopiedCode("b9_builder");
-    setTimeout(() => setCopiedCode(null), 2500);
-  };
-
   const handleAddAllToFloatingSlip = () => {
     if (!requireAuth(undefined, "Please create an account or sign in to add accumulator legs to your slip")) return;
     if (!resultSlip || !resultSlip.legs || resultSlip.legs.length === 0) return;
@@ -198,11 +188,9 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   };
 
   const sportyCode = resultSlip?.sporty_code || resultSlip?.booking_code;
-  const bet9jaCode = resultSlip?.bet9ja_code;
   const sportyUrl =
     resultSlip?.sporty_url ||
     (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
-  const bet9jaUrl = "https://sports.bet9ja.com";
 
   const getSafetyGradeDetails = (gradeStr?: string, avgProb: number = 85) => {
     const g = (gradeStr || "").toUpperCase();
@@ -637,31 +625,11 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
         {/* Generate Button */}
         <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400">Primary Bookmaker:</span>
-            <div className="flex items-center gap-1 bg-[#070A0E] p-1 rounded-xl border border-white/10">
-              <button
-                type="button"
-                onClick={() => setBookmaker("SPORTYBET")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                  bookmaker === "SPORTYBET"
-                    ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                SportyBet
-              </button>
-              <button
-                type="button"
-                onClick={() => setBookmaker("BET9JA")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                  bookmaker === "BET9JA"
-                    ? "bg-green-500/20 text-green-400 border border-green-500/40"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Bet9ja
-              </button>
-            </div>
+            <span className="text-xs font-mono text-slate-400">Engine:</span>
+            <span className="px-3 py-1 rounded-xl text-xs font-black bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" />
+              <span>SportyBet Verified</span>
+            </span>
           </div>
 
           <button
@@ -765,27 +733,6 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     <>
                       <Copy className="w-3.5 h-3.5" />
                       <span>Sporty: {sportyCode}</span>
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Bet9ja Code Button */}
-              {bet9jaCode && (
-                <button
-                  type="button"
-                  onClick={handleCopyBet9ja}
-                  className="py-2 px-3.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
-                >
-                  {copiedCode === "b9_builder" ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Bet9ja: {bet9jaCode}</span>
                     </>
                   )}
                 </button>

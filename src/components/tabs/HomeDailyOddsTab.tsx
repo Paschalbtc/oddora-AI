@@ -100,32 +100,6 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const getCleanBet9jaCode = (slip: any): string => {
-    const raw = slip.bet9ja_code || slip.bet9jaCode || "";
-    if (!raw || raw.includes("VIP")) return "🔒 VIP ONLY";
-    const cleaned = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    if (cleaned.length >= 6) {
-      return cleaned.startsWith("B9") ? cleaned : `B9${cleaned.slice(0, 5)}`;
-    }
-    const sportyClean = (slip.sporty_code || slip.sportybet_code || "ODD").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    return `B9${sportyClean.slice(0, 5)}`;
-  };
-
-  const handleCopyBet9ja = (slip: any) => {
-    if (!requireAuth(undefined, "Please create an account or sign in to copy verified Bet9ja codes")) {
-      return;
-    }
-    const code = getCleanBet9jaCode(slip);
-    if (!code || code.includes("VIP")) {
-      onOpenUpgradeModal();
-      return;
-    }
-    // Strictly copy ONLY the Bet9ja booking code!
-    navigator.clipboard.writeText(code);
-    setCopiedCode("b9_" + slip.slip_type);
-    setTimeout(() => setCopiedCode(null), 2500);
-  };
-
   const toggleExpand = (id: string) => {
     setExpandedSlips((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -147,11 +121,11 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 Live Bridge Online
               </span>
               <span className="text-[10px] bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 font-mono px-2 py-0.2 rounded-full border border-emerald-500/30 font-bold">
-                SportyBet & Bet9ja Verified
+                SportyBet Verified
               </span>
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
-              Official order sharing active: Every generated code directly loads in official bookmaker betslips.
+              Official order sharing active: Every generated code directly loads in official SportyBet betslips.
             </p>
           </div>
         </div>
@@ -164,15 +138,6 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-[#E51D25]/15 dark:hover:bg-[#E51D25]/30 border border-red-200 dark:border-[#E51D25]/40 text-red-700 dark:text-red-300 text-[11px] font-bold flex items-center gap-1 transition"
           >
             <span>SportyBet NG</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-          <a
-            href="https://sports.bet9ja.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-[#008234]/15 dark:hover:bg-[#008234]/30 border border-emerald-200 dark:border-[#008234]/40 text-emerald-800 dark:text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition"
-          >
-            <span>Bet9ja</span>
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -193,7 +158,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
               1. Check our <strong className="text-emerald-700 dark:text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
               <br />
-              2. Tap <strong className="text-red-700 dark:text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-700 dark:text-emerald-400">"Copy"</strong> to copy the Bet9ja code.
+              2. Tap <strong className="text-red-700 dark:text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-700 dark:text-emerald-400">"Copy"</strong> to copy the booking code.
             </p>
           </div>
         </div>
@@ -366,7 +331,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
               Today's Auto-Booked Accumulators
             </h2>
             <p className="text-xs sm:text-sm text-slate-400">
-              Generated every morning with verified SportyBet & Bet9ja booking codes and 1-click loading.
+              Generated every morning with verified SportyBet booking codes and 1-click loading.
             </p>
           </div>
 
@@ -414,7 +379,6 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             const isExpanded = !!expandedSlips[slip.slip_type];
             const legs = slip.legs || [];
             const sportyUrl = slip.share_url || `http://www.sportybet.com/ng/?shareCode=${slip.sporty_code}`;
-            const bet9jaUrl = "https://sports.bet9ja.com";
 
             return (
               <div
@@ -647,54 +611,6 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                               title="Load directly in SportyBet"
                             >
                               <span>Load</span>
-                              <ArrowUpRight className="w-3 h-3" />
-                            </a>
-                          </div>
-                        </div>
-
-                        {/* Bet9ja Slip Card (1-Click Coupon Code Copy) */}
-                        <div className="p-2.5 rounded-2xl bg-[#008234]/15 hover:bg-[#008234]/25 border border-[#008234]/40 transition flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleCopyBet9ja(slip)}
-                            className="flex-1 text-left min-w-0"
-                            title="Click to copy Bet9ja booking code"
-                          >
-                            <span className="text-[10px] text-emerald-300 font-mono block">
-                              Bet9ja (⚡ Coupon Code)
-                            </span>
-                            <span className="font-mono font-black text-white text-sm tracking-wider truncate block">
-                              {getCleanBet9jaCode(slip)}
-                            </span>
-                          </button>
-
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleCopyBet9ja(slip)}
-                              className="py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1 text-[11px] font-bold"
-                              title="Copy Bet9ja Booking Code"
-                            >
-                              {copiedCode === "b9_" + slip.slip_type ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span className="text-[10px] text-emerald-400 font-bold">Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5 text-emerald-300" />
-                                  <span className="text-[10px] text-white">Copy</span>
-                                </>
-                              )}
-                            </button>
-                            <a
-                              href="https://sports.bet9ja.com"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="py-1 px-2.5 rounded-lg bg-[#008234] hover:bg-[#006e2b] text-white text-[11px] font-bold flex items-center gap-1 transition shadow-sm"
-                              title="Open Bet9ja Sportsbook"
-                            >
-                              <span>Open</span>
                               <ArrowUpRight className="w-3 h-3" />
                             </a>
                           </div>

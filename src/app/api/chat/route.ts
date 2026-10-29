@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({
-        reply: `Here is your custom-engineered ${slipResult.actual_combined_odds}x slip (${slipResult.legs_count} matches) across ${sport === "all" ? "Multi-Sport" : sport.toUpperCase()}. Official SportyBet and Bet9ja booking codes have been generated below!`,
+        reply: `Here is your custom-engineered ${slipResult.actual_combined_odds}x slip (${slipResult.legs_count} matches) across ${sport === "all" ? "Multi-Sport" : sport.toUpperCase()}. Official SportyBet booking code has been verified and generated below!`,
         generated_slip: slipResult,
       });
     }
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Default intelligent assistance
     return NextResponse.json({
-      reply: `I understand you're asking about "${prompt}". As Oddora AI Copilot, I can build custom slips (e.g. "Build me 10 odds"), modify or split SportyBet/Bet9ja tickets, and guide you through multi-sport betting analytics. How can I assist you right now?`,
+      reply: `I understand you're asking about "${prompt}". As Oddora AI Copilot, I can build custom slips (e.g. "Build me 10 odds"), modify or split SportyBet tickets, and guide you through multi-sport betting analytics. How can I assist you right now?`,
     });
   } catch (error: any) {
     return NextResponse.json({

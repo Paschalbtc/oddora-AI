@@ -38,7 +38,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       sender: "bot",
-      text: "👋 Welcome to Oddora AI Copilot! I am connected to all 4 Sport Brains and Product Engines. You can ask me questions about betting markets, command me to solve custom slips (e.g. 'Build 10 odds slip'), or ask me to edit or split your SportyBet/Bet9ja booking codes. How can I assist you today?",
+      text: "👋 Welcome to Oddora AI Copilot! I am connected to all 4 Sport Brains and Product Engines. You can ask me questions about betting markets, command me to solve custom slips (e.g. 'Build 10 odds slip'), or ask me to edit or split your SportyBet booking codes. How can I assist you today?",
       timestamp: "Today",
     },
   ]);
@@ -195,26 +195,12 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
                             )}
                           </button>
                         )}
-                        {msg.generated_slip.bet9ja_code && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(msg.generated_slip.bet9ja_code)}
-                            className="px-2.5 py-1 rounded-lg bg-[#008234]/20 text-white font-mono text-[11px] font-bold flex items-center gap-1 hover:bg-[#008234]/30 transition"
-                          >
-                            <span>Bet9ja: {msg.generated_slip.bet9ja_code}</span>
-                            {copiedCode === msg.generated_slip.bet9ja_code ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        )}
                       </div>
                     </div>
 
-                    {/* 1-Click Launchers */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      {msg.generated_slip.sporty_code && (
+                    {/* 1-Click SportyBet Launcher */}
+                    {msg.generated_slip.sporty_code && (
+                      <div className="pt-1">
                         <a
                           href={
                             msg.generated_slip.sporty_url ||
@@ -222,23 +208,14 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
                           }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-1.5 px-2.5 rounded-lg bg-[#E51D25] hover:bg-red-600 text-white font-bold text-[11px] text-center flex items-center justify-center gap-1 transition"
+                          className="w-full py-1.5 px-2.5 rounded-lg bg-[#E51D25] hover:bg-red-600 text-white font-bold text-[11px] text-center flex items-center justify-center gap-1 transition"
                         >
                           <Zap className="w-3 h-3" />
-                          <span>Load SportyBet</span>
+                          <span>Load on SportyBet</span>
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
-                      )}
-                      <a
-                        href="https://sports.bet9ja.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-1.5 px-2.5 rounded-lg bg-[#008234] hover:bg-emerald-700 text-white font-bold text-[11px] text-center flex items-center justify-center gap-1 transition"
-                      >
-                        <span>🟢 Open Bet9ja</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    </div>
+                      </div>
+                    )}
 
                     <div className="space-y-1 max-h-48 overflow-y-auto pt-1">
                       {(msg.generated_slip.legs || []).map((leg: any, i: number) => (

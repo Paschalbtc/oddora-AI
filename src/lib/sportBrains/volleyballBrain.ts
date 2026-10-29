@@ -95,7 +95,6 @@ export async function analyzeVolleyballMatch(
     reasoning: string;
     shortCode?: string;
     sportyMarketId?: string;
-    bet9jaCode?: string;
   }> = [];
 
   // 1. Match Winner
@@ -107,7 +106,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(95, Math.max(86, winnerProb)),
     shortCode: "VB Win",
     sportyMarketId: "186_4",
-    bet9jaCode: "VB1",
     reasoning: `Side-out efficiency & attack ratio gives ${favorite} ${winnerProb}% match win expectancy.`,
   });
 
@@ -120,7 +118,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(94, Math.max(84, over35Prob)),
     shortCode: "Sets O3.5",
     sportyMarketId: "314_total=3.5_12",
-    bet9jaCode: "VBO3.5S",
     reasoning: `Competitive parity: High probability of both teams securing sets (${over35Prob}% Over 3.5 expectancy).`,
   });
 
@@ -133,7 +130,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(94, Math.max(84, plus15Prob)),
     shortCode: "Set HCP +1.5",
     sportyMarketId: "313_hcp=1.5_1714",
-    bet9jaCode: "VBH+1.5S",
     reasoning: `Set cushion advantage: ${underdog} +1.5 sets wins in ${plus15Prob}% of simulated sets.`,
   });
 
@@ -146,7 +142,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(96, Math.max(90, plus25Prob)),
     shortCode: "Set HCP +2.5",
     sportyMarketId: "313_hcp=2.5_1714",
-    bet9jaCode: "VBH+2.5S",
     reasoning: `Underdog wins at least 1 set in ${plus25Prob}% of matches.`,
   });
 
@@ -159,7 +154,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(92, Math.max(82, minus15Prob)),
     shortCode: "Set HCP -1.5",
     sportyMarketId: "313_hcp=-1.5_1714",
-    bet9jaCode: "VBH-1.5S",
     reasoning: `Favourite dominance: ${favorite} wins 3-0 or 3-1 in ${minus15Prob}% of simulated games.`,
   });
 
@@ -171,7 +165,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(93, Math.max(83, Math.round(over35Prob * 0.92))),
     shortCode: "Pts Over",
     sportyMarketId: "238_total=175.5_12",
-    bet9jaCode: "VBPO175.5",
     reasoning: `Multi-set depth drives match points past 175.5 threshold.`,
   });
 
@@ -184,7 +177,6 @@ export async function analyzeVolleyballMatch(
     winProb: Math.min(92, Math.max(82, 83)),
     shortCode: "S1 O44.5",
     sportyMarketId: "315_total=44.5_12",
-    bet9jaCode: "VBS1O44.5",
     reasoning: `High side-out efficiency in opening set; loser reaches 20+ points in 83% of games.`,
   });
 

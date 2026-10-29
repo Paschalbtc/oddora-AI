@@ -29,7 +29,7 @@ export interface UserProfileData {
   email: string;
   phone: string;
   avatar: string;
-  preferredBookmaker: "SportyBet" | "Bet9ja";
+  preferredBookmaker: "SportyBet";
   favoriteSports: string[];
   defaultStake: number;
 }
@@ -281,39 +281,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <label className="block text-xs font-mono font-bold text-slate-300 mb-1.5">
                   Preferred Bookmaker (Default 1-Click Booking)
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      setProfile((p) => ({ ...p, preferredBookmaker: "SportyBet" }))
-                    }
-                    className={`py-2 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-2 ${
-                      profile.preferredBookmaker === "SportyBet"
-                        ? "bg-[#E51D25] text-white border-red-500 shadow-md"
-                        : "bg-white/[0.04] text-slate-400 border-white/10 hover:text-white"
-                    }`}
+                    className="py-2.5 px-3 rounded-xl border text-xs font-black bg-[#E51D25] text-white border-red-500 shadow-md flex items-center justify-between"
                   >
-                    <span>SportyBet Nigeria</span>
-                    {profile.preferredBookmaker === "SportyBet" && (
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setProfile((p) => ({ ...p, preferredBookmaker: "Bet9ja" }))
-                    }
-                    className={`py-2 px-3 rounded-xl border text-xs font-black transition flex items-center justify-center gap-2 ${
-                      profile.preferredBookmaker === "Bet9ja"
-                        ? "bg-[#008234] text-white border-emerald-600 shadow-md"
-                        : "bg-white/[0.04] text-slate-400 border-white/10 hover:text-white"
-                    }`}
-                  >
-                    <span>Bet9ja Nigeria</span>
-                    {profile.preferredBookmaker === "Bet9ja" && (
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    )}
+                    <span>SportyBet Nigeria (Exclusive Verified Engine)</span>
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
                   </button>
                 </div>
               </div>

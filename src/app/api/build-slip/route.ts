@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const slip = await buildCustomSlip({
       target_odds: Number(target_odds) || 5.0,
-      bookmaker: String(bookmaker).toUpperCase().includes("BET9JA") ? "BET9JA" : "SPORTYBET",
+      bookmaker: "SPORTYBET",
       date_horizon: horizon,
       sport_type: sport,
       user_tier,

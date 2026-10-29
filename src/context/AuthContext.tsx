@@ -12,7 +12,7 @@ export interface UserProfile {
   avatar: string;
   tier: UserTier;
   phone?: string;
-  preferredBookmaker: "SportyBet" | "Bet9ja";
+  preferredBookmaker: "SportyBet";
   favoriteSports: string[];
   defaultStake: number;
 }

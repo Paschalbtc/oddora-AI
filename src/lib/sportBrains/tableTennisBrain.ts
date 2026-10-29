@@ -82,7 +82,6 @@ export async function analyzeTableTennisMatch(
     winProb: number;
     shortCode: string;
     sportyMarketId: string;
-    bet9jaCode: string;
     reasoning: string;
   }> = [];
 
@@ -95,7 +94,6 @@ export async function analyzeTableTennisMatch(
     winProb: Math.min(94, Math.max(83, favProb)),
     shortCode: "TT Win",
     sportyMarketId: "186_4",
-    bet9jaCode: "TT1",
     reasoning: `${favorite} dominates match probability rating (${favProb}% win expectation).`,
   });
 
@@ -108,7 +106,6 @@ export async function analyzeTableTennisMatch(
     winProb: Math.min(93, Math.max(84, probOver35)),
     shortCode: "Sets O3.5",
     sportyMarketId: "199_total=3.5_12",
-    bet9jaCode: "TTO3.5S",
     reasoning: `Competitive rally pace prevents 3-0 sweep (${probOver35}% probability for 4+ sets).`,
   });
 
@@ -121,7 +118,6 @@ export async function analyzeTableTennisMatch(
     winProb: Math.min(94, Math.max(83, probHcp15)),
     shortCode: "Set HCP +1.5",
     sportyMarketId: "187_hcp=1.5_1714",
-    bet9jaCode: "TTH+1.5S",
     reasoning: `Underdog ${underdog} wins at least 2 sets in ${probHcp15}% of simulated matches.`,
   });
 
@@ -134,7 +130,6 @@ export async function analyzeTableTennisMatch(
     winProb: Math.min(96, Math.max(89, probHcp25)),
     shortCode: "Set HCP +2.5",
     sportyMarketId: "187_hcp=2.5_1714",
-    bet9jaCode: "TTH+2.5S",
     reasoning: `${underdog} wins at least 1 set with ultra-high ${probHcp25}% safety floor.`,
   });
 
@@ -146,7 +141,6 @@ export async function analyzeTableTennisMatch(
     winProb: 83,
     shortCode: "Pts O73.5",
     sportyMarketId: "238_total=73.5_12",
-    bet9jaCode: "TTPO73.5",
     reasoning: `Projected ${expectedSets.toFixed(1)} sets push total points over 73.5 ceiling.`,
   });
 
@@ -158,7 +152,6 @@ export async function analyzeTableTennisMatch(
     winProb: 84,
     shortCode: "Pts HCP +7.5",
     sportyMarketId: "237_hcp=7.5_1714",
-    bet9jaCode: "TTPH+7.5",
     reasoning: `Point handicap cushion of 7.5 covers in high-volume rallies.`,
   });
 
@@ -192,7 +185,6 @@ export async function analyzeTableTennisMatch(
         win_probability: c.winProb,
         short_code: c.shortCode,
         sporty_market_id: c.sportyMarketId,
-        bet9ja_code: c.bet9jaCode,
         reasoning: c.reasoning,
       })),
     },

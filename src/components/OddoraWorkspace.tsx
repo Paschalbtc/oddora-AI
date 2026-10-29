@@ -160,7 +160,7 @@ const OddoraWorkspaceInner: React.FC = () => {
                   Create Your Free Account to Unlock All Predictions & 1-Click Booking
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Instant access to verified SportyBet & Bet9ja codes, Slip Builder solver, and daily high-win rate odds.
+                  Instant access to verified SportyBet codes, Slip Builder solver, and daily high-win rate odds.
                 </p>
               </div>
             </div>

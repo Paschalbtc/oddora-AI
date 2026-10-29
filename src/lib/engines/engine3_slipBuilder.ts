@@ -10,7 +10,7 @@
  */
 
 import { getSupabaseAdmin } from "../supabase";
-import { bookVaultSlip } from "../coreBookingVault";
+import { bookVaultSlip, isMatchValidForSportyBetBooking } from "../coreBookingVault";
 import { bookUniversalSlip } from "./bookingEngine";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { isMatchEnded } from "../multiSportScheduleFeed";
@@ -27,7 +27,7 @@ export interface CustomBuilderRequest {
   custom_match_count?: number; // e.g. 5, 10, 20 (max 50)
   target_odds: number; // e.g. 2.0, 5.0, 10.0, 50.0, 500.0, 5000.0
   date_horizon?: "today" | "14_days" | "30_days";
-  bookmaker?: "SPORTYBET" | "BET9JA";
+  bookmaker?: "SPORTYBET";
   user_tier?: "FREE" | "PRO" | "PREMIUM";
 }
 
@@ -50,13 +50,11 @@ export interface CustomBuilderLeg {
 }
 
 export interface CustomBuilderResult {
-  bookmaker: "SPORTYBET" | "BET9JA";
+  bookmaker: "SPORTYBET";
   booking_code: string;
   sporty_code: string;
-  bet9ja_code: string;
   share_url: string;
   sporty_url?: string;
-  bet9ja_url?: string;
   target_odds_requested: number;
   actual_combined_odds: number;
   odds_accuracy_ratio: string;
@@ -986,7 +984,7 @@ export async function buildCustomSlip(
     target = Math.min(20000.0, target);
   }
 
-  const bookmaker = req.bookmaker === "BET9JA" ? "BET9JA" : "SPORTYBET";
+  const bookmaker = "SPORTYBET";
   const horizon = req.date_horizon || "today";
 
   const countMode =
@@ -1078,6 +1076,8 @@ export async function buildCustomSlip(
   const seenMatches = new Set<string>();
 
   for (const m of rawMatches) {
+    if (isMatchEnded(m)) continue;
+    if (!isMatchValidForSportyBetBooking(m)) continue;
     const key = `${m.home_team}_vs_${m.away_team}`.toLowerCase();
     if (seenMatches.has(key)) continue;
 
@@ -1146,32 +1146,26 @@ export async function buildCustomSlip(
   });
 
   let sportyCode = booked.sportybet_code;
-  let bet9jaCode = booked.bet9ja_code;
   let sportyUrl = booked.sporty_url;
-  let bet9jaUrl = booked.bet9ja_url;
 
-  if (!sportyCode && !bet9jaCode) {
+  if (!sportyCode) {
     const uBooked = await bookUniversalSlip(selectedLegs, {
       slip_category: "CUSTOM_SOLVER",
       target_odds: target,
     });
     sportyCode = uBooked.sportybet_code;
-    bet9jaCode = uBooked.bet9ja_code;
     sportyUrl = uBooked.sporty_url;
-    bet9jaUrl = uBooked.bet9ja_url;
   }
 
-  const primaryCode = bookmaker === "BET9JA" ? bet9jaCode : sportyCode;
-  const shareUrl = bookmaker === "BET9JA" ? bet9jaUrl : sportyUrl;
+  const primaryCode = sportyCode;
+  const shareUrl = sportyUrl;
 
   return {
-    bookmaker,
+    bookmaker: "SPORTYBET",
     booking_code: primaryCode,
     sporty_code: sportyCode,
-    bet9ja_code: bet9jaCode,
     share_url: shareUrl,
     sporty_url: sportyUrl,
-    bet9ja_url: bet9jaUrl,
     target_odds_requested: target,
     actual_combined_odds: actualCombinedOdds,
     odds_accuracy_ratio: `${accuracy}%`,

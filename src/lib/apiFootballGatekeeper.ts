@@ -128,7 +128,7 @@ export interface BankerTicket {
   total_odds: number;
   legs_count: number;
   sportybet_code: string;
-  bet9ja_code: string;
+  bet9ja_code?: string;
   legs: any[];
 }
 
@@ -144,7 +144,7 @@ export async function generate3DailyBankerTickets(
     total_odds: s.actual_odds || s.total_odds || 2.0,
     legs_count: (s.legs || []).length,
     sportybet_code: s.sporty_code || s.sportybet_code || "",
-    bet9ja_code: s.bet9ja_code || "",
+    bet9ja_code: undefined,
     legs: s.legs || [],
   }));
 }

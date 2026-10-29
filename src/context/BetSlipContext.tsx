@@ -26,10 +26,9 @@ export interface CartLeg {
 }
 
 export interface BookedTicketResponse {
-  bookmaker: "SportyBet" | "Bet9ja";
+  bookmaker: "SportyBet";
   bookingCode: string;
   sportyCode?: string;
-  bet9jaCode?: string;
   shareUrl?: string;
   totalOdds: number;
   legsCount: number;
@@ -53,7 +52,7 @@ interface BetSlipContextType {
   isBooking: boolean;
   bookedTicket: BookedTicketResponse | null;
   bookingError: string | null;
-  bookSlip: (bookmaker: "SportyBet" | "Bet9ja") => Promise<BookedTicketResponse | null>;
+  bookSlip: (bookmaker?: "SportyBet") => Promise<BookedTicketResponse | null>;
   resetBookingState: () => void;
 }
 
@@ -191,8 +190,8 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setBookingError(null);
   };
 
-  // Instant booking bridge integration with SportyBet & Bet9ja
-  const bookSlip = async (bookmaker: "SportyBet" | "Bet9ja"): Promise<BookedTicketResponse | null> => {
+  // Instant booking bridge integration strictly with SportyBet
+  const bookSlip = async (bookmaker: "SportyBet" = "SportyBet"): Promise<BookedTicketResponse | null> => {
     if (legs.length === 0) {
       setBookingError("Please add at least 1 match to book your slip.");
       return null;
@@ -223,27 +222,23 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "generate",
-          bookmaker,
+          bookmaker: "SportyBet",
           selections: selectionsPayload,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || data.status === "error") {
-        throw new Error(data.message || `Failed to book slip on ${bookmaker}`);
+        throw new Error(data.message || "Failed to book slip on SportyBet");
       }
 
-      const isBet9ja = bookmaker === "Bet9ja";
-      const code = isBet9ja ? (data.bet9ja_code || data.booking_code) : (data.sporty_code || data.booking_code);
-      const url = isBet9ja
-        ? (data.bet9ja_url || "https://sports.bet9ja.com")
-        : (data.share_url || data.sporty_url || `http://www.sportybet.com/ng/?shareCode=${code}`);
+      const code = data.sporty_code || data.booking_code;
+      const url = data.share_url || data.sporty_url || `http://www.sportybet.com/ng/?shareCode=${code}`;
 
       const result: BookedTicketResponse = {
-        bookmaker,
+        bookmaker: "SportyBet",
         bookingCode: code,
-        sportyCode: data.sporty_code || code,
-        bet9jaCode: data.bet9ja_code || code,
+        sportyCode: code,
         shareUrl: url,
         totalOdds: data.actual_odds || totalOdds,
         legsCount: data.legs_count || legs.length,
@@ -252,7 +247,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setBookedTicket(result);
       return result;
     } catch (err: any) {
-      const msg = err.message || `Booking failed on ${bookmaker}. Please try again.`;
+      const msg = err.message || "Booking failed on SportyBet. Please try again.";
       setBookingError(msg);
       return null;
     } finally {

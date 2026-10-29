@@ -259,7 +259,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
             <span className="text-emerald-700 dark:text-emerald-400 font-bold truncate">
-              SportyBet & Bet9ja Verified Engine Online
+              SportyBet Verified Engine Online
             </span>
           </div>
 

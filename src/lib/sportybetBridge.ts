@@ -1,5 +1,5 @@
 /**
- * Oddora AI V2 - SportyBet & Bet9ja Booking Bridge
+ * Oddora AI V2 - SportyBet Exclusive Booking Bridge
  * Connects analytical Sport Brain outcomes to live SportyBet factsCenter catalogs,
  * decodes real booking codes, and books verified multi-leg tickets via SportyBet /api/ng/orders/share.
  */
@@ -26,7 +26,7 @@ export interface DecodedLeg {
 }
 
 export interface DecodedSlip {
-  bookmaker: "SportyBet" | "Bet9ja";
+  bookmaker: "SportyBet";
   code: string;
   total_odds: number;
   legs_count: number;
@@ -299,13 +299,6 @@ export async function createSportyBetBookingCode(
   }
 
   return null;
-}
-
-/**
- * Returns Bet9ja ticket identifier
- */
-export function generateBet9jaBookingCode(): string {
-  return "ODDORA-SLIP";
 }
 
 /**

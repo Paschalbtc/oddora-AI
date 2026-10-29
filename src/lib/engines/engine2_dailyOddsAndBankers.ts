@@ -12,13 +12,13 @@
  *    - DAILY_100X (100.00x) -> Locked for Free & Pro (PREMIUM only unlock)
  *    - DAILY_200X (200.00x) -> Locked for Free & Pro (PREMIUM only unlock)
  *    - OVER_2_5_SPECIAL (6 to 7 Football Over 2.5 games)
- * 3. Books 100% REAL, verified SportyBet codes via official order share API
- *    and paired Bet9ja booking codes with direct deep-links.
+ * 3. Books 100% REAL, verified SportyBet codes via official order share API.
  * 4. Persists records into Supabase `oddora_v2_daily_slips`.
  */
 
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
 import { bookUniversalSlip, fetchLiveSportyBetCatalog } from "./bookingEngine";
+import { isMatchValidForSportyBetBooking } from "../coreBookingVault";
 import { getFixtureDeepStats, scoreLegDanger } from "../apiFootballStatsBrain";
 import { isMatchEnded } from "../multiSportScheduleFeed";
 
@@ -41,7 +41,7 @@ export interface V2DailySlipRecord {
   sport: string;
   sporty_code: string;
   sportybet_code?: string;
-  bet9ja_code: string;
+  bet9ja_code?: string;
   share_url: string;
   sporty_url?: string;
   bet9ja_url?: string;
@@ -131,7 +131,7 @@ export async function generateAndBookDailySlips(): Promise<{
   const liveCatalog = await fetchLiveSportyBetCatalog();
 
   const matches = (rawMatches || [])
-    .filter((m: any) => !isMatchEnded(m))
+    .filter((m: any) => !isMatchEnded(m) && isMatchValidForSportyBetBooking(m))
     .map((m: any) => ({
     id: m.match_id,
     match_id: m.match_id,
@@ -166,7 +166,7 @@ export async function generateAndBookDailySlips(): Promise<{
       cfg.minOddPerLeg
     );
 
-    // Book REAL SportyBet and Bet9ja codes via backend booking engine
+    // Book REAL SportyBet codes via backend booking engine
     const booked = await bookUniversalSlip(selectedLegs, {
       slip_category: cfg.type,
       required_tier: cfg.tierLock,
@@ -183,10 +183,8 @@ export async function generateAndBookDailySlips(): Promise<{
       sport: "multi",
       sporty_code: booked.sportybet_code,
       sportybet_code: booked.sportybet_code,
-      bet9ja_code: booked.bet9ja_code,
       share_url: booked.sporty_url,
       sporty_url: booked.sporty_url,
-      bet9ja_url: booked.bet9ja_url,
       legs: booked.legs,
       legs_json: booked.legs,
       is_locked_for_tier: cfg.tierLock,
@@ -205,7 +203,7 @@ export async function generateAndBookDailySlips(): Promise<{
       total_odds: booked.actual_odds,
       match_count: booked.legs.length,
       sportybet_code: booked.sportybet_code,
-      bet9ja_code: booked.bet9ja_code,
+      bet9ja_code: null,
       legs_json: booked.legs,
       slip_result: "PENDING",
     });
@@ -255,10 +253,8 @@ export async function generateAndBookDailySlips(): Promise<{
     sport: "football",
     sporty_code: over25Booked.sportybet_code,
     sportybet_code: over25Booked.sportybet_code,
-    bet9ja_code: over25Booked.bet9ja_code,
     share_url: over25Booked.sporty_url,
     sporty_url: over25Booked.sporty_url,
-    bet9ja_url: over25Booked.bet9ja_url,
     legs: over25Booked.legs,
     legs_json: over25Booked.legs,
     is_locked_for_tier: "PRO",
@@ -277,7 +273,7 @@ export async function generateAndBookDailySlips(): Promise<{
     total_odds: over25Booked.actual_odds,
     match_count: over25Booked.legs.length,
     sportybet_code: over25Booked.sportybet_code,
-    bet9ja_code: over25Booked.bet9ja_code,
+    bet9ja_code: null,
     legs_json: over25Booked.legs,
     slip_result: "PENDING",
   });
@@ -333,7 +329,6 @@ export async function getDailySlipsForUI(
     const slipType = r.slip_category as V2DailySlipRecord["slip_type"];
     const requiredTier = (r.required_tier || "FREE") as "FREE" | "PRO" | "PREMIUM";
     const sportyCode = r.sportybet_code || "YK6NTF";
-    const bet9jaCode = (r.bet9ja_code || "B971936K").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 
     const slipRecord: V2DailySlipRecord = {
       id: r.id,
@@ -346,10 +341,8 @@ export async function getDailySlipsForUI(
       sport: slipType === "OVER_2_5_SPECIAL" ? "football" : "multi",
       sporty_code: sportyCode,
       sportybet_code: sportyCode,
-      bet9ja_code: bet9jaCode,
       share_url: `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
       sporty_url: `http://www.sportybet.com/ng/?shareCode=${sportyCode}`,
-      bet9ja_url: "https://sports.bet9ja.com",
       legs: Array.isArray(r.legs_json) ? r.legs_json : [],
       legs_json: r.legs_json,
       is_locked_for_tier: requiredTier,
@@ -374,10 +367,8 @@ function filterSlipForTier(slip: V2DailySlipRecord, userTier: "FREE" | "PRO" | "
       ...slip,
       sporty_code: "🔒 VIP ONLY",
       sportybet_code: "🔒 VIP ONLY",
-      bet9ja_code: "🔒 VIP ONLY",
       share_url: "#upgrade",
       sporty_url: "#upgrade",
-      bet9ja_url: "#upgrade",
       legs: (slip.legs || []).map((l, i) => ({
         ...l,
         home_team: i === 0 ? l.home_team : "🔒 VIP Team",

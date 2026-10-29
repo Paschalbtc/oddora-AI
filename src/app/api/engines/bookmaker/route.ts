@@ -20,17 +20,14 @@ export async function POST(request: NextRequest) {
       }
 
       const booked = await bookUniversalSlip(selections);
-      const isBet9ja = bookmaker.toLowerCase().includes("bet9ja");
 
       return NextResponse.json({
         status: "success",
-        bookmaker: isBet9ja ? "Bet9ja" : "SportyBet",
-        booking_code: isBet9ja ? booked.bet9ja_code : booked.sportybet_code,
+        bookmaker: "SportyBet",
+        booking_code: booked.sportybet_code,
         sporty_code: booked.sportybet_code,
-        bet9ja_code: booked.bet9ja_code,
-        share_url: isBet9ja ? booked.bet9ja_url : booked.sporty_url,
+        share_url: booked.sporty_url,
         sporty_url: booked.sporty_url,
-        bet9ja_url: booked.bet9ja_url,
         actual_odds: booked.actual_odds,
         legs_count: booked.legs_count,
         legs: booked.legs,

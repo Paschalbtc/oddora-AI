@@ -67,7 +67,7 @@ export async function persistDailyReadySlips(
           total_odds: Number(s.target_odds || s.total_odds || s.actual_odds || 2.0),
           match_count: s.slip?.legs?.length || s.legs?.length || 3,
           sportybet_code: s.slip?.sportybet_code || s.sporty_code || s.sportybet_code || "ODDORA",
-          bet9ja_code: s.slip?.bet9ja_code || s.bet9ja_code || "B9J-ODD",
+          bet9ja_code: null,
           legs_json: s.slip?.legs || s.legs || [],
           slip_result: "PENDING",
         },
@@ -137,7 +137,7 @@ export async function getPlatformSnapshotWithSupabase(
         target_odds: Number(s.total_odds),
         slip: {
           sportybet_code: s.sportybet_code,
-          bet9ja_code: s.bet9ja_code,
+          bet9ja_code: null,
           actual_odds: Number(s.total_odds),
           legs: s.legs_json || [],
         },

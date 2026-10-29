@@ -99,7 +99,6 @@ export async function analyzeBasketballMatch(
     reasoning: string;
     shortCode?: string;
     sportyMarketId?: string;
-    bet9jaCode?: string;
   }> = [];
 
   // 1. Point Spread Safety Cushion (+7.5 Underdog)
@@ -122,7 +121,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(94, Math.max(85, favoriteProb)),
     shortCode: "ML Win",
     sportyMarketId: "219_4",
-    bet9jaCode: "12_OT",
     reasoning: `Offensive rating advantage: ${favorite} projected at ${isHomeFavorite ? projectedHomeScore.toFixed(1) : projectedAwayScore.toFixed(1)} pts (${favoriteProb}% Win Rate).`,
   });
 
@@ -136,7 +134,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(95, Math.max(86, probPlus85)),
     shortCode: "Spread +8.5",
     sportyMarketId: "223_hcp=8.5_1714",
-    bet9jaCode: "H+8.5",
     reasoning: `High safety cushion: ${underdog} +8.5 spread covers in ${probPlus85}% of modeled possessions.`,
   });
 
@@ -150,7 +147,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(92, Math.max(82, probMinus35)),
     shortCode: "Spread -3.5",
     sportyMarketId: "223_hcp=-3.5_1714",
-    bet9jaCode: "H-3.5",
     reasoning: `Dominant scoring differential: ${favorite} clears -3.5 spread in ${probMinus35}% of simulations.`,
   });
 
@@ -165,7 +161,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(94, Math.max(85, probAltOver)),
     shortCode: "Alt Total Over",
     sportyMarketId: "225_12",
-    bet9jaCode: "BK_O_ALT",
     reasoning: `Pace efficiency: Projected game total of ${projectedTotalPoints.toFixed(1)} clears buffered ${bufferedOverLine}.5 line with ${probAltOver}% safety.`,
   });
 
@@ -180,7 +175,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(94, Math.max(85, probAltUnder)),
     shortCode: "Alt Total Under",
     sportyMarketId: "225_13",
-    bet9jaCode: "BK_U_ALT",
     reasoning: `Defensive containment: Game ceiling bounded under ${bufferedUnderLine}.5 in ${probAltUnder}% of simulations.`,
   });
 
@@ -195,7 +189,6 @@ export async function analyzeBasketballMatch(
     winProb: Math.min(92, Math.max(81, probH1)),
     shortCode: "1H Win",
     sportyMarketId: "60_1",
-    bet9jaCode: "1H_1",
     reasoning: `Fast-starting rotation: ${favorite} leads at halftime in ${probH1}% of distribution runs.`,
   });
 

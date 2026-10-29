@@ -7,7 +7,7 @@
  * - BASKETBALL
  * - VOLLEYBALL
  *
- * Each market defines its exact SportyBet market/outcome mapping, Bet9ja coupon code,
+ * Each market defines its exact SportyBet market/outcome mapping,
  * baseline mathematical win-probability floor, odds range, and AI statistical trigger.
  */
 
@@ -20,7 +20,6 @@ export interface HighProbOutcome {
   typicalOddRange: [number, number];
   baseWinProbabilityFloor: number; // Minimum % required to select
   sportybetMarketId: string;
-  bet9jaCode: string;
   aiStatTrigger: string;
 }
 
@@ -38,7 +37,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.18, 1.42],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "18_total=1.5_12",
-      bet9jaCode: "O1.5",
       aiStatTrigger: "Combined team xG >= 2.40 AND Over 1.5 hit rate in last 10 games >= 80%",
     },
     {
@@ -50,7 +48,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.16, 1.45],
       baseWinProbabilityFloor: 85,
       sportybetMarketId: "10_1",
-      bet9jaCode: "1X",
       aiStatTrigger: "Home unbeaten rate >= 80% AND Home xG > Away xG + 0.35",
     },
     {
@@ -62,7 +59,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.20, 1.50],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "10_3",
-      bet9jaCode: "X2",
       aiStatTrigger: "Away team top-4 table rank vs bottom-half host AND Away unbeaten last 5 >= 80%",
     },
     {
@@ -74,7 +70,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.22, 1.38],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "10_2",
-      bet9jaCode: "12",
       aiStatTrigger: "Both teams draw rate < 15% in last 10 matches AND high transition pace",
     },
     {
@@ -86,7 +81,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.20, 1.45],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "18_total=3.5_13",
-      bet9jaCode: "U3.5",
       aiStatTrigger: "Combined team goals average <= 2.50 AND at least one team plays Low-Block defense",
     },
     {
@@ -98,7 +92,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.08, 1.22],
       baseWinProbabilityFloor: 91,
       sportybetMarketId: "18_total=4.5_13",
-      bet9jaCode: "U4.5",
       aiStatTrigger: "Combined team goals average <= 2.90 AND 90%+ historical matches ended with <= 4 goals",
     },
     {
@@ -110,7 +103,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.25, 1.55],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "11_4",
-      bet9jaCode: "DNB1",
       aiStatTrigger: "Home win prob >= 62% with <= 12% loss rate at home",
     },
     {
@@ -122,7 +114,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.30, 1.62],
       baseWinProbabilityFloor: 80,
       sportybetMarketId: "11_5",
-      bet9jaCode: "DNB2",
       aiStatTrigger: "Away win prob >= 60% against weak home offense",
     },
     {
@@ -134,7 +125,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.12, 1.30],
       baseWinProbabilityFloor: 88,
       sportybetMarketId: "19_total=0.5_12",
-      bet9jaCode: "HO0.5",
       aiStatTrigger: "Team scored in >= 90% of last 10 games AND opponent clean sheet rate < 20%",
     },
     {
@@ -146,7 +136,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.22, 1.48],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "16_hcp=1.5_1714",
-      bet9jaCode: "2H+1.5",
       aiStatTrigger: "Stubborn defensive side conceding <= 1.1 goals/game vs fatigued favourite",
     },
     {
@@ -158,7 +147,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.55, 1.95],
       baseWinProbabilityFloor: 75,
       sportybetMarketId: "18_total=2.5_12",
-      bet9jaCode: "O2.5",
       aiStatTrigger: "Combined xG >= 3.10 AND both teams Over 2.5 rate >= 70% in last 8 games",
     },
     {
@@ -170,7 +158,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.25, 1.50],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "47_1",
-      bet9jaCode: "HWEH",
       aiStatTrigger: "Heavy favourite (xG diff > +1.0) against low-block defense",
     },
     {
@@ -182,7 +169,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.22, 1.42],
       baseWinProbabilityFloor: 85,
       sportybetMarketId: "166_total=7.5_12",
-      bet9jaCode: "CRNO7.5",
       aiStatTrigger: "Combined team corner average >= 10.2 per match",
     },
     {
@@ -194,7 +180,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.35, 1.60],
       baseWinProbabilityFloor: 80,
       sportybetMarketId: "166_total=8.5_12",
-      bet9jaCode: "CRNO8.5",
       aiStatTrigger: "Combined team corner average >= 11.0 per match with wide wing play",
     },
     {
@@ -206,7 +191,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.28, 1.48],
       baseWinProbabilityFloor: 81,
       sportybetMarketId: "68_total=0.5_12",
-      bet9jaCode: "1HO0.5",
       aiStatTrigger: "Both teams score/concede in 1st Half in >= 80% of last 10 matches",
     },
   ],
@@ -224,7 +208,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.20, 1.50],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "186_4",
-      bet9jaCode: "TT1",
       aiStatTrigger: "Player A leads H2H >= 70% over last 10 meetings AND Last 5 form >= 4 wins",
     },
     {
@@ -236,7 +219,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.28, 1.48],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "199_total=3.5_12",
-      bet9jaCode: "TTO3.5S",
       aiStatTrigger: "Evenly matched players (odds between 1.65 - 2.15 each) where 85%+ of H2H went 4 or 5 sets",
     },
     {
@@ -248,7 +230,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.25, 1.52],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "187_hcp=1.5_1714",
-      bet9jaCode: "TTH+1.5S",
       aiStatTrigger: "Consistent server winning >= 2 sets in 9 of last 10 matches",
     },
     {
@@ -260,7 +241,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.14, 1.32],
       baseWinProbabilityFloor: 89,
       sportybetMarketId: "187_hcp=2.5_1714",
-      bet9jaCode: "TTH+2.5S",
       aiStatTrigger: "Competitor wins at least 1 set in >= 90% of recent H2H clashes",
     },
     {
@@ -272,7 +252,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.35, 1.65],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "238_total=73.5_12",
-      bet9jaCode: "TTPO73.5",
       aiStatTrigger: "Both players average >= 18.8 points per set with frequent 11-9 / deuce sets",
     },
     {
@@ -284,7 +263,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.28, 1.55],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "237_hcp=7.5_1714",
-      bet9jaCode: "TTPH+7.5",
       aiStatTrigger: "High rally consistency with low blow-out set frequency",
     },
   ],
@@ -302,7 +280,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.18, 1.50],
       baseWinProbabilityFloor: 85,
       sportybetMarketId: "219_4",
-      bet9jaCode: "12_OT",
       aiStatTrigger: "Net Rating advantage >= +5.5 AND Home court or rest advantage",
     },
     {
@@ -314,7 +291,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.22, 1.45],
       baseWinProbabilityFloor: 86,
       sportybetMarketId: "223_hcp=8.5_1714",
-      bet9jaCode: "H+8.5",
       aiStatTrigger: "Competitive underdog loses by >= 9 points in < 12% of games this season",
     },
     {
@@ -326,7 +302,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.28, 1.52],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "223_hcp=-3.5_1714",
-      bet9jaCode: "H-3.5",
       aiStatTrigger: "Dominant favourite winning by 6+ points in 80% of recent home games",
     },
     {
@@ -338,7 +313,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.24, 1.46],
       baseWinProbabilityFloor: 85,
       sportybetMarketId: "225_12",
-      bet9jaCode: "BK_O_ALT",
       aiStatTrigger: "Both teams top-10 in Pace & Offensive Efficiency; combined average exceeds buffered line by +10 pts",
     },
     {
@@ -350,7 +324,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.24, 1.46],
       baseWinProbabilityFloor: 85,
       sportybetMarketId: "225_13",
-      bet9jaCode: "BK_U_ALT",
       aiStatTrigger: "Slow half-court pace + strong defensive efficiency; combined average is 10+ pts below buffered ceiling",
     },
     {
@@ -362,7 +335,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.28, 1.55],
       baseWinProbabilityFloor: 81,
       sportybetMarketId: "60_1",
-      bet9jaCode: "1H_1",
       aiStatTrigger: "Home favourite leads at halftime in >= 80% of games with starting lineup intact",
     },
   ],
@@ -380,7 +352,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.15, 1.48],
       baseWinProbabilityFloor: 86,
       sportybetMarketId: "186_4",
-      bet9jaCode: "VB1",
       aiStatTrigger: "Side-out efficiency & block/attack ratio > +12% over opponent",
     },
     {
@@ -392,7 +363,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.30, 1.55],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "314_total=3.5_12",
-      bet9jaCode: "VBO3.5S",
       aiStatTrigger: "Matched teams (within 4 league places) where 3-0 sweeps happen < 18% of the time",
     },
     {
@@ -404,7 +374,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.25, 1.50],
       baseWinProbabilityFloor: 84,
       sportybetMarketId: "313_hcp=1.5_1714",
-      bet9jaCode: "VBH+1.5S",
       aiStatTrigger: "Slight underdog/favourite with strong home crowd that forces 4th/5th set in 85% of matches",
     },
     {
@@ -416,7 +385,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.14, 1.32],
       baseWinProbabilityFloor: 90,
       sportybetMarketId: "313_hcp=2.5_1714",
-      bet9jaCode: "VBH+2.5S",
       aiStatTrigger: "Team wins at least 1 set in >= 90% of matches over last 15 fixtures",
     },
     {
@@ -428,7 +396,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.30, 1.60],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "313_hcp=-1.5_1714",
-      bet9jaCode: "VBH-1.5S",
       aiStatTrigger: "Top-3 league powerhouse vs bottom-4 opponent; wins 3-0 or 3-1 in 85%+ of matches",
     },
     {
@@ -440,7 +407,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.32, 1.58],
       baseWinProbabilityFloor: 83,
       sportybetMarketId: "238_total=175.5_12",
-      bet9jaCode: "VBPO175.5",
       aiStatTrigger: "Expected 4+ sets OR sets frequently reaching 25-22 / 25-23",
     },
     {
@@ -452,7 +418,6 @@ export const HIGH_PROBABILITY_OUTCOMES: Record<string, HighProbOutcome[]> = {
       typicalOddRange: [1.35, 1.58],
       baseWinProbabilityFloor: 82,
       sportybetMarketId: "315_total=44.5_12",
-      bet9jaCode: "VBS1O44.5",
       aiStatTrigger: "Both teams strong in 1st-set side-out recepción; loser of Set 1 reaches >= 20 points in 85% of games",
     },
   ],

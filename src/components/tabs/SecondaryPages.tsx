@@ -476,7 +476,7 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
       {
         num: "03",
         title: "Automated Booking Bridge",
-        desc: "Engine 2 compiles daily tickets (Banker 2x up to Mega 200x plus Over 2.5 Goals) and books official SportyBet & Bet9ja codes via direct API bridge.",
+        desc: "Engine 2 compiles daily tickets (Banker 2x up to Mega 200x plus Over 2.5 Goals) and books official SportyBet codes via direct API bridge.",
       },
       {
         num: "04",

@@ -3,11 +3,6 @@
     {
       "path": "/api/admin/trigger-midnight",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/sync-2hr",
-      "schedule": "0 */2 * * *"
     }
   ]
 }
-

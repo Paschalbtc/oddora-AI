@@ -318,61 +318,58 @@ function pickGuaranteedSportyBetMarket(
 /**
  * Matches an analytical selection to a real live SportyBet event and market
  */
-function matchSelectionToSportyBetEvent(
+export function matchSelectionToSportyBetEvent(
   sel: any,
   liveCatalog: any[]
-): {
-  eventId: string;
-  marketId: string;
-  outcomeId: string;
-  specifier: string | null;
-  odd: number;
-  match: string;
-  home_team: string;
-  away_team: string;
-  league: string;
-  market: string;
-  selection: string;
-  win_probability?: number;
-} | null {
-  // 1. Direct validation: if sel already has a verified SportyBet eventId and outcomeId, use directly!
-  const selEvId = sel.eventId || sel.sportybet_selection?.eventId;
-  const selOutId = sel.outcomeId || sel.sportybet_selection?.outcomeId;
-  const selMktId = sel.marketId || sel.sportybet_selection?.marketId;
-
-  if (selEvId && (selEvId.startsWith("sr:match:") || !isNaN(Number(selEvId))) && selOutId) {
-    const cleanEvId = selEvId.startsWith("sr:match:") ? selEvId : `sr:match:${selEvId}`;
-    return {
-      eventId: cleanEvId,
-      marketId: String(selMktId || "1"),
-      outcomeId: String(selOutId),
-      specifier: sel.specifier ?? sel.sportybet_selection?.specifier ?? null,
-      odd: Number(sel.odd || sel.odds || sel.odd_value) || 1.35,
-      match: sel.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
-      home_team: sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : "Home"),
-      away_team: sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : "Away"),
-      league: sel.league || "Global League",
-      market: sel.market || "Market",
-      selection: sel.selection || "Selection",
-    };
-  }
+): BookedLeg | null {
+  if (!sel) return null;
 
   const normHome = normalizeTeam(sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : ""));
   const normAway = normalizeTeam(sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : ""));
 
-  // 2. Check if sel has a known eventId in liveCatalog
-  let matchedEvent = liveCatalog.find(
-    (ev) => ev.eventId === selEvId || (selEvId && ev.eventId.includes(String(selEvId).replace("sr:match:", "")))
-  );
+  const rawEvId = sel.eventId || sel.sportybet_selection?.eventId || sel.match_id;
+  const cleanEvId = rawEvId
+    ? String(rawEvId).startsWith("sr:match:")
+      ? String(rawEvId)
+      : `sr:match:${rawEvId}`
+    : null;
 
-  // 3. If not found by eventId, try fuzzy matching teams in live catalog
+  // 1. Locate event in active live catalog by eventId
+  let matchedEvent = cleanEvId
+    ? liveCatalog.find(
+        (ev) =>
+          ev.eventId === cleanEvId ||
+          (cleanEvId && ev.eventId && ev.eventId.includes(cleanEvId.replace("sr:match:", "")))
+      )
+    : null;
+
+  // If found by eventId, verify it is truly active (not ended, live, or past kickoff)
+  if (matchedEvent) {
+    const status = String(matchedEvent.status || matchedEvent.matchStatus || "").toLowerCase();
+    const startTime = Number(matchedEvent.estimateStartTime);
+    const isEnded =
+      status === "ended" ||
+      status === "closed" ||
+      status === "live" ||
+      (startTime > 0 && startTime < Date.now());
+
+    if (isEnded) {
+      matchedEvent = null; // Do NOT retain stale or ended event
+    }
+  }
+
+  // 2. If not found or stale, search liveCatalog by team names
   if (!matchedEvent && (normHome || normAway)) {
     matchedEvent = liveCatalog.find((ev) => {
       const evHome = normalizeTeam(ev.homeTeamName || "");
       const evAway = normalizeTeam(ev.awayTeamName || "");
       return (
-        (normHome && evHome && (normHome.includes(evHome) || evHome.includes(normHome))) &&
-        (normAway && evAway && (normAway.includes(evAway) || evAway.includes(normAway)))
+        normHome &&
+        evHome &&
+        normAway &&
+        evAway &&
+        (normHome.includes(evHome) || evHome.includes(normHome)) &&
+        (normAway.includes(evAway) || evAway.includes(normAway))
       );
     });
 
@@ -384,7 +381,47 @@ function matchSelectionToSportyBetEvent(
     }
   }
 
+  // 3. If an active event is matched, extract valid SportyBet credentials
   if (matchedEvent) {
+    const selMktId = String(sel.marketId || sel.sportybet_selection?.marketId || "");
+    const selOutId = String(sel.outcomeId || sel.sportybet_selection?.outcomeId || "");
+    const rawSpec = sel.specifier ?? sel.sportybet_selection?.specifier ?? null;
+
+    // Check if the requested market & outcome actually exist on this active event
+    const marketsList = Array.isArray(matchedEvent.markets) ? matchedEvent.markets : [];
+    const foundMarket = marketsList.find((m: any) => String(m.id) === selMktId);
+    const foundOutcome = foundMarket?.outcomes?.find((o: any) => String(o.id) === selOutId);
+
+    if (foundMarket && foundOutcome) {
+      const requiresSpec =
+        selMktId === "18" ||
+        selMktId === "14" ||
+        selMktId === "225" ||
+        selMktId === "223" ||
+        selMktId === "238" ||
+        selMktId === "314";
+
+      return {
+        eventId: matchedEvent.eventId,
+        marketId: selMktId,
+        outcomeId: selOutId,
+        specifier: requiresSpec ? (foundMarket.specifier || rawSpec) : null,
+        odd: parseFloat(foundOutcome.odds || String(sel.odd || 1.35)),
+        match: `${matchedEvent.homeTeamName} vs ${matchedEvent.awayTeamName}`,
+        home_team: matchedEvent.homeTeamName,
+        away_team: matchedEvent.awayTeamName,
+        league:
+          matchedEvent.sport?.category?.tournament?.name ||
+          matchedEvent.sport?.category?.name ||
+          sel.league ||
+          "Premier Division",
+        market: foundMarket.desc || sel.market || "Market",
+        selection: foundOutcome.desc || sel.selection || "Selection",
+        win_probability: Number(sel.win_probability) || 85,
+      };
+    }
+
+    // Otherwise, pick a guaranteed safe market on this active live event
     const marketHint = sel.market || sel.market_name || "1X2";
     const selectionHint = sel.selection || sel.best_outcome || "Home Win";
     const resolved = pickGuaranteedSportyBetMarket(matchedEvent, marketHint, selectionHint);
@@ -394,17 +431,92 @@ function matchSelectionToSportyBetEvent(
       marketId: resolved.marketId,
       outcomeId: resolved.outcomeId,
       specifier: resolved.specifier,
-      odd: resolved.odd || Number(sel.odd || sel.odd_value) || 1.45,
+      odd: resolved.odd || Number(sel.odd || sel.odds || sel.odd_value) || 1.45,
       match: `${matchedEvent.homeTeamName} vs ${matchedEvent.awayTeamName}`,
       home_team: matchedEvent.homeTeamName,
       away_team: matchedEvent.awayTeamName,
-      league: matchedEvent.sport?.category?.tournament?.name || matchedEvent.sport?.category?.name || "Premier Division",
+      league:
+        matchedEvent.sport?.category?.tournament?.name ||
+        matchedEvent.sport?.category?.name ||
+        sel.league ||
+        "Premier Division",
       market: resolved.market,
       selection: resolved.selection,
+      win_probability: Number(sel.win_probability) || 85,
     };
   }
 
   return null;
+}
+
+/**
+ * Enforces fresh ID re-mapping for SportyBet:
+ * 1. Strips stale or broken booking metadata from pruned/edited matches.
+ * 2. Verifies every match against the live SportyBet catalog.
+ * 3. Drops dead or unmapped matches.
+ * 4. Refills with guaranteed active upcoming fixtures if count < minCount.
+ */
+export async function normalizeAndRemapSelectionsForSportyBet(
+  selections: any[],
+  options: {
+    minCount?: number;
+    ensureActiveCatalog?: boolean;
+  } = {}
+): Promise<BookedLeg[]> {
+  const minCount = options.minCount ?? 2;
+  const liveCatalog = await fetchLiveSportyBetCatalog();
+  const validLegs: BookedLeg[] = [];
+  const usedEventIds = new Set<string>();
+
+  for (const sel of (selections || [])) {
+    if (!sel) continue;
+    if (!isMatchValidForSportyBetBooking(sel)) continue;
+
+    const matched = matchSelectionToSportyBetEvent(sel, liveCatalog);
+    if (!matched) {
+      console.warn(
+        `[SportyBet Remap] Match "${sel.match || sel.home_team}" could not be mapped to an active SportyBet event. Dropping stale metadata.`
+      );
+      continue;
+    }
+
+    if (usedEventIds.has(matched.eventId)) continue;
+    usedEventIds.add(matched.eventId);
+
+    validLegs.push(matched);
+  }
+
+  // If fewer than minCount valid legs remain after pruning/dropping, refill from active catalog
+  if (validLegs.length < minCount && liveCatalog.length > 0) {
+    console.log(
+      `[SportyBet Remap] Remaining legs (${validLegs.length}) < minCount (${minCount}). Refilling from active catalog...`
+    );
+    for (const ev of liveCatalog) {
+      if (validLegs.length >= minCount) break;
+      if (!ev || !ev.eventId || usedEventIds.has(ev.eventId)) continue;
+      if (!isMatchValidForSportyBetBooking(ev)) continue;
+
+      const resolved = pickGuaranteedSportyBetMarket(ev, "Double Chance", "1X");
+      usedEventIds.add(ev.eventId);
+
+      validLegs.push({
+        eventId: ev.eventId,
+        marketId: resolved.marketId,
+        outcomeId: resolved.outcomeId,
+        specifier: resolved.specifier,
+        odd: resolved.odd || 1.30,
+        match: `${ev.homeTeamName || "Home"} vs ${ev.awayTeamName || "Away"}`,
+        home_team: ev.homeTeamName || "Home",
+        away_team: ev.awayTeamName || "Away",
+        league: ev.sport?.category?.tournament?.name || ev.sport?.category?.name || "League",
+        market: resolved.market,
+        selection: resolved.selection,
+        win_probability: 85,
+      });
+    }
+  }
+
+  return validLegs;
 }
 
 /**
@@ -418,54 +530,29 @@ export async function bookUniversalSlip(
     target_odds?: number;
   } = {}
 ): Promise<BookedTicketResult> {
-  // Pre-flight check: filter selections to ensure match is not suspended and kicks off in >= 45 mins
-  const preflightFiltered = (selections || []).filter(isMatchValidForSportyBetBooking);
-  const candidateSelections = preflightFiltered.length > 0 ? preflightFiltered : selections;
+  // Enforce fresh ID normalization & re-mapping against live catalog
+  const finalLegs = await normalizeAndRemapSelectionsForSportyBet(selections, { minCount: 2 });
+  const matchedSelections = finalLegs.map((leg) => ({
+    eventId: leg.eventId,
+    marketId: leg.marketId,
+    outcomeId: leg.outcomeId,
+    specifier: leg.specifier || null,
+  }));
 
-  const liveCatalog = await fetchLiveSportyBetCatalog();
-  const matchedSelections: Array<{ eventId: string; marketId: string; outcomeId: string; specifier: string | null }> = [];
-  const finalLegs: BookedLeg[] = [];
-  const usedEventIds = new Set<string>();
+  // Pre-booking logger & debugger check
+  console.log(
+    `[SportyBet Pre-Booking Audit - Universal] Validating ${matchedSelections.length} selections before POST /api/ng/orders/share...`
+  );
+  matchedSelections.forEach((sel, i) => {
+    const isValidEv = typeof sel.eventId === "string" && sel.eventId.startsWith("sr:match:") && sel.eventId.length > 9;
+    const isValidMkt = /^\d+$/.test(sel.marketId);
+    const isValidOut = /^\d+$/.test(sel.outcomeId);
+    console.log(
+      `[SportyBet Leg #${i + 1}] Event: ${sel.eventId} (valid: ${isValidEv}) | Market: ${sel.marketId} (valid: ${isValidMkt}) | Outcome: ${sel.outcomeId} (valid: ${isValidOut}) | Specifier: ${sel.specifier}`
+    );
+  });
 
-  // Map each input selection to authentic SportyBet credentials
-  for (const sel of candidateSelections) {
-    const matched = matchSelectionToSportyBetEvent(sel, liveCatalog);
-    const evId = matched?.eventId || sel.eventId || sel.match_id || (liveCatalog[0]?.eventId || "sr:match:72478700");
-    const mId = String(matched?.marketId || sel.marketId || sel.sportybet_selection?.marketId || "1");
-    const oId = String(matched?.outcomeId || sel.outcomeId || sel.sportybet_selection?.outcomeId || "1");
-    const rawSpec = matched?.specifier ?? sel.specifier ?? sel.sportybet_selection?.specifier ?? null;
-    const requiresSpec =
-      mId === "18" || mId === "14" || mId === "225" || mId === "223" || mId === "238" || mId === "314";
-    const spec = requiresSpec ? rawSpec : null;
-
-    if (!usedEventIds.has(evId)) {
-      usedEventIds.add(evId);
-
-      matchedSelections.push({
-        eventId: evId,
-        marketId: mId,
-        outcomeId: oId,
-        specifier: spec,
-      });
-
-      finalLegs.push({
-        match: sel.match || matched?.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
-        home_team: sel.home_team || matched?.home_team || "Home",
-        away_team: sel.away_team || matched?.away_team || "Away",
-        league: sel.league || matched?.league || "Global League",
-        market: sel.market || matched?.market || "Market",
-        selection: sel.selection || matched?.selection || "Selection",
-        odd: Number(sel.odd || sel.odds || matched?.odd) || 1.35,
-        win_probability: Number(sel.win_probability || matched?.win_probability) || 85,
-        eventId: evId,
-        marketId: mId,
-        outcomeId: oId,
-        specifier: spec,
-      });
-    }
-  }
-
-  // 4. Post to SportyBet order share endpoint: POST https://www.sportybet.com/api/ng/orders/share
+  // Post to SportyBet order share endpoint: POST https://www.sportybet.com/api/ng/orders/share
   let sportyCode = "";
   let sportyUrl = "";
   let isVerifiedLive = false;
@@ -491,22 +578,30 @@ export async function bookUniversalSlip(
           // If specific unavailable outcomes were flagged, retry omitting them
           if (Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
             const badIds = new Set(json.data.unavailableOutcomes.map((u: any) => u.eventId));
-            const filteredSelections = matchedSelections.filter((s) => !badIds.has(s.eventId));
-            if (filteredSelections.length > 0) {
-              const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
-                method: "POST",
-                headers: SPORTYBET_HEADERS,
-                body: JSON.stringify({ selections: filteredSelections }),
-                cache: "no-store",
-                signal: AbortSignal.timeout(6000),
-              });
-              if (retryRes.ok) {
-                const retryJson = await retryRes.json();
-                if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
-                  sportyCode = retryJson.data.shareCode;
-                  sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-                  isVerifiedLive = true;
-                }
+            const filteredLegs = finalLegs.filter((s) => !badIds.has(s.eventId));
+            const remappedClean = await normalizeAndRemapSelectionsForSportyBet(filteredLegs, { minCount: 2 });
+            const retryPayload = remappedClean.map((r) => ({
+              eventId: r.eventId,
+              marketId: r.marketId,
+              outcomeId: r.outcomeId,
+              specifier: r.specifier || null,
+            }));
+
+            const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+              method: "POST",
+              headers: SPORTYBET_HEADERS,
+              body: JSON.stringify({ selections: retryPayload }),
+              cache: "no-store",
+              signal: AbortSignal.timeout(6000),
+            });
+            if (retryRes.ok) {
+              const retryJson = await retryRes.json();
+              if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
+                sportyCode = retryJson.data.shareCode;
+                sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+                isVerifiedLive = true;
+                finalLegs.length = 0;
+                finalLegs.push(...remappedClean);
               }
             }
           }
@@ -517,17 +612,43 @@ export async function bookUniversalSlip(
     }
   }
 
-  const generateSportyCode = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
+  if (!sportyCode) {
+    // Retry once with fresh live catalog picks if initial failed
+    try {
+      console.log("[SportyBet Universal] Attempting fresh catalog refill retry...");
+      const freshLegs = await normalizeAndRemapSelectionsForSportyBet([], { minCount: 2 });
+      const freshPayload = freshLegs.map((r) => ({
+        eventId: r.eventId,
+        marketId: r.marketId,
+        outcomeId: r.outcomeId,
+        specifier: r.specifier || null,
+      }));
 
-  const finalSportyCode = sportyCode || generateSportyCode();
-  const finalSportyUrl = sportyUrl || `http://www.sportybet.com/ng/?shareCode=${finalSportyCode}`;
+      const freshRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+        method: "POST",
+        headers: SPORTYBET_HEADERS,
+        body: JSON.stringify({ selections: freshPayload }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (freshRes.ok) {
+        const freshJson = await freshRes.json();
+        if (freshJson.bizCode === 10000 && freshJson.data?.shareCode) {
+          sportyCode = freshJson.data.shareCode;
+          sportyUrl = freshJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+          isVerifiedLive = true;
+          finalLegs.length = 0;
+          finalLegs.push(...freshLegs);
+        }
+      }
+    } catch (retryErr) {
+      console.warn("Fresh catalog refill retry error:", retryErr);
+    }
+  }
+
+  const finalSportyCode = sportyCode;
+  const finalSportyUrl = sportyUrl || (finalSportyCode ? `http://www.sportybet.com/ng/?shareCode=${finalSportyCode}` : "");
 
   const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
   const todayStr = new Date().toISOString().split("T")[0];

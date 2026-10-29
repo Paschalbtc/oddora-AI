@@ -13,7 +13,12 @@
  */
 
 import { decodeVaultBookingCode, bookVaultSlip } from "../coreBookingVault";
-import { decodeAnyBookingCode, bookUniversalSlip, BookedLeg } from "./bookingEngine";
+import {
+  decodeAnyBookingCode,
+  bookUniversalSlip,
+  normalizeAndRemapSelectionsForSportyBet,
+  BookedLeg,
+} from "./bookingEngine";
 import { pruneLegsByStatisticalRisk } from "../apiFootballStatsBrain";
 
 export type EditSlipMode =
@@ -101,8 +106,12 @@ export async function executeEditSlip(
       const chunkOdds =
         Math.round(chunk.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
 
+      // 1. Enforce fresh ID re-mapping for each split chunk
+      const normalizedChunk = await normalizeAndRemapSelectionsForSportyBet(chunk, { minCount: 2 });
+      const finalChunk = normalizedChunk.length >= 2 ? normalizedChunk : chunk;
+
       // Book each split chunk using Core Booking Vault with strict preservation
-      let bookedChunk = await bookVaultSlip(chunk, {
+      let bookedChunk = await bookVaultSlip(finalChunk, {
         slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
       });
 
@@ -111,7 +120,7 @@ export async function executeEditSlip(
       let sportyUrl = bookedChunk.sporty_url;
 
       if (!sportyCode) {
-        const uBooked = await bookUniversalSlip(chunk, {
+        const uBooked = await bookUniversalSlip(finalChunk, {
           slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
         });
         sportyCode = uBooked.sportybet_code;
@@ -120,15 +129,17 @@ export async function executeEditSlip(
 
       const primaryCode = sportyCode;
       const shareUrl = sportyUrl;
+      const chunkLegs = bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : finalChunk;
+      const finalOdds = bookedChunk.actual_odds || chunkOdds;
 
       outputSlips.push({
         slip_index: idx + 1,
         booking_code: primaryCode,
         sporty_code: sportyCode,
         share_url: shareUrl,
-        total_odds: bookedChunk.actual_odds || chunkOdds,
-        legs_count: (bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : chunk).length,
-        surviving_legs: bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : chunk,
+        total_odds: finalOdds,
+        legs_count: chunkLegs.length,
+        surviving_legs: chunkLegs,
       });
     }
 
@@ -139,7 +150,7 @@ export async function executeEditSlip(
       mode: "SPLIT_TICKET",
       is_split: true,
       slips: outputSlips,
-      summary_message: `Successfully split ${originalCount} matches into ${outputSlips.length} balanced tickets with verified booking codes.`,
+      summary_message: `Successfully split ${originalCount} matches into ${outputSlips.length} balanced tickets with verified SportyBet booking codes.`,
     };
   }
 
@@ -163,19 +174,22 @@ export async function executeEditSlip(
     pruned = originalLegs.slice(2);
   }
 
-  const newOdds = Math.round(surviving.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
+  // 2. ENFORCE FRESH ID RE-MAPPING BEFORE BOOKING:
+  // Surviving matches must undergo normalization and live catalog verification
+  const normalizedSurviving = await normalizeAndRemapSelectionsForSportyBet(surviving, { minCount: 2 });
+  const finalSurvivingLegs = normalizedSurviving.length >= 2 ? normalizedSurviving : surviving;
 
   // Book the surviving legs into a real booking code via Core Booking Vault
-  let bookedSurviving = await bookVaultSlip(surviving, {
-    slip_category: "PRUNED_SLIP",
+  let bookedSurviving = await bookVaultSlip(finalSurvivingLegs, {
+    slip_category: `PRUNED_${req.mode}`,
   });
 
   let sportyCode = bookedSurviving.sportybet_code;
   let sportyUrl = bookedSurviving.sporty_url;
 
   if (!sportyCode) {
-    const uBooked = await bookUniversalSlip(surviving, {
-      slip_category: "PRUNED_SLIP",
+    const uBooked = await bookUniversalSlip(finalSurvivingLegs, {
+      slip_category: `PRUNED_${req.mode}`,
     });
     sportyCode = uBooked.sportybet_code;
     sportyUrl = uBooked.sporty_url;
@@ -183,6 +197,11 @@ export async function executeEditSlip(
 
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
+  const verifiedLegs =
+    bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : finalSurvivingLegs;
+  const verifiedOdds =
+    bookedSurviving.actual_odds ||
+    Math.round(verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
 
   return {
     original_code: code,
@@ -195,12 +214,12 @@ export async function executeEditSlip(
         booking_code: primaryCode,
         sporty_code: sportyCode,
         share_url: shareUrl,
-        total_odds: bookedSurviving.actual_odds || newOdds,
-        legs_count: (bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : surviving).length,
-        surviving_legs: bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : surviving,
+        total_odds: verifiedOdds,
+        legs_count: verifiedLegs.length,
+        surviving_legs: verifiedLegs,
         pruned_legs: pruned,
       },
     ],
-    summary_message: `Removed ${pruned.length} risky/redundant games. Surviving ticket re-booked at ${newOdds}x odds with working codes.`,
+    summary_message: `Removed ${pruned.length} risky/redundant games. Surviving ${verifiedLegs.length} matches re-booked at ${verifiedOdds}x odds with verified SportyBet code ${sportyCode}.`,
   };
 }

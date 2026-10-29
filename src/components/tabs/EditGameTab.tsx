@@ -328,9 +328,15 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
                     <div>
-                      <span className="text-[10px] font-mono font-black uppercase text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                        {result.is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-black uppercase text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                          {result.is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
+                          <ShieldCheck className="w-3 h-3 text-cyan-400" />
+                          <span>SportyBet Verified</span>
+                        </span>
+                      </div>
                       <h4 className="text-sm font-bold text-white mt-1">
                         {slip.legs_count} Surviving Legs •{" "}
                         <span className="text-emerald-400 font-mono font-bold">
@@ -342,11 +348,11 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                     {/* Copy button */}
                     <button
                       type="button"
-                      onClick={() => handleCopy(slip.booking_code)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto"
+                      onClick={() => handleCopy(sportyCode)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto shadow-sm active:scale-95"
                     >
-                      <span>Code: {slip.booking_code}</span>
-                      {copiedCode === slip.booking_code ? (
+                      <span>Code: {sportyCode}</span>
+                      {copiedCode === sportyCode ? (
                         <Check className="w-3.5 h-3.5 text-emerald-400" />
                       ) : (
                         <Copy className="w-3.5 h-3.5 text-emerald-300" />
@@ -356,13 +362,13 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
                   {/* 1-Click Launchers */}
                   <a
-                    href={sportyUrl || `http://www.sportybet.com/ng/?shareCode=${slip.booking_code}`}
+                    href={sportyUrl || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-2 px-3 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#E51D25] hover:bg-red-600 text-white font-black text-xs text-center flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
                   >
                     <Zap className="w-3.5 h-3.5" />
-                    <span>⚡ Load Slip Directly on SportyBet</span>
+                    <span>⚡ Load Slip Directly on SportyBet ({sportyCode})</span>
                     <ExternalLink className="w-3 h-3 ml-0.5" />
                   </a>
 

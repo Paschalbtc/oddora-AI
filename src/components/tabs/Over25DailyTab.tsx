@@ -13,8 +13,10 @@ import {
   TrendingUp,
   Activity,
   Zap,
+  Plus,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
+import { useBetSlip } from "@/context/BetSlipContext";
 
 export interface Over25DailyTabProps {
   currentTier: UserTier;
@@ -25,6 +27,7 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   currentTier,
   onOpenUpgradeModal,
 }) => {
+  const { isInSlip, toggleLeg } = useBetSlip();
   const [specialSlip, setSpecialSlip] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -315,23 +318,69 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                       </p>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-white text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="truncate min-w-0 flex-1">
+                        <div className="font-bold text-white text-sm truncate">
                           {leg.match || `${leg.home_team} vs ${leg.away_team}`}
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">
                           Selection: <span className="text-amber-400 font-bold">{leg.selection || "Over 2.5 Goals"}</span>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-xs font-mono font-bold text-white bg-white/[0.05] px-2.5 py-1 rounded-lg border border-white/10 block">
-                          @ {leg.odd ? Number(leg.odd).toFixed(2) : "1.75"}
-                        </span>
-                        <span className="text-[10px] font-mono text-emerald-400 mt-1 block">
-                          {leg.win_probability || 80}% Win Confidence
-                        </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs font-mono font-bold text-white bg-white/[0.05] px-2.5 py-1 rounded-lg border border-white/10 block">
+                            @ {leg.odd ? Number(leg.odd).toFixed(2) : "1.75"}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 mt-1 block">
+                            {leg.win_probability || 80}% Win
+                          </span>
+                        </div>
+
+                        {(() => {
+                          const legId = leg.match_id || `over25_leg_${idx}_${(leg.match || `${leg.home_team}_${leg.away_team}`).replace(/\s+/g, '_')}`;
+                          const inSlip = isInSlip(legId);
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const teams = (leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`).split(" vs ");
+                                toggleLeg({
+                                  id: legId,
+                                  eventId: leg.eventId || legId,
+                                  sport: "FOOTBALL",
+                                  league: leg.league || "Premier League",
+                                  homeTeam: teams[0] || leg.home_team || "Home",
+                                  awayTeam: teams[1] || leg.away_team || "Away",
+                                  selection: leg.selection || "Over 2.5 Goals",
+                                  market: "Over/Under 2.5",
+                                  odds: Number(leg.odd) || 1.75,
+                                  kickoffTime: leg.kickoffTime,
+                                  sportybetSelection: leg.sportybetSelection,
+                                });
+                              }}
+                              title={inSlip ? "Remove from Bet Slip" : "Add to Bet Slip"}
+                              className={`px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 font-bold text-xs shrink-0 active:scale-95 ${
+                                inSlip
+                                  ? "bg-[#10B981] text-black font-black shadow-md shadow-[#10B981]/25 ring-1 ring-[#10B981]/50"
+                                  : "bg-[#10B981]/15 text-[#10B981] hover:bg-[#10B981]/25 border border-[#10B981]/30"
+                              }`}
+                            >
+                              {inSlip ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  <span>In Slip</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>Add</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}

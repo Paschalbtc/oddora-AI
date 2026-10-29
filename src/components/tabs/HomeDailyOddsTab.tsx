@@ -22,8 +22,10 @@ import {
   ArrowRight,
   BookOpen,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
+import { useBetSlip } from "@/context/BetSlipContext";
 
 export interface HomeDailyOddsTabProps {
   currentTier: UserTier;
@@ -36,6 +38,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   onNavigateTab,
   onOpenUpgradeModal,
 }) => {
+  const { isInSlip, toggleLeg } = useBetSlip();
   // Results summary state
   const [resultsSummary, setResultsSummary] = useState({
     bankers_win_rate: 87.5,
@@ -466,13 +469,15 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                   <div className="mt-4 space-y-2">
                     {legs.slice(0, isExpanded ? legs.length : 3).map((leg: any, idx: number) => {
                       const legLocked = isLocked && idx > 0;
+                      const legId = leg.match_id || `daily_${slip.slip_type}_${idx}_${(leg.match || "").replace(/\s+/g, '_')}`;
+                      const inSlip = isInSlip(legId);
                       return (
                         <div
                           key={idx}
-                          className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs hover:bg-white/[0.05] transition"
+                          className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs hover:bg-white/[0.05] transition gap-2"
                         >
-                          <div className="truncate max-w-[200px] sm:max-w-[260px]">
-                            <span className="font-semibold text-slate-200">
+                          <div className="truncate min-w-0 flex-1">
+                            <span className="font-semibold text-slate-200 block truncate">
                               {legLocked ? "🔒 Locked VIP Match" : leg.match}
                             </span>
                             <div className="text-[10px] text-slate-400 truncate mt-0.5">
@@ -480,13 +485,55 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                             </div>
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <span className="font-bold text-emerald-400 font-mono text-xs">
-                              {legLocked ? "🔒 VIP" : leg.selection}
-                            </span>
-                            <div className="text-[10px] text-slate-400 font-mono">
-                              {legLocked ? "VIP" : `@ ${Number(leg.odd || 1.5).toFixed(2)}`}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <span className="font-bold text-emerald-400 font-mono text-xs block">
+                                {legLocked ? "🔒 VIP" : leg.selection}
+                              </span>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                {legLocked ? "VIP" : `@ ${Number(leg.odd || 1.5).toFixed(2)}`}
+                              </div>
                             </div>
+
+                            {!legLocked && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const teams = (leg.match || "Home vs Away").split(" vs ");
+                                  toggleLeg({
+                                    id: legId,
+                                    eventId: leg.eventId || legId,
+                                    sport: (leg.sport || "FOOTBALL").toUpperCase(),
+                                    league: leg.league || "Premier Division",
+                                    homeTeam: teams[0] || "Home",
+                                    awayTeam: teams[1] || "Away",
+                                    selection: leg.selection || "Win",
+                                    market: leg.market || "Match Winner",
+                                    odds: Number(leg.odd) || 1.45,
+                                    kickoffTime: leg.kickoffTime,
+                                    sportybetSelection: leg.sportybetSelection,
+                                  });
+                                }}
+                                title={inSlip ? "Remove from Bet Slip" : "Add to Bet Slip"}
+                                className={`px-2.5 py-1 rounded-xl transition flex items-center gap-1 font-bold text-[11px] shrink-0 active:scale-95 ${
+                                  inSlip
+                                    ? "bg-[#10B981] text-black font-black shadow-md shadow-[#10B981]/25 ring-1 ring-[#10B981]/50"
+                                    : "bg-[#10B981]/15 text-[#10B981] hover:bg-[#10B981]/25 border border-[#10B981]/30"
+                                }`}
+                              >
+                                {inSlip ? (
+                                  <>
+                                    <Check className="w-3 h-3 stroke-[3]" />
+                                    <span>In Slip</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="w-3 h-3 stroke-[2.5]" />
+                                    <span>Add</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                       );

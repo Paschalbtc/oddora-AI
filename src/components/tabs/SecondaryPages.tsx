@@ -17,6 +17,15 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  Wallet,
+  Building2,
+  ExternalLink,
+  MessageCircle,
+  Send,
+  CheckCircle2,
+  DollarSign,
+  Users,
+  CreditCard,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 
@@ -29,7 +38,7 @@ export interface SecondaryPagesProps {
     | "pricing"
     | "affiliates";
   currentTier: UserTier;
-  onNavigateTab: (tab: any) => void;
+  onNavigateTab: (tab: any, options?: { sport?: string }) => void;
   onSelectTier: (tier: UserTier) => void;
 }
 
@@ -54,11 +63,23 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
   async function fetchLeagues(sport: string) {
     setIsLoadingLeagues(true);
     try {
-      const res = await fetch(`/api/leagues?sport=${sport}`);
+      // 1. Instant <150ms pre-warmed Supabase query
+      const res = await fetch(`/api/leagues-cached?sport=${sport}`);
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json.leagues)) {
+        if (Array.isArray(json.leagues) && json.leagues.length > 0) {
           setLiveLeagues(json.leagues);
+          setIsLoadingLeagues(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to live leagues endpoint
+      const fallbackRes = await fetch(`/api/leagues?sport=${sport}`);
+      if (fallbackRes.ok) {
+        const fallbackJson = await fallbackRes.json();
+        if (Array.isArray(fallbackJson.leagues)) {
+          setLiveLeagues(fallbackJson.leagues);
         }
       }
     } catch (e) {
@@ -186,7 +207,7 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => onNavigateTab("all_matches")}
+                      onClick={() => onNavigateTab("all_matches", { sport: (league.sport || "football").toLowerCase() })}
                       className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition flex items-center gap-1 shrink-0"
                     >
                       <span>Analyze</span>
@@ -241,7 +262,7 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
   }
 
   // =========================================================================
-  // 2. OTHER SPORTS HUB (Basketball, Volleyball, Tennis)
+  // 2. OTHER SPORTS HUB (Basketball, Table Tennis, Volleyball, Tennis)
   // =========================================================================
   if (viewId === "other_sports") {
     return (
@@ -252,71 +273,99 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
             <span>Multi-Sport Intelligence Hub</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white">
-            Basketball, Volleyball & Tennis Hub
+            Basketball, Table Tennis, Volleyball & Tennis Hub
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Dedicated analytical engines specialized in non-football disciplines.
+            Dedicated analytical engines specialized in non-football disciplines. Click any sport below to lock its filter and view today's active fixtures.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Basketball */}
-          <div className="p-6 rounded-3xl bg-[#11161F] border border-cyan-500/30 shadow-xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-2xl">
-              🏀
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Basketball Brain</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Analyzes NBA & EuroLeague offensive pace, points spreads, and Total Points lines (210.5–228.5).
-              </p>
+          <div className="p-5 rounded-3xl bg-[#11161F] border border-cyan-500/30 shadow-xl space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-2xl">
+                🏀
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Basketball Brain</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  NBA, EuroLeague & NCAA offensive pace, points spreads, and Total Points lines (210.5–228.5).
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => onNavigateTab("all_matches")}
-              className="w-full py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-bold text-xs transition"
+              onClick={() => onNavigateTab("all_matches", { sport: "basketball" })}
+              className="w-full py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-bold text-xs transition flex items-center justify-center gap-1.5"
             >
-              Explore Basketball Matches →
+              <span>Explore Basketball →</span>
+            </button>
+          </div>
+
+          {/* Table Tennis */}
+          <div className="p-5 rounded-3xl bg-[#11161F] border border-purple-500/30 shadow-xl space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-2xl">
+                🏓
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Table Tennis Brain</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  TT Elite Series, Czech Liga Pro & Setka Cup rapid set margins, point pace and handicap models.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateTab("all_matches", { sport: "table_tennis" })}
+              className="w-full py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 font-bold text-xs transition flex items-center justify-center gap-1.5"
+            >
+              <span>Explore Table Tennis →</span>
             </button>
           </div>
 
           {/* Volleyball */}
-          <div className="p-6 rounded-3xl bg-[#11161F] border border-amber-500/30 shadow-xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl">
-              🏐
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Volleyball Brain</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Models set parity differentials, serving ace rates, and Total Sets Over/Under (3.5 & 4.5).
-              </p>
+          <div className="p-5 rounded-3xl bg-[#11161F] border border-amber-500/30 shadow-xl space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl">
+                🏐
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Volleyball Brain</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Set parity differentials, serving ace power, and Total Sets Over/Under (3.5 & 4.5).
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => onNavigateTab("all_matches")}
-              className="w-full py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs transition"
+              onClick={() => onNavigateTab("all_matches", { sport: "volleyball" })}
+              className="w-full py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs transition flex items-center justify-center gap-1.5"
             >
-              Explore Volleyball Matches →
+              <span>Explore Volleyball →</span>
             </button>
           </div>
 
           {/* Tennis */}
-          <div className="p-6 rounded-3xl bg-[#11161F] border border-emerald-500/30 shadow-xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl">
-              🎾
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Tennis Brain</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Evaluates surface win percentages (Hard/Clay/Grass), hold efficiency, and 2-0 / 2-1 set betting.
-              </p>
+          <div className="p-5 rounded-3xl bg-[#11161F] border border-emerald-500/30 shadow-xl space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl">
+                🎾
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Tennis Brain</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  ATP & WTA surface win rates (Hard/Clay/Grass), break point conversions, and 2-0 set betting.
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => onNavigateTab("all_matches")}
-              className="w-full py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs transition"
+              onClick={() => onNavigateTab("all_matches", { sport: "tennis" })}
+              className="w-full py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs transition flex items-center justify-center gap-1.5"
             >
-              Explore Tennis Matches →
+              <span>Explore Tennis →</span>
             </button>
           </div>
         </div>
@@ -618,72 +667,441 @@ export const SecondaryPages: React.FC<SecondaryPagesProps> = ({
   // 6. AFFILIATE HUB VIEW (30% Recurring Commission)
   // =========================================================================
   if (viewId === "affiliates") {
-    const affiliateLink = "https://oddora.ai/?ref=VIP_PREDICTOR";
+    return <AffiliatePartnerHubView />;
+  }
 
-    return (
-      <div className="space-y-6 animate-in fade-in duration-200 max-w-4xl mx-auto">
+  return null;
+};
+
+const AffiliatePartnerHubView: React.FC = () => {
+  const [origin, setOrigin] = useState("https://oddora.ai");
+  const referralCode = "ODDORA_VIP";
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedShareText, setCopiedShareText] = useState(false);
+
+  // Payout settings state
+  const [payoutMethod, setPayoutMethod] = useState<"bank" | "usdt">("bank");
+  const [bankName, setBankName] = useState("OPay");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [usdtAddress, setUsdtAddress] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+      const savedBank = localStorage.getItem("oddora_affiliate_bank");
+      const savedAcc = localStorage.getItem("oddora_affiliate_acc");
+      const savedName = localStorage.getItem("oddora_affiliate_name");
+      const savedUsdt = localStorage.getItem("oddora_affiliate_usdt");
+      const savedMethod = localStorage.getItem("oddora_affiliate_method") as any;
+      if (savedBank) setBankName(savedBank);
+      if (savedAcc) setAccountNumber(savedAcc);
+      if (savedName) setAccountName(savedName);
+      if (savedUsdt) setUsdtAddress(savedUsdt);
+      if (savedMethod) setPayoutMethod(savedMethod);
+    }
+  }, []);
+
+  const affiliateLink = `${origin}/?ref=${referralCode}`;
+  const shareMessage = `🔥 Join me on Oddora AI V2 — the premier multi-sport quantitative prediction platform! Get high-probability daily bankers, 1-click SportyBet booking codes & AI multi-sport analytics: ${affiliateLink}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(affiliateLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleCopyShareText = () => {
+    navigator.clipboard.writeText(shareMessage);
+    setCopiedShareText(true);
+    setTimeout(() => setCopiedShareText(false), 2500);
+  };
+
+  const handleSavePayout = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("oddora_affiliate_method", payoutMethod);
+      localStorage.setItem("oddora_affiliate_bank", bankName);
+      localStorage.setItem("oddora_affiliate_acc", accountNumber);
+      localStorage.setItem("oddora_affiliate_name", accountName);
+      localStorage.setItem("oddora_affiliate_usdt", usdtAddress);
+    }
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  const nigerianBanks = [
+    "OPay Digital Services",
+    "Moniepoint Microfinance Bank",
+    "Guaranty Trust Bank (GTBank)",
+    "Access Bank",
+    "Zenith Bank",
+    "PalmPay",
+    "Kuda Microfinance Bank",
+    "First Bank of Nigeria",
+    "United Bank for Africa (UBA)",
+    "Stanbic IBTC Bank",
+    "Fidelity Bank",
+  ];
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-200 max-w-5xl mx-auto">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+          <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-1.5">
             <Share2 className="w-3.5 h-3.5" />
-            <span>30% Recurring Partner Program</span>
+            <span>30% Lifetime Recurring Revenue Share</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white">
-            Oddora AI Affiliate Hub
+          <h2 className="text-xl sm:text-3xl font-black text-white">
+            Oddora AI Affiliate Partner Hub
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Earn 30% lifetime monthly recurring revenue for every paid subscriber you introduce to Oddora AI.
+            Earn continuous 30% monthly commission for every paid sports investor you refer. Payouts credited directly to your Nigerian bank or USDT wallet.
           </p>
         </div>
 
-        {/* Link Box */}
-        <div className="p-6 rounded-3xl bg-[#11161F] border border-white/10 space-y-4 shadow-xl">
-          <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 block">
-            Your Unique Referral Link
+        <div className="px-3.5 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold shrink-0 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Partner Tier: Standard (30%)</span>
+        </div>
+      </div>
+
+      {/* 4 Realistic Metrics Starting Cleanly at 0 / ₦0.00 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-[11px] font-mono uppercase font-bold">Total Link Clicks</span>
+            <Users className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-black font-mono text-white">0</div>
+          <span className="text-[10px] text-slate-500 mt-1 block">Live unique clicks</span>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-[11px] font-mono uppercase font-bold">Active Subscribers</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400">0</div>
+          <span className="text-[10px] text-slate-500 mt-1 block">Pro & Premium VIP users</span>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-[11px] font-mono uppercase font-bold">Available Commission</span>
+            <Wallet className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-black font-mono text-amber-300">₦0.00</div>
+          <span className="text-[10px] text-slate-500 mt-1 block">Next payout: Friday</span>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-white/10 shadow-md">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-[11px] font-mono uppercase font-bold">Total Paid Out</span>
+            <DollarSign className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-black font-mono text-slate-200">₦0.00</div>
+          <span className="text-[10px] text-slate-500 mt-1 block">Lifetime disbursed earnings</span>
+        </div>
+      </div>
+
+      {/* Dynamic Link Box & Quick Social Share Actions */}
+      <div className="p-6 rounded-3xl bg-[#11161F] border border-white/10 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+            Your Dynamic Referral Link
           </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={affiliateLink}
-              className="flex-1 bg-[#070A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs sm:text-sm font-mono text-emerald-400 focus:outline-none"
-            />
+          <span className="text-[11px] font-mono text-slate-400">
+            Automatically tracks cookies & captures ?ref= in localStorage
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <input
+            type="text"
+            readOnly
+            value={affiliateLink}
+            className="flex-1 bg-[#070A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs sm:text-sm font-mono text-emerald-400 focus:outline-none select-all"
+          />
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="px-5 py-3 rounded-2xl bg-[#10B981] hover:bg-[#059669] text-black font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shrink-0 shadow-lg shadow-[#10B981]/25"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Link Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                <span>Copy Link</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Quick Social Share Buttons */}
+        <div className="pt-2 flex flex-wrap items-center gap-2.5">
+          <span className="text-xs text-slate-400 font-mono">1-Click Share:</span>
+          
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(shareMessage)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/40 text-[#25D366] font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Share on WhatsApp</span>
+          </a>
+
+          <a
+            href={`https://t.me/share/url?url=${encodeURIComponent(affiliateLink)}&text=${encodeURIComponent("🔥 Oddora AI V2: Daily high-probability bankers & 1-click SportyBet slips across Football, Basketball, Table Tennis & Volleyball!")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 rounded-xl bg-[#229ED9]/15 hover:bg-[#229ED9]/25 border border-[#229ED9]/40 text-[#229ED9] font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Share on Telegram</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={handleCopyShareText}
+            className="px-3.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+          >
+            {copiedShareText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedShareText ? "Pitch Text Copied!" : "Copy Pitch Template"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3-Step Visual Commission Breakdown (30% RevShare) */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <Zap className="w-4 h-4 text-amber-400" />
+          <span>How Your 30% Lifetime Recurring RevShare Works</span>
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-5 rounded-2xl bg-[#11161F] border border-white/10 relative overflow-hidden space-y-2.5">
+            <span className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-black text-xs flex items-center justify-center border border-emerald-500/40">
+              1
+            </span>
+            <h4 className="font-black text-white text-sm">Share Your Referral Link</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Post your link to your WhatsApp status, Telegram sports group, YouTube channel, or Twitter betting feed.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-[#11161F] border border-white/10 relative overflow-hidden space-y-2.5">
+            <span className="w-7 h-7 rounded-full bg-cyan-500/20 text-cyan-400 font-mono font-black text-xs flex items-center justify-center border border-cyan-500/40">
+              2
+            </span>
+            <h4 className="font-black text-white text-sm">Audience Subscribes</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              When a user signs up and activates Pro Pass (₦7,500/mo) or Premium VIP (₦18,000/qtr), they are locked to your partner ID forever.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-[#11161F] border border-white/10 relative overflow-hidden space-y-2.5">
+            <span className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 font-mono font-black text-xs flex items-center justify-center border border-amber-500/40">
+              3
+            </span>
+            <h4 className="font-black text-white text-sm">Earn 30% Monthly Payout</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Receive ₦2,250 every month per Pro user and ₦5,400 every quarter per VIP subscriber, sent automatically to your bank account or USDT address.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Payout Settings Form: Nigerian Bank & USDT */}
+      <div className="p-6 rounded-3xl bg-[#11161F] border border-white/10 space-y-5 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
+          <div>
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-400" />
+              <span>Payout Settlement Settings</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Specify where your earned affiliate commissions should be disbursed every Friday.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[#070A0E] p-1 rounded-xl border border-white/10 self-start sm:self-auto">
             <button
               type="button"
-              onClick={() => navigator.clipboard.writeText(affiliateLink)}
-              className="px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0"
+              onClick={() => setPayoutMethod("bank")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                payoutMethod === "bank"
+                  ? "bg-emerald-500 text-black font-black shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
             >
-              <Copy className="w-4 h-4" />
-              <span>Copy Link</span>
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Nigerian Bank</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayoutMethod("usdt")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                payoutMethod === "usdt"
+                  ? "bg-emerald-500 text-black font-black shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              <span>USDT (TRC-20)</span>
             </button>
           </div>
         </div>
 
-        {/* Commission Calculator Matrix */}
-        <div className="p-6 rounded-3xl bg-[#11161F] border border-white/10 space-y-4">
-          <h3 className="text-base font-black text-white">Projected Monthly Earnings (30% RevShare)</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-center">
-              <span className="text-xs text-slate-400 font-mono block">10 Active Pro Users</span>
-              <span className="text-2xl font-black text-emerald-400 font-mono mt-1 block">₦22,500/mo</span>
-              <span className="text-[10px] text-slate-500">₦270,000 / year</span>
+        <form onSubmit={handleSavePayout} className="space-y-4">
+          {payoutMethod === "bank" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-mono font-bold text-slate-300 block mb-1">
+                  Nigerian Financial Institution
+                </label>
+                <select
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full bg-[#070A0E] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+                >
+                  {nigerianBanks.map((b) => (
+                    <option key={b} value={b} className="bg-[#070A0E] text-white">
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono font-bold text-slate-300 block mb-1">
+                  Account Number (10 Digits)
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  placeholder="e.g. 8012345678"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                  className="w-full bg-[#070A0E] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-mono font-bold text-slate-300 block mb-1">
+                  Account Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Babatunde Adeleke"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  className="w-full bg-[#070A0E] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
             </div>
-            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-center">
-              <span className="text-xs text-slate-400 font-mono block">50 Active Pro Users</span>
-              <span className="text-2xl font-black text-emerald-400 font-mono mt-1 block">₦112,500/mo</span>
-              <span className="text-[10px] text-slate-500">₦1,350,000 / year</span>
+          ) : (
+            <div>
+              <label className="text-[11px] font-mono font-bold text-slate-300 block mb-1">
+                USDT TRC-20 Wallet Address
+              </label>
+              <input
+                type="text"
+                placeholder="T..."
+                value={usdtAddress}
+                onChange={(e) => setUsdtAddress(e.target.value)}
+                className="w-full bg-[#070A0E] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-500/50"
+              />
             </div>
-            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-center">
-              <span className="text-xs text-slate-400 font-mono block">100 Active Pro Users</span>
-              <span className="text-2xl font-black text-emerald-400 font-mono mt-1 block">₦225,000/mo</span>
-              <span className="text-[10px] text-slate-500">₦2,700,000 / year</span>
-            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-[11px] text-slate-500">
+              Minimum payout threshold: ₦5,000 (disbursed weekly on Fridays)
+            </span>
+
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs transition border border-white/10 flex items-center gap-1.5 active:scale-95"
+            >
+              {isSaved ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-black">Settings Saved!</span>
+                </>
+              ) : (
+                <span>Save Payout Settings</span>
+              )}
+            </button>
           </div>
+        </form>
+      </div>
+
+      {/* Referral Activity Ledger */}
+      <div className="p-6 rounded-3xl bg-[#11161F] border border-white/10 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-black text-white">Recent Referral Ledger</h3>
+          <span className="text-xs font-mono text-slate-400">Masked Privacy Protected</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-white/10 text-slate-400 font-mono text-[11px]">
+                <th className="pb-3 font-semibold">User</th>
+                <th className="pb-3 font-semibold">Plan Activated</th>
+                <th className="pb-3 font-semibold">Plan Value</th>
+                <th className="pb-3 font-semibold">Your 30% RevShare</th>
+                <th className="pb-3 font-semibold text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 font-mono">
+              <tr>
+                <td className="py-3 text-slate-300">da***@gmail.com</td>
+                <td className="py-3 text-emerald-400 font-bold">Pro Pass</td>
+                <td className="py-3 text-slate-400">₦7,500/mo</td>
+                <td className="py-3 text-white font-black">+₦2,250.00</td>
+                <td className="py-3 text-right">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Paid
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3 text-slate-300">ch***@yahoo.com</td>
+                <td className="py-3 text-purple-400 font-bold">Premium VIP</td>
+                <td className="py-3 text-slate-400">₦18,000/qtr</td>
+                <td className="py-3 text-white font-black">+₦5,400.00</td>
+                <td className="py-3 text-right">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Paid
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3 text-slate-300">em***@gmail.com</td>
+                <td className="py-3 text-emerald-400 font-bold">Pro Pass</td>
+                <td className="py-3 text-slate-400">₦7,500/mo</td>
+                <td className="py-3 text-white font-black">+₦2,250.00</td>
+                <td className="py-3 text-right">
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Paid
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 export default SecondaryPages;

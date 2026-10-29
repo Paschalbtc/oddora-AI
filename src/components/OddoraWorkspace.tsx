@@ -11,19 +11,37 @@ import { EditGameTab } from "./tabs/EditGameTab";
 import { CopilotTab } from "./tabs/CopilotTab";
 import { SecondaryPages } from "./tabs/SecondaryPages";
 import { CheckCircle2, X, Crown, ShieldCheck, Zap } from "lucide-react";
+import { BetSlipProvider } from "@/context/BetSlipContext";
+import { FloatingBetSlip } from "./FloatingBetSlip";
 
 const OddoraWorkspaceInner: React.FC = () => {
   const searchParams = useSearchParams();
   const urlTab = searchParams?.get("tab") as WorkspaceTab | null;
+  const urlSport = searchParams?.get("sport");
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("home");
+  const [selectedSportFilter, setSelectedSportFilter] = useState<string>(urlSport || "football");
   const [currentTier, setCurrentTier] = useState<UserTier>("FREE");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
+  // Capture referral code on visit
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref) {
+        localStorage.setItem("oddora_referral_code", ref);
+      }
+    }
+  }, []);
+
   // Sync with URL query parameter on mount
   useEffect(() => {
+    if (urlSport) {
+      setSelectedSportFilter(urlSport);
+    }
     if (urlTab) {
       const validTabs: WorkspaceTab[] = [
         "home",
@@ -50,14 +68,22 @@ const OddoraWorkspaceInner: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleTabChange = (newTab: WorkspaceTab) => {
+  const handleTabChange = (newTab: WorkspaceTab, options?: { sport?: string }) => {
     setActiveTab(newTab);
+    if (options?.sport) {
+      setSelectedSportFilter(options.sport.toLowerCase());
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       if (newTab === "home") {
         url.searchParams.delete("tab");
       } else {
         url.searchParams.set("tab", newTab);
+      }
+      if (options?.sport) {
+        url.searchParams.set("sport", options.sport.toLowerCase());
+      } else if (newTab !== "all_matches") {
+        url.searchParams.delete("sport");
       }
       window.history.pushState({}, "", url.toString());
     }
@@ -110,9 +136,9 @@ const OddoraWorkspaceInner: React.FC = () => {
           <AllMatchesTab
             currentTier={currentTier}
             onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            initialSport={selectedSportFilter as any}
             onAddToSlip={() => {
-              showToast("Match added! Navigating to Slip Builder...");
-              handleTabChange("slip_builder");
+              showToast("Match added to Bet Slip!");
             }}
           />
         )}
@@ -216,6 +242,9 @@ const OddoraWorkspaceInner: React.FC = () => {
         </div>
       )}
 
+      {/* Interactive Global Floating Bet Slip */}
+      <FloatingBetSlip />
+
       {/* Floating Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-20 md:bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-emerald-500 text-black font-black text-xs shadow-2xl flex items-center gap-2 border border-emerald-400 animate-in fade-in slide-in-from-bottom-2">
@@ -239,7 +268,9 @@ export const OddoraWorkspace: React.FC = () => {
         </div>
       }
     >
-      <OddoraWorkspaceInner />
+      <BetSlipProvider>
+        <OddoraWorkspaceInner />
+      </BetSlipProvider>
     </Suspense>
   );
 };

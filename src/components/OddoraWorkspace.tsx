@@ -131,7 +131,7 @@ const OddoraWorkspaceInner: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070A0E] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#070A0E] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black transition-colors duration-150">
       {/* Top Navbar & Mobile Bottom Bar */}
       <Navbar
         activeTab={activeTab}
@@ -271,8 +271,8 @@ export const OddoraWorkspace: React.FC = () => {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#070A0E] flex items-center justify-center">
-          <div className="flex items-center gap-2 text-slate-400 font-mono text-xs">
+        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#070A0E] flex items-center justify-center">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-mono text-xs">
             <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
             <span>Loading Oddora AI V2 Platform...</span>
           </div>

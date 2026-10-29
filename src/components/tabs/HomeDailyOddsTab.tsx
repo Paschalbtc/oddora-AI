@@ -107,58 +107,24 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* =========================================================================
-          LIVE TELEMETRY PULSE BANNER
+          BEGINNER QUICK-START ONBOARDING BANNER (Streamlined Hero)
          ========================================================================= */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/10 dark:via-[#11161F] dark:to-cyan-500/10 border-2 border-[#00C896] dark:border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                Live Bridge Online
-              </span>
-              <span className="text-[10px] bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 font-mono px-2 py-0.2 rounded-full border border-emerald-500/30 font-bold">
-                SportyBet Verified
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
-              Official order sharing active: Every generated code directly loads in official SportyBet betslips.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-          <a
-            href="https://www.sportybet.com/ng/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-[#E51D25]/15 dark:hover:bg-[#E51D25]/30 border border-red-200 dark:border-[#E51D25]/40 text-red-700 dark:text-red-300 text-[11px] font-bold flex items-center gap-1 transition"
-          >
-            <span>SportyBet NG</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          BEGINNER QUICK-START ONBOARDING BANNER (Always Visible & Friendly)
-         ========================================================================= */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-[#11161F] dark:to-[#11161F] border-2 border-[#00C896] dark:border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-xl">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+      <div className="p-4 sm:p-6 rounded-3xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-[#11161F] dark:to-[#11161F] border-2 border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm dark:shadow-xl">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30 shadow-inner">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 mb-1">
+              <span>HOW TO PLAY & WIN</span>
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-white text-base sm:text-lg">
               New to Oddora AI? Here is how to play today:
             </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-              1. Check our <strong className="text-emerald-700 dark:text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed max-w-2xl">
+              1. Check our <strong className="text-emerald-600 dark:text-emerald-400">Super Banker (2.00x)</strong> below — free for all users every day.
               <br />
-              2. Tap <strong className="text-red-700 dark:text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-700 dark:text-emerald-400">"Copy"</strong> to copy the booking code.
+              2. Tap <strong className="text-red-600 dark:text-red-400">"Load"</strong> to open it directly in SportyBet with 1 click, or tap <strong className="text-emerald-600 dark:text-emerald-400">"Copy"</strong> to load the booking code.
             </p>
           </div>
         </div>
@@ -166,14 +132,33 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
           <button
             type="button"
-            onClick={() => onNavigateTab("how_it_works")}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition border border-slate-200 dark:border-white/10"
+            onClick={() => onNavigateTab("guide")}
+            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center justify-center gap-2 transition shadow-md cursor-pointer active:scale-95"
           >
-            <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Platform Guide</span>
-            <ArrowRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <BookOpen className="w-4 h-4 text-black" />
+            <span>Open Platform Guide</span>
+            <ArrowRight className="w-4 h-4 text-black" />
           </button>
         </div>
+      </div>
+
+      {/* =========================================================================
+          AFRIODDS-STYLE RAPID FIXTURE & LEAGUE SEARCH BAR
+         ========================================================================= */}
+      <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 shadow-xs flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigateTab("all_matches")}
+          className="flex-1 py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs font-medium flex items-center justify-between transition text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 truncate">
+            <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate">Search live fixtures, teams & markets across 4 sports...</span>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 shrink-0">
+            Search Matches →
+          </span>
+        </button>
       </div>
 
       {/* =========================================================================
@@ -182,82 +167,82 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       <section className="space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
               <Award className="w-3.5 h-3.5" />
               <span>Verified Real-World Win Rates</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
               Platform Performance Tracker
             </h2>
           </div>
-          <span className="text-[11px] font-mono text-slate-400 bg-white/[0.04] px-3 py-1 rounded-full border border-white/10">
+          <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.04] px-3 py-1 rounded-full border border-slate-200 dark:border-white/10">
             Graded from Real Scores • Updated Daily
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
           {/* Card 1: Bankers Win Rate */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-emerald-500/30 relative overflow-hidden shadow-lg group hover:border-emerald-500/50 transition">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-emerald-500/30 relative overflow-hidden shadow-xs dark:shadow-lg group hover:border-emerald-500/50 transition">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold uppercase tracking-wider text-emerald-300">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                 Bankers Win Rate
               </span>
-              <Flame className="w-4 h-4 text-emerald-400" />
+              <Flame className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl sm:text-4xl font-black text-emerald-400 font-mono">
+              <span className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
                 {resultsSummary.bankers_win_rate}%
               </span>
-              <span className="text-[11px] font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
                 {resultsSummary.won_slips}/{resultsSummary.total_graded_slips} Slips
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Top mathematical 2.00–3.00 odds daily banker tickets.
             </p>
           </div>
 
           {/* Card 2: Free Tips Win Rate */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-cyan-500/30 relative overflow-hidden shadow-lg group hover:border-cyan-500/50 transition">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-cyan-500/30 relative overflow-hidden shadow-xs dark:shadow-lg group hover:border-cyan-500/50 transition">
             <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold uppercase tracking-wider text-cyan-300">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
                 Free Tips Win Rate
               </span>
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
+              <ShieldCheck className="w-4 h-4 text-cyan-500" />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl sm:text-4xl font-black text-cyan-400 font-mono">
+              <span className="text-3xl sm:text-4xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
                 {resultsSummary.free_tips_win_rate}%
               </span>
-              <span className="text-[11px] font-bold text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded-full border border-cyan-500/30">
+              <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded-full border border-cyan-500/30">
                 High Floor
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Daily unlocked preview games across all 4 sports.
             </p>
           </div>
 
           {/* Card 3: Overall Platform Win Rate */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#11161F] border border-amber-500/30 relative overflow-hidden shadow-lg group hover:border-amber-500/50 transition">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-amber-500/30 relative overflow-hidden shadow-xs dark:shadow-lg group hover:border-amber-500/50 transition">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold uppercase tracking-wider text-amber-300">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                 Overall Platform Win Rate
               </span>
-              <TrendingUp className="w-4 h-4 text-amber-400" />
+              <TrendingUp className="w-4 h-4 text-amber-500" />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl sm:text-4xl font-black text-amber-400 font-mono">
+              <span className="text-3xl sm:text-4xl font-black text-amber-600 dark:text-amber-400 font-mono">
                 {resultsSummary.overall_win_rate}%
               </span>
-              <span className="text-[11px] font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
                 {resultsSummary.won_matches}/{resultsSummary.total_graded_matches} Picks
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Cumulative score accuracy across all analytical brains.
             </p>
           </div>
@@ -271,49 +256,49 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
         <button
           type="button"
           onClick={() => onNavigateTab("all_matches")}
-          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-emerald-500/40 text-left transition group shadow-md"
+          className="p-3.5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 hover:border-emerald-500/40 text-left transition group shadow-xs cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
             <Layers className="w-4 h-4" />
           </div>
-          <span className="text-xs font-black text-white block">All Matches</span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">4 Sports Schedule</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white block">All Matches</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">4 Sports Schedule</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavigateTab("slip_builder")}
-          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-emerald-500/40 text-left transition group shadow-md"
+          className="p-3.5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 hover:border-emerald-500/40 text-left transition group shadow-xs cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
             <Sparkles className="w-4 h-4" />
           </div>
-          <span className="text-xs font-black text-white block">Slip Builder</span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Custom Multiplier</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white block">Slip Builder</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">Custom Multiplier</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavigateTab("over_25")}
-          className="p-3.5 rounded-2xl bg-[#11161F] border border-amber-500/30 hover:border-amber-500/60 text-left transition group shadow-md"
+          className="p-3.5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-amber-500/30 hover:border-amber-500/60 text-left transition group shadow-xs cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
             <Flame className="w-4 h-4" />
           </div>
-          <span className="text-xs font-black text-white block">Over 2.5 Daily</span>
-          <span className="text-[10px] text-amber-400/90 font-bold block mt-0.5">🔥 7-Game Special</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white block">Over 2.5 Daily</span>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-0.5">🔥 7-Game Special</span>
         </button>
 
         <button
           type="button"
           onClick={() => onNavigateTab("edit_game")}
-          className="p-3.5 rounded-2xl bg-[#11161F] border border-white/10 hover:border-cyan-500/40 text-left transition group shadow-md"
+          className="p-3.5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 hover:border-cyan-500/40 text-left transition group shadow-xs cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
+          <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-2 group-hover:scale-105 transition">
             <Zap className="w-4 h-4" />
           </div>
-          <span className="text-xs font-black text-white block">Edit Game</span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Split & Prune Slips</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white block">Edit Game</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">Split & Prune Slips</span>
         </button>
       </section>
 
@@ -323,14 +308,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Automated Booking Bridge • Engine 2</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
               Today's Auto-Booked Accumulators
             </h2>
-            <p className="text-xs sm:text-sm text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Generated every morning with verified SportyBet booking codes and 1-click loading.
             </p>
           </div>
@@ -338,7 +323,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onNavigateTab("slip_builder")}
-              className="px-3.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-bold text-slate-200 transition"
+              className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer"
             >
               Custom Solver →
             </button>
@@ -348,21 +333,21 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
         {/* Slips Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {isLoading ? (
-            <div className="col-span-1 md:col-span-2 p-12 text-center rounded-3xl bg-[#11161F] border border-white/10 flex flex-col items-center justify-center gap-3 shadow-lg">
+            <div className="col-span-1 md:col-span-2 p-12 text-center rounded-3xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center gap-3 shadow-xs dark:shadow-lg">
               <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs font-mono text-slate-400">Loading today's auto-booked accumulators & booking codes...</span>
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">Loading today's auto-booked accumulators & booking codes...</span>
             </div>
           ) : slips.length === 0 ? (
-            <div className="col-span-1 md:col-span-2 p-10 text-center rounded-3xl bg-[#11161F] border border-white/10 text-slate-400 text-xs space-y-3 shadow-lg">
-              <Sparkles className="w-8 h-8 text-amber-400 mx-auto" />
-              <p className="font-bold text-white text-sm">Accumulator Slips Generating</p>
-              <p className="text-slate-400 max-w-md mx-auto">
+            <div className="col-span-1 md:col-span-2 p-10 text-center rounded-3xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs space-y-3 shadow-xs dark:shadow-lg">
+              <Sparkles className="w-8 h-8 text-amber-500 mx-auto" />
+              <p className="font-bold text-slate-900 dark:text-white text-sm">Accumulator Slips Generating</p>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 Syncing today's high-probability accumulators. Click below to generate fresh tickets:
               </p>
               <button
                 type="button"
                 onClick={fetchSlips}
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition inline-flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Refresh Slips</span>
@@ -383,33 +368,33 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             return (
               <div
                 key={slip.slip_type}
-                className={`p-5 rounded-3xl bg-[#11161F] border transition-all flex flex-col justify-between ${
+                className={`p-5 rounded-3xl bg-white dark:bg-[#11161F] border transition-all flex flex-col justify-between shadow-xs ${
                   isBanker
                     ? "border-emerald-500/50 shadow-[0_0_25px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/20"
                     : isOver25Special
                     ? "border-amber-500/50 shadow-[0_0_25px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/20"
-                    : "border-white/10 hover:border-white/20"
+                    : "border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20"
                 }`}
               >
                 <div>
                   {/* Top Header Badge */}
-                  <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-3">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-3">
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[10px] font-mono font-black uppercase px-2.5 py-0.5 rounded-full ${
                           isBanker
-                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40"
                             : isOver25Special
-                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40"
                             : slip.is_locked_for_tier === "PREMIUM"
-                            ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
-                            : "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
+                            ? "bg-purple-500/20 text-purple-700 dark:text-purple-400 border border-purple-500/40"
+                            : "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border border-cyan-500/40"
                         }`}
                       >
                         {slip.slip_type.replace(/_/g, " ")}
                       </span>
                       {isBanker && (
-                        <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                           <ShieldCheck className="w-3 h-3" />
                           <span>FREE DAILY ACCESS</span>
                         </span>
@@ -417,7 +402,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-slate-400 font-mono">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                         {legs.length} Matches
                       </span>
                     </div>
@@ -426,15 +411,15 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                   {/* Title & Multiplier */}
                   <div className="mt-3 flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="text-base font-black text-white">{slip.slip_title}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">{slip.slip_title}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Target Odds: {slip.target_odds}x • Actual:{" "}
-                        <span className="text-emerald-400 font-bold font-mono">{slip.actual_odds}x</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">{slip.actual_odds}x</span>
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <span className="text-2xl font-black text-emerald-400 font-mono">
+                      <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
                         {slip.actual_odds}x
                       </span>
                     </div>

@@ -10,6 +10,9 @@ import { SlipBuilderTab } from "./tabs/SlipBuilderTab";
 import { EditGameTab } from "./tabs/EditGameTab";
 import { CopilotTab } from "./tabs/CopilotTab";
 import { SecondaryPages } from "./tabs/SecondaryPages";
+import { PlatformGuideView } from "./views/PlatformGuideView";
+import { MarketsGlossaryView } from "./views/MarketsGlossaryView";
+import { Footer } from "./Footer";
 import { CheckCircle2, X, Crown, ShieldCheck, Zap, Sparkles } from "lucide-react";
 import { BetSlipProvider } from "@/context/BetSlipContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -29,6 +32,7 @@ const OddoraWorkspaceInner: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [accountModalSubTab, setAccountModalSubTab] = useState<"profile" | "security" | "plan">("profile");
 
   // Sync tier with profile tier if set
   useEffect(() => {
@@ -67,6 +71,8 @@ const OddoraWorkspaceInner: React.FC = () => {
         "how_it_works",
         "pricing",
         "affiliates",
+        "guide",
+        "markets_glossary",
       ];
       if (validTabs.includes(urlTab)) {
         setActiveTab(urlTab);
@@ -140,7 +146,10 @@ const OddoraWorkspaceInner: React.FC = () => {
         onTierChange={handleTierChange}
         onRefresh={handleGlobalRefresh}
         isRefreshing={isRefreshing}
-        onOpenAccountModal={() => setIsUpgradeModalOpen(true)}
+        onOpenAccountModal={(subTab) => {
+          setAccountModalSubTab(subTab || "profile");
+          setIsUpgradeModalOpen(true);
+        }}
       />
 
       {/* Main Content Workspace Container */}
@@ -179,14 +188,20 @@ const OddoraWorkspaceInner: React.FC = () => {
           <HomeDailyOddsTab
             currentTier={currentTier}
             onNavigateTab={handleTabChange}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
         {activeTab === "all_matches" && (
           <AllMatchesTab
             currentTier={currentTier}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
             initialSport={selectedSportFilter as any}
             onAddToSlip={() => {
               showToast("Match added to Bet Slip!");
@@ -197,40 +212,60 @@ const OddoraWorkspaceInner: React.FC = () => {
         {activeTab === "over_25" && (
           <Over25DailyTab
             currentTier={currentTier}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
         {activeTab === "slip_builder" && (
           <SlipBuilderTab
             currentTier={currentTier}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
         {activeTab === "edit_game" && (
           <EditGameTab
             currentTier={currentTier}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
         {activeTab === "copilot" && (
           <CopilotTab
             currentTier={currentTier}
-            onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
           />
         )}
 
-        {/* Secondary Dropdown Pages */}
+        {/* Dedicated Platform Guide View */}
+        {(activeTab === "guide" || activeTab === "how_it_works") && (
+          <PlatformGuideView onNavigateTab={handleTabChange} />
+        )}
+
+        {/* Dedicated Betting Markets Glossary View */}
+        {(activeTab === "markets_glossary" || activeTab === "market_guide") && (
+          <MarketsGlossaryView />
+        )}
+
+        {/* Secondary Dropdown Pages (Leagues, Other Sports, Pricing, Affiliates) */}
         {(activeTab === "leagues" ||
           activeTab === "other_sports" ||
-          activeTab === "market_guide" ||
-          activeTab === "how_it_works" ||
           activeTab === "pricing" ||
           activeTab === "affiliates") && (
           <SecondaryPages
-            viewId={activeTab}
+            viewId={activeTab as any}
             currentTier={currentTier}
             onNavigateTab={handleTabChange}
             onSelectTier={handleTierChange}
@@ -238,13 +273,17 @@ const OddoraWorkspaceInner: React.FC = () => {
         )}
       </main>
 
-      {/* Profile & Plan Mode Modal (View & Edit Profile, Switch Plan Mode) */}
+      {/* Complete Responsive Multi-Column Footer */}
+      <Footer onNavigateTab={handleTabChange} />
+
+      {/* Profile & Security Modal */}
       <ProfileModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
         currentTier={currentTier}
         onTierChange={handleTierChange}
         onNavigateTab={handleTabChange}
+        initialSubTab={accountModalSubTab}
         onProfileSaved={(profile) => {
           showToast(`Profile updated for ${profile.displayName}! Preferred: ${profile.preferredBookmaker}`);
         }}

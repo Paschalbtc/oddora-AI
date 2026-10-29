@@ -75,14 +75,16 @@ const DAILY_PRESET_CONFIGS: Array<{
   minOdds: number;
   maxOdds: number;
   tierLock: "FREE" | "PRO" | "PREMIUM";
+  maxLegs: number;
+  minOddPerLeg: number;
 }> = [
-  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.0, minOdds: 1.95, maxOdds: 2.30, tierLock: "FREE" },
-  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.0, minOdds: 2.85, maxOdds: 3.45, tierLock: "PRO" },
-  { type: "DAILY_4X", title: "Tactical Quad Slip (4.00x)", target: 4.0, minOdds: 3.85, maxOdds: 4.60, tierLock: "PRO" },
-  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.5, maxOdds: 11.5, tierLock: "PRO" },
-  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 46.0, maxOdds: 58.0, tierLock: "PRO" },
-  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 92.0, maxOdds: 118.0, tierLock: "PREMIUM" },
-  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 185.0, maxOdds: 235.0, tierLock: "PREMIUM" },
+  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.0, minOdds: 1.95, maxOdds: 2.30, tierLock: "FREE", maxLegs: 3, minOddPerLeg: 1.25 },
+  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.0, minOdds: 2.85, maxOdds: 3.45, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.28 },
+  { type: "DAILY_4X", title: "Tactical Quad Slip (4.00x)", target: 4.0, minOdds: 3.85, maxOdds: 4.60, tierLock: "PRO", maxLegs: 5, minOddPerLeg: 1.30 },
+  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.5, maxOdds: 11.5, tierLock: "PRO", maxLegs: 8, minOddPerLeg: 1.32 },
+  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 46.0, maxOdds: 58.0, tierLock: "PRO", maxLegs: 14, minOddPerLeg: 1.35 },
+  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 92.0, maxOdds: 118.0, tierLock: "PREMIUM", maxLegs: 16, minOddPerLeg: 1.35 },
+  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 185.0, maxOdds: 235.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.38 },
 ];
 
 /**
@@ -94,23 +96,34 @@ export async function generateAndBookDailySlips(): Promise<{
 }> {
   const supabase = getSupabaseAdmin();
   const todayStr = new Date().toISOString().split("T")[0];
+  const nowIso = new Date().toISOString();
 
-  // 1. Fetch live matches from oddora_v2_matches for today
+  // 1. Fetch live upcoming matches from oddora_v2_matches with kickoff in the future
   let { data: rawMatches } = await supabase
     .from("oddora_v2_matches")
     .select("*")
-    .eq("match_date", todayStr)
+    .gte("kickoff_time", nowIso)
     .order("win_probability", { ascending: false });
 
-  // If no matches cached, trigger Engine 1 sync directly
+  // If less than 15 upcoming matches found, pull gte match_date todayStr
+  if (!rawMatches || rawMatches.length < 15) {
+    const retry = await supabase
+      .from("oddora_v2_matches")
+      .select("*")
+      .gte("match_date", todayStr)
+      .order("win_probability", { ascending: false });
+    rawMatches = retry.data || [];
+  }
+
+  // If still no matches cached, trigger Engine 1 sync directly
   if (!rawMatches || rawMatches.length < 3) {
     const { syncTodayAllMatches } = await import("./engine1_allMatches");
     await syncTodayAllMatches();
     const retry = await supabase
       .from("oddora_v2_matches")
       .select("*")
-      .eq("match_date", todayStr)
-      .order("win_probability", { ascending: false });
+      .order("win_probability", { ascending: false })
+      .limit(200);
     rawMatches = retry.data || [];
   }
 
@@ -144,7 +157,14 @@ export async function generateAndBookDailySlips(): Promise<{
 
   // 2. Build the standard 7 Target Odds slips
   for (const cfg of DAILY_PRESET_CONFIGS) {
-    const selectedLegs = solveSubsetForTarget(matches, cfg.target, cfg.minOdds, cfg.maxOdds);
+    const selectedLegs = solveSubsetForTarget(
+      matches,
+      cfg.target,
+      cfg.minOdds,
+      cfg.maxOdds,
+      cfg.maxLegs,
+      cfg.minOddPerLeg
+    );
 
     // Book REAL SportyBet and Bet9ja codes via backend booking engine
     const booked = await bookUniversalSlip(selectedLegs, {
@@ -296,8 +316,9 @@ export async function getDailySlipsForUI(
     .select("*")
     .eq("slip_date", todayStr);
 
-  // If slips are not in DB, auto-generate them
-  if (!data || data.length === 0) {
+  // If slips are not in DB or contain bloated legacy slips (> 25 matches), auto-generate clean slips
+  const hasBloated = data && data.some((r: any) => Number(r.match_count) > 25);
+  if (!data || data.length === 0 || hasBloated) {
     try {
       const generated = await generateAndBookDailySlips();
       return generated.slips.map((slip) => filterSlipForTier(slip, userTier));
@@ -401,64 +422,86 @@ function solveSubsetForTarget(
   matches: any[],
   target: number,
   minOdds: number,
-  maxOdds: number
+  maxOdds: number,
+  maxLegs: number = 6,
+  minOddPerLeg: number = 1.25
 ): any[] {
-  // Sort primarily by highest statistical safety (combining win probability and minimizing danger score)
-  const sorted = [...matches].sort((a, b) => {
-    const dangerA = scoreLegDanger({
-      match: `${a.home_team} vs ${a.away_team}`,
-      market: a.market_name,
-      selection: a.selection_label,
-      odd: a.odd_value,
-      win_probability: a.win_probability,
-    });
-    const dangerB = scoreLegDanger({
-      match: `${b.home_team} vs ${b.away_team}`,
-      market: b.market_name,
-      selection: b.selection_label,
-      odd: b.odd_value,
-      win_probability: b.win_probability,
-    });
-    return (b.win_probability - dangerB * 0.25) - (a.win_probability - dangerA * 0.25);
+  const now = Date.now();
+  // Filter out any matches that already started or have unreasonably low odds
+  const validMatches = matches.filter((m) => {
+    if (m.kickoff_time) {
+      const ko = new Date(m.kickoff_time).getTime();
+      if (!isNaN(ko) && ko <= now) return false;
+    }
+    const odd = Number(m.odd_value || 1.45);
+    return odd >= minOddPerLeg;
+  });
+
+  const pool = validMatches.length >= maxLegs ? validMatches : matches;
+
+  // Sort primarily by highest statistical safety
+  const sorted = [...pool].sort((a, b) => {
+    return (Number(b.win_probability) || 75) - (Number(a.win_probability) || 75);
   });
 
   let currentOdds = 1.0;
   const picked: any[] = [];
+  const usedEventIds = new Set<string>();
 
   for (const m of sorted) {
-    const candidateOdd = m.odd_value || 1.45;
-    if (currentOdds * candidateOdd <= maxOdds * 1.1) {
+    const evId = m.eventId || m.sportybet_selection?.eventId || m.id || m.match_id;
+    if (usedEventIds.has(evId)) continue;
+
+    const candidateOdd = Number(m.odd_value) || 1.45;
+    if (picked.length < maxLegs && currentOdds * candidateOdd <= maxOdds * 1.15) {
+      usedEventIds.add(evId);
       picked.push({
         match: `${m.home_team} vs ${m.away_team}`,
         home_team: m.home_team,
         away_team: m.away_team,
         league: m.league,
-        market: m.market_name,
-        selection: m.selection_label,
+        market: m.market_name || "1X2",
+        selection: m.selection_label || "Selection",
         odd: candidateOdd,
-        win_probability: m.win_probability,
-        eventId: m.id || m.match_id,
+        win_probability: m.win_probability || 80,
+        eventId: evId,
+        marketId: m.marketId || m.sportybet_selection?.marketId || "1",
+        outcomeId: m.outcomeId || m.sportybet_selection?.outcomeId || "1",
+        specifier: m.specifier || m.sportybet_selection?.specifier || null,
+        sportybet_selection: m.sportybet_selection,
       });
       currentOdds *= candidateOdd;
     }
 
-    if (currentOdds >= minOdds) break;
+    if (currentOdds >= minOdds || picked.length >= maxLegs) break;
   }
 
-  // If still below minimum, add one more safe leg
-  if (currentOdds < minOdds && sorted.length > picked.length) {
-    const safe = sorted[picked.length];
-    picked.push({
-      match: `${safe.home_team} vs ${safe.away_team}`,
-      home_team: safe.home_team,
-      away_team: safe.away_team,
-      league: safe.league,
-      market: safe.market_name,
-      selection: safe.selection_label,
-      odd: safe.odd_value,
-      win_probability: safe.win_probability,
-      eventId: safe.id || safe.match_id,
-    });
+  // If still below minOdds and have capacity, pick 1 more
+  if (currentOdds < minOdds && picked.length < maxLegs) {
+    for (const m of sorted) {
+      const evId = m.eventId || m.sportybet_selection?.eventId || m.id || m.match_id;
+      if (!usedEventIds.has(evId)) {
+        usedEventIds.add(evId);
+        const candidateOdd = Number(m.odd_value) || 1.45;
+        picked.push({
+          match: `${m.home_team} vs ${m.away_team}`,
+          home_team: m.home_team,
+          away_team: m.away_team,
+          league: m.league,
+          market: m.market_name || "1X2",
+          selection: m.selection_label || "Selection",
+          odd: candidateOdd,
+          win_probability: m.win_probability || 80,
+          eventId: evId,
+          marketId: m.marketId || m.sportybet_selection?.marketId || "1",
+          outcomeId: m.outcomeId || m.sportybet_selection?.outcomeId || "1",
+          specifier: m.specifier || m.sportybet_selection?.specifier || null,
+          sportybet_selection: m.sportybet_selection,
+        });
+        currentOdds *= candidateOdd;
+        break;
+      }
+    }
   }
 
   return picked;

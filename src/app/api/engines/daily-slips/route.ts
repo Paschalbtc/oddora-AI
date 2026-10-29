@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
 
     let slips = await getDailySlipsForUI(tier);
 
-    // If slips are not yet generated for today, auto-generate them
-    if (!slips || slips.length === 0) {
+    // If slips are not yet generated for today, or if any existing slip has legacy bloat (> 25 legs), auto-generate clean real-match slips
+    const hasBloatedSlip = slips && slips.some((s) => (s.legs?.length || 0) > 25);
+    if (!slips || slips.length === 0 || hasBloatedSlip) {
       try {
         await generateAndBookDailySlips();
         slips = await getDailySlipsForUI(tier);

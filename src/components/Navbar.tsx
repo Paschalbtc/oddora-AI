@@ -313,14 +313,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </nav>
 
-          {/* Right Side: Single Subscribed Plan Badge + Account + Mobile Menu */}
-          <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">
-            {/* Single Customer Active Subscription Plan Badge (Never shows all 3 plans at once) */}
+          {/* Right Side: Profile & Plan Button + Refresh + Mobile Menu (Clean, No Button Hidden) */}
+          <div className="shrink-0 flex items-center gap-1.5 sm:gap-2.5">
+            {/* Desktop Plan Badge (Hidden on Mobile to prevent button crowding) */}
             <button
               type="button"
               onClick={onOpenAccountModal || (() => handleSelectNav("pricing"))}
-              title={`Active Subscription: ${currentTier} Plan (Click to manage)`}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 border shadow-sm ${
+              title={`Active Subscription: ${currentTier} Plan (Click to manage under Profile)`}
+              className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs transition-all border shadow-sm ${
                 currentTier === "PREMIUM"
                   ? "bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-amber-400/40 text-amber-300 hover:border-amber-400/70"
                   : currentTier === "PRO"
@@ -331,21 +331,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               {currentTier === "PREMIUM" && (
                 <>
                   <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="font-black text-[11px] sm:text-xs">PREMIUM VIP</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" />
+                  <span className="font-black text-xs">PREMIUM VIP</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 </>
               )}
               {currentTier === "PRO" && (
                 <>
                   <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="font-black text-[11px] sm:text-xs">PRO VIP</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                  <span className="font-black text-xs">PRO VIP</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 </>
               )}
               {currentTier === "FREE" && (
                 <>
                   <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-bold text-slate-200">Free Plan</span>
+                  <span className="text-xs font-bold text-slate-200">Free Plan</span>
                   <span className="text-[9.5px] font-mono font-black text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded border border-emerald-500/25 uppercase ml-1">
                     Upgrade
                   </span>
@@ -353,16 +353,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Account / Plan Trigger (VISIBLE ON MOBILE & DESKTOP) */}
+            {/* Profile & Plan Trigger (Accessible on both Mobile & Desktop) */}
             <button
               type="button"
-              onClick={onOpenAccountModal || (() => handleSelectNav("pricing"))}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white/[0.05] border border-white/10 text-slate-200 hover:text-white hover:bg-white/[0.08] transition shadow-sm"
+              onClick={onOpenAccountModal}
+              title="View & Edit Profile, Manage Plan Mode"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white transition shadow-sm active:scale-95"
             >
-              <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="hidden sm:inline">
-                {currentTier === "FREE" ? "Sign In" : "Account"}
-              </span>
+              <div className="relative">
+                <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                {/* Status Dot */}
+                <span
+                  className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#070A0E] ${
+                    currentTier === "PREMIUM"
+                      ? "bg-amber-400"
+                      : currentTier === "PRO"
+                      ? "bg-emerald-400"
+                      : "bg-slate-400"
+                  }`}
+                />
+              </div>
+              <span className="font-black text-xs">Profile</span>
             </button>
 
             {/* Force Refresh Button */}
@@ -372,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onRefresh}
                 disabled={isRefreshing}
                 title="Refresh Live Fixtures & Slips"
-                className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors"
+                className="p-1.5 sm:p-2 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white border border-white/10 transition-colors active:scale-95 shrink-0"
               >
                 <RefreshCw
                   className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`}
@@ -384,7 +397,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => setIsMoreDrawerOpen(!isMoreDrawerOpen)}
-              className="lg:hidden p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition active:scale-95"
+              className="lg:hidden p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition active:scale-95 shrink-0"
               title="Open Navigation Menu"
             >
               {isMoreDrawerOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -410,6 +423,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Quick Profile & Plan Mode Access Button in Mobile Drawer */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMoreDrawerOpen(false);
+                if (onOpenAccountModal) onOpenAccountModal();
+              }}
+              className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-amber-500/15 border border-emerald-500/35 flex items-center justify-between text-left transition hover:border-emerald-500/60"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg font-bold">
+                  <User className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="font-black text-xs text-white flex items-center gap-2">
+                    <span>My Profile & Settings</span>
+                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      {currentTier} PLAN
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-300">
+                    Edit name, bookmaker preference & manage VIP Plan Mode
+                  </div>
+                </div>
+              </div>
+              <ChevronDown className="w-4 h-4 text-emerald-400 -rotate-90" />
+            </button>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {secondaryNavItems.map((item) => {

@@ -45,6 +45,7 @@ interface BetSlipContextType {
   setIsOpen: (open: boolean) => void;
   toggleOpen: () => void;
   addLeg: (leg: CartLeg) => void;
+  addLegs: (legs: CartLeg[]) => void;
   removeLeg: (id: string) => void;
   toggleLeg: (leg: CartLeg) => void;
   isInSlip: (matchId: string, selection?: string) => boolean;
@@ -118,6 +119,27 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         (l) => (l.matchId || l.eventId || l.id) !== targetKey
       );
       return [...filtered, normalizedLeg];
+    });
+    setBookedTicket(null);
+    setBookingError(null);
+  };
+
+  const addLegs = (newLegs: CartLeg[]) => {
+    setLegs((prev) => {
+      let current = [...prev];
+      for (const leg of newLegs) {
+        const targetKey = leg.matchId || leg.eventId || leg.id;
+        const normalizedLeg: CartLeg = {
+          ...leg,
+          matchId: targetKey,
+          odd: Number(leg.odd || leg.odds) || 1.45,
+        };
+        current = current.filter(
+          (l) => (l.matchId || l.eventId || l.id) !== targetKey
+        );
+        current.push(normalizedLeg);
+      }
+      return current;
     });
     setBookedTicket(null);
     setBookingError(null);
@@ -250,6 +272,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsOpen,
         toggleOpen,
         addLeg,
+        addLegs,
         removeLeg,
         toggleLeg,
         isInSlip,

@@ -13,6 +13,7 @@ import { SecondaryPages } from "./tabs/SecondaryPages";
 import { CheckCircle2, X, Crown, ShieldCheck, Zap } from "lucide-react";
 import { BetSlipProvider } from "@/context/BetSlipContext";
 import { FloatingBetSlip } from "./FloatingBetSlip";
+import { ProfileModal } from "./ProfileModal";
 
 const OddoraWorkspaceInner: React.FC = () => {
   const searchParams = useSearchParams();
@@ -187,60 +188,17 @@ const OddoraWorkspaceInner: React.FC = () => {
         )}
       </main>
 
-      {/* Upgrade / Account Modal */}
-      {isUpgradeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="w-full max-w-md p-6 rounded-3xl bg-[#11161F] border border-white/15 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-400" />
-                <h3 className="font-black text-white text-base">Select Platform Plan</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsUpgradeModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300">
-              Switch plans to test locked VIP match outcomes, high-odds builders, and ticket splitting:
-            </p>
-
-            <div className="space-y-2.5">
-              {[
-                { id: "FREE" as UserTier, name: "Free Tier", desc: "Daily 2.00 Banker + 3 Free Previews/Sport" },
-                { id: "PRO" as UserTier, name: "Pro Pass (₦7,500/mo)", desc: "100% Matches Unlocked + 50x Slips + Over 2.5 Ticket" },
-                { id: "PREMIUM" as UserTier, name: "Premium VIP (₦18,000/qtr)", desc: "100x & 200x Slips + All Solvers + Priority Splitting" },
-              ].map((tier) => (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => {
-                    handleTierChange(tier.id);
-                    setIsUpgradeModalOpen(false);
-                  }}
-                  className={`w-full p-3.5 rounded-2xl text-left transition border flex items-center justify-between ${
-                    currentTier === tier.id
-                      ? "bg-emerald-500/15 border-emerald-500/50 text-white"
-                      : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06] text-slate-300"
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold text-sm text-white">{tier.name}</div>
-                    <div className="text-[11px] text-slate-400">{tier.desc}</div>
-                  </div>
-                  {currentTier === tier.id && (
-                    <span className="text-xs font-mono font-black text-emerald-400">ACTIVE</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Profile & Plan Mode Modal (View & Edit Profile, Switch Plan Mode) */}
+      <ProfileModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        currentTier={currentTier}
+        onTierChange={handleTierChange}
+        onNavigateTab={handleTabChange}
+        onProfileSaved={(profile) => {
+          showToast(`Profile updated for ${profile.displayName}! Preferred: ${profile.preferredBookmaker}`);
+        }}
+      />
 
       {/* Interactive Global Floating Bet Slip */}
       <FloatingBetSlip />

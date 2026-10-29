@@ -307,15 +307,20 @@ export const FloatingBetSlip: React.FC = () => {
                     ) : (
                       <>
                         <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/50 border border-emerald-500/30">
-                          <span className="font-mono font-bold text-white text-xs">
-                            {legs.length} Matches • {totalOdds}x Odds
-                          </span>
+                          <div>
+                            <span className="text-[10px] text-emerald-300 font-mono block">
+                              Bet9ja Coupon Code
+                            </span>
+                            <span className="font-mono font-black text-white text-base tracking-widest block">
+                              {bookedTicket.bookingCode || bookedTicket.bet9jaCode}
+                            </span>
+                          </div>
                           <button
                             type="button"
-                            onClick={handleCopyBet9jaSelections}
-                            className="px-3 py-1 rounded-lg bg-[#008234] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition"
+                            onClick={() => handleCopy(bookedTicket.bookingCode || bookedTicket.bet9jaCode)}
+                            className="px-3 py-1.5 rounded-lg bg-[#008234] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer"
                           >
-                            {copiedCode === "b9_matches" ? (
+                            {copiedCode === (bookedTicket.bookingCode || bookedTicket.bet9jaCode) ? (
                               <>
                                 <Check className="w-3.5 h-3.5" />
                                 <span>Copied!</span>
@@ -323,30 +328,22 @@ export const FloatingBetSlip: React.FC = () => {
                             ) : (
                               <>
                                 <Copy className="w-3.5 h-3.5" />
-                                <span>Copy Matches</span>
+                                <span>Copy</span>
                               </>
                             )}
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={handleCopyBet9jaSelections}
-                            className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98 border border-white/10"
-                          >
-                            <span>📋 Copy Ticket</span>
-                          </button>
-                          <a
-                            href="https://sports.bet9ja.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 rounded-xl bg-[#008234] hover:bg-[#006e2b] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
-                          >
-                            <span>🟢 Open Bet9ja</span>
-                            <ExternalLink className="w-3 h-3 ml-0.5" />
-                          </a>
-                        </div>
+                        <a
+                          href="https://sports.bet9ja.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2.5 rounded-xl bg-[#008234] hover:bg-[#006e2b] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>🟢 Open Bet9ja Sportsbook</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
                       </>
                     )}
                   </div>

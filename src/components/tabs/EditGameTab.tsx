@@ -386,9 +386,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopyBet9jaMatches(slip)}
-                        className="px-3 py-1.5 rounded-xl bg-[#008234]/20 border border-[#008234]/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-[#008234]/30 transition self-start sm:self-auto"
+                        className="px-3 py-1.5 rounded-xl bg-[#008234]/20 border border-[#008234]/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-[#008234]/30 transition self-start sm:self-auto cursor-pointer"
                       >
-                        <span>📋 Copy {slip.legs_count} Matches</span>
+                        <span>Bet9ja: {(slip.bet9ja_code || slip.bet9jaCode || "B9EDIT").replace(/[^A-Za-z0-9]/g, "").toUpperCase()}</span>
                         {copiedCode === "b9_" + (slip.slip_index || "edited") ? (
                           <Check className="w-3.5 h-3.5 text-emerald-400" />
                         ) : (
@@ -416,9 +416,10 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                         <button
                           type="button"
                           onClick={() => handleCopyBet9jaMatches(slip)}
-                          className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center flex items-center justify-center gap-1 transition shadow-md border border-white/10"
+                          className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs text-center flex items-center justify-center gap-1 transition shadow-md border border-white/10 cursor-pointer"
                         >
-                          <span>📋 Copy Ticket</span>
+                          <Copy className="w-3 h-3 text-emerald-300" />
+                          <span>Copy Bet9ja Code</span>
                         </button>
                         <a
                           href="https://sports.bet9ja.com"

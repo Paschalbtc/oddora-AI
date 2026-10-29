@@ -75,6 +75,7 @@ export interface CandidateMarketOption {
   marketId: string;
   outcomeId: string;
   specifier?: string | null;
+  eventId?: string;
 }
 
 /**
@@ -91,6 +92,7 @@ export function generateCandidateMarketsForFixture(
   const away = matchRow.away_team || "Away";
   const baseProb = Math.min(95, Math.max(55, Number(matchRow.win_probability) || 75));
   const baseOdd = Number(matchRow.odd_value) || 1.45;
+  const matchEventId = matchRow.sportybet_selection?.eventId || matchRow.match_id;
 
   const candidates: CandidateMarketOption[] = [];
 
@@ -116,9 +118,15 @@ export function generateCandidateMarketsForFixture(
           marketId: String(item.marketId || "1"),
           outcomeId: String(item.outcomeId || "1"),
           specifier: item.specifier || null,
+          eventId: item.eventId || matchEventId,
         });
       }
     }
+  }
+
+  // If real candidate markets were present, return them directly
+  if (candidates.length > 0) {
+    return candidates;
   }
 
   // Generate complete sport-specific multi-market array
@@ -132,6 +140,7 @@ export function generateCandidateMarketsForFixture(
       sport,
       marketId: "10",
       outcomeId: "9",
+      eventId: matchEventId,
     });
     candidates.push({
       marketCategory: "DOUBLE_CHANCE",
@@ -782,10 +791,10 @@ function solveHighWinRatePortfolio(
         selection: item.option.outcomeLabel,
         odd: item.option.oddValue,
         win_probability: item.option.trueWinProbability,
-        eventId: item.matchRow.match_id || `sr:match:${Math.floor(10000000 + Math.random() * 90000000)}`,
-        marketId: item.option.marketId,
-        outcomeId: item.option.outcomeId,
-        specifier: item.option.specifier,
+        eventId: item.option.eventId || item.matchRow.sportybet_selection?.eventId || item.matchRow.match_id,
+        marketId: item.option.marketId || item.matchRow.sportybet_selection?.marketId || "1",
+        outcomeId: item.option.outcomeId || item.matchRow.sportybet_selection?.outcomeId || "1",
+        specifier: item.option.specifier ?? item.matchRow.sportybet_selection?.specifier ?? null,
         sport: item.option.sport,
         marketCategory: item.option.marketCategory,
         edgeScore: item.edgeScore,
@@ -814,10 +823,10 @@ function solveHighWinRatePortfolio(
           selection: item.option.outcomeLabel,
           odd: item.option.oddValue,
           win_probability: item.option.trueWinProbability,
-          eventId: item.matchRow.match_id || `sr:match:${Math.floor(10000000 + Math.random() * 90000000)}`,
-          marketId: item.option.marketId,
-          outcomeId: item.option.outcomeId,
-          specifier: item.option.specifier,
+          eventId: item.option.eventId || item.matchRow.sportybet_selection?.eventId || item.matchRow.match_id,
+          marketId: item.option.marketId || item.matchRow.sportybet_selection?.marketId || "1",
+          outcomeId: item.option.outcomeId || item.matchRow.sportybet_selection?.outcomeId || "1",
+          specifier: item.option.specifier ?? item.matchRow.sportybet_selection?.specifier ?? null,
           sport: item.option.sport,
           marketCategory: item.option.marketCategory,
           edgeScore: item.edgeScore,
@@ -858,10 +867,10 @@ function solveHighWinRatePortfolio(
         selection: randCand.option.outcomeLabel,
         odd: randCand.option.oddValue,
         win_probability: randCand.option.trueWinProbability,
-        eventId: randCand.matchRow.match_id || `sr:match:swap_${iter}`,
-        marketId: randCand.option.marketId,
-        outcomeId: randCand.option.outcomeId,
-        specifier: randCand.option.specifier,
+        eventId: randCand.option.eventId || randCand.matchRow.sportybet_selection?.eventId || randCand.matchRow.match_id,
+        marketId: randCand.option.marketId || randCand.matchRow.sportybet_selection?.marketId || "1",
+        outcomeId: randCand.option.outcomeId || randCand.matchRow.sportybet_selection?.outcomeId || "1",
+        specifier: randCand.option.specifier ?? randCand.matchRow.sportybet_selection?.specifier ?? null,
         sport: randCand.option.sport,
         marketCategory: randCand.option.marketCategory,
         edgeScore: randCand.edgeScore,

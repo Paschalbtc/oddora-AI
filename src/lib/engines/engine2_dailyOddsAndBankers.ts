@@ -122,6 +122,11 @@ export async function generateAndBookDailySlips(): Promise<{
     .map((m: any) => ({
     id: m.match_id,
     match_id: m.match_id,
+    eventId: m.sportybet_selection?.eventId || m.match_id,
+    marketId: m.sportybet_selection?.marketId || "1",
+    outcomeId: m.sportybet_selection?.outcomeId || "1",
+    specifier: m.sportybet_selection?.specifier || null,
+    sportybet_selection: m.sportybet_selection,
     home_team: m.home_team,
     away_team: m.away_team,
     league: m.league_name,

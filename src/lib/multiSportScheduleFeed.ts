@@ -101,51 +101,47 @@ let _lastSyncTimestamp = 0;
 
 /**
  * Primary Multi-Sport Ingestion: Pulls upcoming today matches across all 4 sports from SportyBet
+ * Queries pcUpcomingEvents with multi-market expansion & wapUpcomingEvents
  */
 async function fetchSportyBetMultiPageCatalog(
   sportId: string,
   sportName: MultiSportRawFixture["sport"],
-  maxPages = 4
+  maxPages = 2
 ): Promise<MultiSportRawFixture[]> {
   const fixtures: MultiSportRawFixture[] = [];
   const nowMs = Date.now();
   const seenEventIds = new Set<string>();
 
-  // Use SportyBet active wapUpcomingEvents endpoints across major categories
-  const targetUrls: string[] = [
-    `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}`,
-  ];
+  const targetUrls: string[] = [];
 
-  if (sportId === "sr:sport:1") {
-    // Football: Query top football territories for rich multi-league coverage
-    const topCategories = [
-      "sr:category:1",   // England
-      "sr:category:8",   // Spain
-      "sr:category:30",  // Germany
-      "sr:category:31",  // Italy
-      "sr:category:7",   // France
-      "sr:category:4",   // International
-      "sr:category:352", // India / Asia
-    ];
-    for (const cat of topCategories) {
-      targetUrls.push(
-        `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=sr%3Asport%3A1&categoryId=${encodeURIComponent(cat)}`
-      );
-    }
-  } else {
-    // Other sports: query standard and extended timelines
+  // Define sport-specific market parameters for pcUpcomingEvents
+  let marketParams = "marketId=1&marketId=10&marketId=18&marketId=29";
+  if (sportId === "sr:sport:2") {
+    marketParams = "marketId=219&marketId=225&marketId=223";
+  } else if (sportId === "sr:sport:20") {
+    marketParams = "marketId=186";
+  } else if (sportId === "sr:sport:23") {
+    marketParams = "marketId=186&marketId=238&marketId=314";
+  }
+
+  // 1. Paginated pcUpcomingEvents (returns up to 100 matches per page)
+  for (let page = 1; page <= maxPages; page++) {
     targetUrls.push(
-      `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}&timeline=24`,
-      `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}&timeline=48`
+      `https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=${encodeURIComponent(sportId)}&${marketParams}&pageSize=100&pageNum=${page}`
     );
   }
+
+  // 2. Mobile wapUpcomingEvents fallback/supplement
+  targetUrls.push(
+    `https://www.sportybet.com/api/ng/factsCenter/wapUpcomingEvents?sportId=${encodeURIComponent(sportId)}`
+  );
 
   const responses = await Promise.allSettled(
     targetUrls.map((u) =>
       fetch(u, {
         headers: BROWSER_HEADERS,
         cache: "no-store",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(6000),
       })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null)
@@ -178,11 +174,11 @@ async function fetchSportyBetMultiPageCatalog(
 
       seenEventIds.add(ev.eventId);
 
-      // Parse standard 1X2 / Over 1.5 odds from raw markets if present
+      // Parse standard odds from raw markets
       const oddsMap: Record<string, number> = {};
       if (Array.isArray(ev.markets)) {
         const m1 = ev.markets.find(
-          (m: any) => String(m.id) === "1" || String(m.id) === "186"
+          (m: any) => String(m.id) === "1" || String(m.id) === "186" || String(m.id) === "219"
         );
         if (m1 && Array.isArray(m1.outcomes)) {
           const h = m1.outcomes.find(
@@ -195,6 +191,20 @@ async function fetchSportyBetMultiPageCatalog(
           if (h?.odds) oddsMap.home_win = Number(h.odds);
           if (d?.odds) oddsMap.draw = Number(d.odds);
           if (a?.odds) oddsMap.away_win = Number(a.odds);
+        }
+
+        const m10 = ev.markets.find((m: any) => String(m.id) === "10");
+        if (m10 && Array.isArray(m10.outcomes)) {
+          const o9 = m10.outcomes.find((o: any) => String(o.id) === "9");
+          const o11 = m10.outcomes.find((o: any) => String(o.id) === "11");
+          if (o9?.odds) oddsMap.double_chance_home = Number(o9.odds);
+          if (o11?.odds) oddsMap.double_chance_away = Number(o11.odds);
+        }
+
+        const m18 = ev.markets.find((m: any) => String(m.id) === "18" && (m.specifier?.includes("1.5") || m.desc?.includes("1.5")));
+        if (m18 && Array.isArray(m18.outcomes)) {
+          const over = m18.outcomes.find((o: any) => String(o.id) === "12");
+          if (over?.odds) oddsMap.over_1_5 = Number(over.odds);
         }
       }
 
@@ -472,15 +482,12 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
   sportyTableTennis.forEach(addFixture);
   sportyVolleyball.forEach(addFixture);
 
-  // Add ESPN / TheSportsDB additions
-  espnSoccer.forEach(addFixture);
-  tsdbSoccer.forEach(addFixture);
-  espnBasketball.forEach(addFixture);
+  // Strictly only ingested matches from SportyBet with verified event IDs
+  const allRawFixtures = Array.from(matchMap.values()).filter(
+    (f) => f.id && (f.id.startsWith("sr:match:") || !isNaN(Number(f.id)))
+  );
 
-  // Strictly only ingested matches from SportyBet, ESPN & TheSportsDB
-  const allRawFixtures = Array.from(matchMap.values());
-
-  // 4. Run Analytical Sport Brains on Every Fixture
+  // 4. Run Analytical Sport Brains & Extract Authentic SportyBet Markets on Every Fixture
   const newRecords: any[] = [];
   const sportCounts: Record<string, number> = {
     FOOTBALL: 0,
@@ -535,23 +542,106 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
       console.warn(`Brain evaluation fallback for ${f.home_team} vs ${f.away_team}:`, brainErr);
     }
 
-    if (!analysis) {
-      analysis = {
-        selection_label: `${f.home_team} (+1.5)`,
-        market_name: "Handicap",
-        odd_value: 1.15,
-        win_probability: 88,
-        internal_ai_reasoning: "Safety cushion rating from statistical form distribution.",
-        metadata: { all_outcomes: [{ odd: 1.15, market: "Handicap", selection: `${f.home_team} (+1.5)`, win_probability: 88 }] },
-      };
+    const eventId = f.id.startsWith("sr:match:") ? f.id : `sr:match:${f.id}`;
+
+    // Extract authentic, loadable SportyBet markets and outcome IDs from raw markets
+    const rawMarkets = f.raw_markets || [];
+    const candidateMarkets: Array<{
+      market: string;
+      selection: string;
+      odd: number;
+      win_probability: number;
+      marketId: string;
+      outcomeId: string;
+      specifier: string | null;
+      eventId: string;
+    }> = [];
+
+    for (const m of rawMarkets) {
+      const mId = String(m.id);
+      // Strictly enforce specifier rules: Only Over/Under & Handicap markets use specifiers!
+      const requiresSpecifier =
+        mId === "18" || mId === "14" || mId === "225" || mId === "223" || mId === "238" || mId === "314";
+      const spec = requiresSpecifier ? m.specifier || null : null;
+      const mDesc =
+        m.desc ||
+        (mId === "1"
+          ? "1X2"
+          : mId === "10"
+          ? "Double Chance"
+          : mId === "18"
+          ? "Over/Under Goals"
+          : mId === "29"
+          ? "Both Teams To Score"
+          : mId === "219" || mId === "186"
+          ? "Match Winner"
+          : "Market");
+
+      for (const o of m.outcomes || []) {
+        if (!o || !o.odds) continue;
+        const odd = parseFloat(o.odds);
+        if (isNaN(odd) || odd <= 1.01) continue;
+
+        let selLabel = o.desc || "Win";
+        if (mId === "1") {
+          if (String(o.id) === "1") selLabel = `${f.home_team} Win`;
+          else if (String(o.id) === "2") selLabel = "Draw";
+          else if (String(o.id) === "3") selLabel = `${f.away_team} Win`;
+        } else if (mId === "10") {
+          if (String(o.id) === "9") selLabel = "1X (Home or Draw)";
+          else if (String(o.id) === "10") selLabel = "12 (Home or Away)";
+          else if (String(o.id) === "11") selLabel = "X2 (Draw or Away)";
+        } else if (mId === "219" || mId === "186") {
+          if (String(o.id) === "1" || String(o.id) === "4") selLabel = `${f.home_team} Win`;
+          else if (String(o.id) === "2" || String(o.id) === "5") selLabel = `${f.away_team} Win`;
+        }
+
+        // Compute estimated win probability from market odds & brain
+        let estProb = Math.min(95, Math.max(50, Math.round((1 / odd) * 88)));
+        if (analysis?.win_probability && Math.abs(estProb - analysis.win_probability) < 20) {
+          estProb = Math.round((estProb + analysis.win_probability) / 2);
+        }
+
+        candidateMarkets.push({
+          market: mDesc,
+          selection: selLabel,
+          odd: Number(odd.toFixed(2)),
+          win_probability: estProb,
+          marketId: mId,
+          outcomeId: String(o.id),
+          specifier: spec,
+          eventId: eventId,
+        });
+      }
     }
+
+    // Sort candidate markets to pick the safest/best outcome
+    candidateMarkets.sort((a, b) => b.win_probability - a.win_probability);
+
+    const bestCand = candidateMarkets[0] || {
+      market: analysis?.market_name || "Match Winner",
+      selection: analysis?.selection_label || `${f.home_team} Win`,
+      odd: analysis?.odd_value || 1.35,
+      win_probability: analysis?.win_probability || 84,
+      marketId: "1",
+      outcomeId: "1",
+      specifier: null,
+      eventId: eventId,
+    };
+
+    const sportybetSelection = {
+      eventId: bestCand.eventId,
+      marketId: bestCand.marketId,
+      outcomeId: bestCand.outcomeId,
+      specifier: bestCand.specifier || null,
+    };
 
     // Designate first 3 matches per sport as free preview
     sportCounts[f.sport] = (sportCounts[f.sport] || 0) + 1;
     const isFreePreview = sportCounts[f.sport] <= 3;
 
     newRecords.push({
-      match_id: f.id.startsWith("sr:match:") ? f.id : `sr:match:${f.id}`,
+      match_id: eventId,
       sport_type: f.sport,
       match_date: todayStr,
       league_name: f.league_name,
@@ -561,22 +651,28 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
       away_team: f.away_team,
       kickoff_time: f.kickoff_time,
       status: f.status || "NS",
-      best_outcome: analysis.selection_label,
-      market_category: analysis.market_name,
-      odd_value: analysis.odd_value,
-      win_probability: analysis.win_probability,
+      best_outcome: bestCand.selection,
+      market_category: bestCand.market,
+      odd_value: bestCand.odd,
+      win_probability: bestCand.win_probability,
       is_free_preview: isFreePreview,
-      is_over25_candidate: !!analysis.is_over25_candidate,
-      internal_ai_reasoning: analysis.internal_ai_reasoning,
-      raw_stats_json: analysis.metadata || {},
-      all_markets_json: analysis.metadata?.all_outcomes || [],
+      is_over25_candidate: !!analysis?.is_over25_candidate,
+      internal_ai_reasoning: analysis?.internal_ai_reasoning || `[SportyBet Live Feed] ${f.home_team} vs ${f.away_team} with verified order-share booking credentials.`,
+      raw_stats_json: analysis?.metadata || {},
+      all_markets_json: candidateMarkets.length > 0 ? candidateMarkets : (analysis?.metadata?.all_outcomes || []),
+      sportybet_selection: sportybetSelection,
       outcome_result: "PENDING",
     });
   }
 
-  // 5. Upsert to Supabase `oddora_v2_matches`
+  // 5. Purge any legacy non-SportyBet mock/ESPN fixtures & Upsert to Supabase
   if (newRecords.length > 0) {
     try {
+      await supabase
+        .from("oddora_v2_matches")
+        .delete()
+        .or("match_id.like.sr:match:espn_%,match_id.like.ft_%,match_id.like.bb_%,match_id.like.vb_%,match_id.like.tt_%");
+
       const { error: upsertError } = await supabase
         .from("oddora_v2_matches")
         .upsert(newRecords, { onConflict: "match_id" });

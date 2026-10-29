@@ -32,6 +32,7 @@ import {
   Search,
   KeyRound,
   Lock,
+  Users,
 } from "lucide-react";
 import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "@/context/AuthContext";
@@ -78,23 +79,47 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { user, profile: authProfile, isAuthenticated, openAuthModal, requireAuth, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
 
-  const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   const profileDropdownRef = useRef<HTMLDivElement>(null);
+  const menuDrawerRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Close profile dropdown on click outside
+  // Close menus on outside click or Escape key
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
         setIsProfileDropdownOpen(false);
       }
+      if (
+        isMenuOpen &&
+        menuDrawerRef.current &&
+        !menuDrawerRef.current.contains(event.target as Node) &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsMenuOpen(false);
+      }
     }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+        setIsProfileDropdownOpen(false);
+        setIsSupportModalOpen(false);
+      }
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
 
   // Desktop Primary Navigation Tabs
   const desktopPrimaryTabs = [
@@ -113,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "copilot" as WorkspaceTab, label: "Copilot", icon: Bot },
   ];
 
-  // 8 Working Navigation Links for the Right 3-Bar Menu
+  // 9 Working Navigation Links for the Right 3-Bar Menu (Secondary Platform Features)
   const drawerNavItems: Array<{
     id: string;
     targetTab: WorkspaceTab | null;
@@ -127,8 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: "edit_game",
       targetTab: "edit_game",
-      label: "Edit Game",
-      desc: "Slip Pruner, Splitter & 4 Solver Modes",
+      label: "Edit Games",
+      desc: "Slip Pruner / Solver & Splitter",
       icon: SlidersHorizontal,
       tag: "4 MODES",
       tagColor: "text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
@@ -136,17 +161,26 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: "over_25",
       targetTab: "over_25",
-      label: "Over 2.5 Daily Tickets",
+      label: "Over 2.5 Daily",
       desc: "High Goal Expectancy Daily Slips",
       icon: Flame,
       tag: "HOT",
       tagColor: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30",
     },
     {
+      id: "affiliates",
+      targetTab: "affiliates",
+      label: "Affiliates Hub / Affiliate Page",
+      desc: "Earn 25% recurring lifetime commissions",
+      icon: Users,
+      tag: "EARN",
+      tagColor: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
+    },
+    {
       id: "slip_builder",
       targetTab: "slip_builder",
       label: "Slip Builder",
-      desc: "Custom Target Multiplier Combinatorial Engine",
+      desc: "Custom Odds & 14-Day Spread Solver",
       icon: Sparkles,
       tag: "SOLVER",
       tagColor: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
@@ -154,34 +188,34 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: "all_matches",
       targetTab: "all_matches",
-      label: "All Matches / Schedule",
-      desc: "Live Fixtures, Odds & Head-to-Head Analytics",
+      label: "All Matches / Today's Schedule",
+      desc: "Live Fixtures, Odds & 4-Sport Schedule",
       icon: Layers,
       tag: "4 SPORTS",
       tagColor: "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/30",
     },
     {
+      id: "markets_glossary",
+      targetTab: "markets_glossary",
+      label: "Betting Markets Glossary",
+      desc: "Rules for 1X2, DNB, BTTS, Halves & Handicaps",
+      icon: HelpCircle,
+      tag: "A-Z",
+      tagColor: "text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/30",
+    },
+    {
       id: "guide",
       targetTab: "guide",
-      label: "Platform Guide",
+      label: "Platform Guide / How It Works",
       desc: "Step-by-Step Onboarding: How to Play & Win",
       icon: BookOpen,
       tag: "NEW",
       tagColor: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
     },
     {
-      id: "markets_glossary",
-      targetTab: "markets_glossary",
-      label: "Betting Markets Glossary",
-      desc: "Plain-English Rules for 1X2, DNB, BTTS & Handicaps",
-      icon: HelpCircle,
-      tag: "A-Z",
-      tagColor: "text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/30",
-    },
-    {
       id: "pricing",
       targetTab: "pricing",
-      label: "Pricing / Upgrade Plan",
+      label: "Pricing & VIP Plans",
       desc: "Compare Free, Pro VIP and Premium VIP Tiers",
       icon: Crown,
       tag: "VIP",
@@ -203,13 +237,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (!isAuthenticated && tabId !== "home" && tabId !== "guide" && tabId !== "markets_glossary") {
       requireAuth(() => {
         onTabChange(tabId);
-        setIsMoreDrawerOpen(false);
+        setIsMenuOpen(false);
         setIsProfileDropdownOpen(false);
       }, `Please sign in or create a free account to access ${tabId.replace(/_/g, " ").toUpperCase()}`);
       return;
     }
     onTabChange(tabId);
-    setIsMoreDrawerOpen(false);
+    setIsMenuOpen(false);
     setIsProfileDropdownOpen(false);
   };
 
@@ -316,7 +350,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
                   title="Open Account Details & Settings"
                   aria-expanded={isProfileDropdownOpen}
-                  className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer ${
+                  className={`inline-flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer min-w-[40px] min-h-[40px] ${
                     isProfileDropdownOpen
                       ? "bg-slate-200 text-slate-900 dark:bg-white/[0.12] dark:text-white border-emerald-500/50"
                       : "bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border-slate-200 dark:border-white/10 text-slate-800 dark:text-white"
@@ -325,12 +359,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold shrink-0">
                     <User className="w-3.5 h-3.5" />
                   </div>
-                  <span className="font-black text-xs hidden sm:inline truncate max-w-[85px]">
+                  <span className="font-black text-xs hidden sm:inline truncate max-w-[85px] ml-1.5">
                     {authProfile?.displayName?.split(" ")[0] || "Profile"}
                   </span>
-                  <span className="font-black text-xs sm:hidden">Account</span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${
+                    className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 hidden sm:inline ml-0.5 transition-transform duration-200 ${
                       isProfileDropdownOpen ? "rotate-180" : ""
                     }`}
                   />
@@ -477,22 +510,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => openAuthModal("signup", "Create your free account to unlock full platform features")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-md transition active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-md transition active:scale-95 cursor-pointer min-w-[40px] min-h-[40px]"
+                title="Sign In or Register"
               >
                 <User className="w-3.5 h-3.5 text-black stroke-[3]" />
-                <span>Sign In</span>
+                <span className="hidden sm:inline ml-1.5">Sign In</span>
               </button>
             )}
 
             {/* Right 3-Bar (Hamburger) Menu Button */}
             <button
+              ref={menuButtonRef}
               type="button"
-              onClick={() => setIsMoreDrawerOpen(!isMoreDrawerOpen)}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-white/10 transition active:scale-95 shrink-0 flex items-center justify-center min-w-[42px] min-h-[42px] shadow-xs cursor-pointer"
               title="Open Navigation Menu & Tools"
               aria-label="Navigation Menu"
+              aria-expanded={isMenuOpen}
             >
-              {isMoreDrawerOpen ? (
+              {isMenuOpen ? (
                 <X className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               ) : (
                 <Menu className="w-5 h-5 text-slate-800 dark:text-slate-200" />
@@ -500,22 +536,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
         </div>
+      </header>
 
-        {/* =========================================================================
-            RIGHT 3-BAR NAVIGATION DRAWER (Fully Interactive on Mobile & Desktop)
-            Contains the 8 exact operational tools & hubs requested
-           ========================================================================= */}
-        {isMoreDrawerOpen && (
+      {/* =========================================================================
+          RIGHT 3-BAR NAVIGATION DRAWER (Slide-Over Drawer, Detached from Header)
+          Contains the 9 secondary operational tools & hubs with high z-index
+         ========================================================================= */}
+        {isMenuOpen && (
           <>
-            {/* Backdrop Overlay */}
+            {/* Backdrop Overlay with Backdrop Click Listener */}
             <div
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
-              onClick={() => setIsMoreDrawerOpen(false)}
+              className="fixed inset-0 z-[99] bg-black/60 backdrop-blur-sm transition-opacity"
+              onClick={() => setIsMenuOpen(false)}
               aria-hidden="true"
             />
 
             {/* Slide-Over Drawer (Right-Anchored, zero clipping) */}
-            <div className="fixed inset-y-0 right-0 w-full sm:w-[420px] max-w-full z-50 bg-white dark:bg-[#0c111a] border-l border-slate-200 dark:border-white/15 p-5 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-900 dark:text-white flex flex-col justify-between">
+            <div
+              ref={menuDrawerRef}
+              className="fixed inset-y-0 right-0 w-full sm:w-[420px] max-w-full z-[100] bg-white dark:bg-[#0c111a] border-l border-slate-200 dark:border-white/15 p-5 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-900 dark:text-white flex flex-col justify-between"
+            >
               <div className="space-y-4">
                 {/* Drawer Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
@@ -535,7 +575,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setIsMoreDrawerOpen(false)}
+                    onClick={() => setIsMenuOpen(false)}
                     className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition active:scale-95 shrink-0 flex items-center justify-center min-w-[38px] min-h-[38px] shadow-xs cursor-pointer"
                     title="Close Navigation Menu"
                     aria-label="Close Menu"
@@ -735,7 +775,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => {
                     setIsSupportModalOpen(false);
-                    setIsMoreDrawerOpen(false);
+                    setIsMenuOpen(false);
                     handleSelectNav("copilot");
                   }}
                   className="w-full p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-between text-emerald-700 dark:text-emerald-400 transition cursor-pointer"
@@ -755,7 +795,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         )}
-      </header>
 
       {/* =========================================================================
           STICKY MOBILE BOTTOM NAVIGATION BAR

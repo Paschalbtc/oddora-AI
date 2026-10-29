@@ -333,7 +333,7 @@ export async function getDailySlipsForUI(
     const slipType = r.slip_category as V2DailySlipRecord["slip_type"];
     const requiredTier = (r.required_tier || "FREE") as "FREE" | "PRO" | "PREMIUM";
     const sportyCode = r.sportybet_code || "YK6NTF";
-    const bet9jaCode = r.bet9ja_code || "B9J-71936K";
+    const bet9jaCode = (r.bet9ja_code || "B971936K").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 
     const slipRecord: V2DailySlipRecord = {
       id: r.id,

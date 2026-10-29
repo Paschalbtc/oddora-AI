@@ -96,17 +96,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
   const handleCopyBet9jaMatches = (slip: any) => {
     if (!requireAuth(undefined, "Please create a free account or sign in to copy edited Bet9ja slips")) return;
-    const legs = slip.surviving_legs || slip.legs || [];
-    const lines = [
-      `Oddora AI - Edited Ticket (${slip.total_odds}x Total Odds)`,
-      ...legs.map(
-        (l: any, i: number) =>
-          `${i + 1}. ${l.match} | Pick: ${l.selection} @ ${Number(l.odd || 1.45).toFixed(2)}`
-      ),
-      `Total Odds: ${slip.total_odds}x`,
-      "Place on Bet9ja: https://sports.bet9ja.com",
-    ];
-    navigator.clipboard.writeText(lines.join("\n"));
+    const raw = slip.bet9ja_code || slip.bet9jaCode || "B9EDIT";
+    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    navigator.clipboard.writeText(clean);
     setCopiedCode("b9_" + (slip.slip_index || "edited"));
     setTimeout(() => setCopiedCode(null), 2500);
   };

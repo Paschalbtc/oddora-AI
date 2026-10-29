@@ -513,8 +513,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* =========================================================================
-            RIGHT MENU DROPDOWN DRAWER
-            Fixed overlay with backdrop, fully visible in both Dark & Light modes
+            RIGHT MENU DROPDOWN / MOBILE SLIDE-OVER SHEET
+            Full-screen mobile slide-over sheet with backdrop blur (Zero edge cut-off)
            ========================================================================= */}
         {isMoreDrawerOpen && (
           <>
@@ -525,70 +525,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               aria-hidden="true"
             />
 
-            {/* Menu Panel */}
-            <div className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 sm:w-[460px] z-50 bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-white/15 p-4 sm:p-5 space-y-4 rounded-2xl max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl animate-in slide-in-from-top-2 duration-150 text-slate-900 dark:text-white">
-              {/* Header & Prominent Theme Switcher */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-white/10">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
-                    <Grid className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>All Oddora AI Tools & Navigation</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsMoreDrawerOpen(false)}
-                    className="sm:hidden text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white p-1"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+            {/* Slide-Over Sheet (Right-Anchored, Full Viewport on Mobile, 420px on Tablet/Desktop) */}
+            <div className="fixed inset-y-0 right-0 w-full sm:w-[420px] max-w-full z-50 bg-white dark:bg-[#0c111a] border-l border-slate-200 dark:border-white/15 p-5 space-y-4 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-900 dark:text-white flex flex-col">
+              {/* Top Drawer Header with Brand Title & Thumb-Friendly Close Button */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Grid className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                      Oddora AI Navigation
+                    </h3>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                      Quantitative Sports Suite
+                    </span>
+                  </div>
                 </div>
 
-                {/* THEME SWITCHER TOGGLE */}
-                <div className="flex items-center justify-between sm:justify-end gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 pl-1">
-                    {theme === "light" ? (
-                      <Sun className="w-4 h-4 text-amber-500 shrink-0" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-cyan-400 shrink-0" />
-                    )}
-                    <span className="hidden sm:inline">Theme:</span>
-                  </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMoreDrawerOpen(false)}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition active:scale-95 shrink-0 flex items-center justify-center min-w-[40px] min-h-[40px] shadow-sm cursor-pointer"
+                  title="Close Navigation Menu"
+                  aria-label="Close Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                  <div className="flex items-center bg-white dark:bg-black/40 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => setTheme("light")}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                        theme === "light"
-                          ? "bg-emerald-500 text-white shadow-sm font-black"
-                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                      }`}
-                    >
-                      <Sun className="w-3.5 h-3.5" />
-                      <span>Light</span>
-                    </button>
+              {/* HAND-TUNED THEME SWITCHER TOGGLE */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 pl-1">
+                  {theme === "light" ? (
+                    <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-cyan-400 shrink-0" />
+                  )}
+                  <span>Appearance:</span>
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setTheme("dark")}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                        theme === "dark"
-                          ? "bg-[#11161F] text-emerald-400 shadow-sm border border-emerald-500/30 font-black"
-                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                      }`}
-                    >
-                      <Moon className="w-3.5 h-3.5" />
-                      <span>Dark</span>
-                    </button>
-                  </div>
+                <div className="flex items-center bg-white dark:bg-black/40 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setTheme("light")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                      theme === "light"
+                        ? "bg-emerald-500 text-white shadow-sm font-black"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                    <span>Light</span>
+                  </button>
 
                   <button
                     type="button"
-                    onClick={() => setIsMoreDrawerOpen(false)}
-                    className="hidden sm:inline-flex p-1.5 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition"
-                    title="Close Menu"
+                    onClick={() => setTheme("dark")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                      theme === "dark"
+                        ? "bg-[#11161F] text-emerald-400 shadow-sm border border-emerald-500/30 font-black"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
                   >
-                    <X className="w-4 h-4" />
+                    <Moon className="w-3.5 h-3.5" />
+                    <span>Dark</span>
                   </button>
                 </div>
               </div>
@@ -604,7 +605,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     openAuthModal("signup");
                   }
                 }}
-                className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-teal-500/10 dark:to-amber-500/15 border-2 border-emerald-500/30 dark:border-emerald-500/35 flex items-center justify-between text-left transition hover:border-emerald-500 shadow-sm"
+                className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-teal-500/10 dark:to-amber-500/15 border-2 border-emerald-500/30 dark:border-emerald-500/35 flex items-center justify-between text-left transition hover:border-emerald-500 shadow-sm shrink-0"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-lg font-bold">
@@ -629,8 +630,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ChevronDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 -rotate-90" />
               </button>
 
-              {/* Tools & Secondary Pages Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Navigation Items List (1-Column cleanly scrollable on mobile, zero cut-off) */}
+              <div className="flex-1 space-y-2 pb-24 overflow-y-auto">
+                <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block px-1">
+                  All Pages & Predictive Brains
+                </span>
                 {secondaryNavItems.map((item) => {
                   const ItemIcon = item.icon;
                   const isItemActive = activeTab === item.id;
@@ -639,23 +643,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                       key={item.id}
                       type="button"
                       onClick={() => handleSelectNav(item.id)}
-                      className={`p-3 rounded-2xl text-left border flex items-center justify-between transition ${
+                      className={`w-full p-3 rounded-2xl text-left border flex items-center justify-between transition cursor-pointer ${
                         isItemActive
                           ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 shadow-sm"
                           : "bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 dark:hover:bg-white/[0.06]"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-xl bg-white dark:bg-white/[0.05] border border-slate-200 dark:border-transparent flex items-center justify-center shrink-0 shadow-xs">
                           <ItemIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
-                        <div>
-                          <div className="font-bold text-xs text-slate-900 dark:text-white">{item.label}</div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400">{item.desc}</div>
+                        <div className="truncate">
+                          <div className="font-bold text-xs text-slate-900 dark:text-white truncate">{item.label}</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{item.desc}</div>
                         </div>
                       </div>
                       <span
-                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${item.tagColor}`}
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 ${item.tagColor}`}
                       >
                         {item.tag}
                       </span>

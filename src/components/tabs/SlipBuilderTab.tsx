@@ -160,16 +160,9 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   const handleCopyBet9ja = () => {
     if (!requireAuth(undefined, "Please sign up or sign in to copy Bet9ja coupon codes")) return;
     if (!resultSlip) return;
-    const legs = resultSlip.legs || [];
-    const lines = [
-      `Oddora AI - Solved Accumulator (${resultSlip.actual_combined_odds}x Odds)`,
-      ...legs.map(
-        (l: any, i: number) =>
-          `${i + 1}. [${(l.sport || "MATCH").toUpperCase()}] ${l.match} | Pick: ${l.selection} @ ${Number(l.odd).toFixed(2)} (${l.win_probability}% Win Rate)`
-      ),
-      "Place on Bet9ja: https://sports.bet9ja.com",
-    ];
-    navigator.clipboard.writeText(lines.join("\n"));
+    const raw = resultSlip.bet9ja_code || resultSlip.bet9jaCode || "B9BUILDER";
+    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    navigator.clipboard.writeText(clean);
     setCopiedCode("b9_builder");
     setTimeout(() => setCopiedCode(null), 2500);
   };

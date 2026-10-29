@@ -78,15 +78,9 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
       onOpenUpgradeModal();
       return;
     }
-    const lines = [
-      `Oddora AI - Over 2.5 Goals Master Ticket (${specialSlip?.actual_odds || 50.82}x Combined Odds)`,
-      ...legs.map(
-        (l: any, i: number) =>
-          `${i + 1}. ${l.match || `${l.home_team} vs ${l.away_team}`} | Over 2.5 Goals @ ${Number(l.odd || 1.75).toFixed(2)}`
-      ),
-      "Place on Bet9ja: https://sports.bet9ja.com",
-    ];
-    navigator.clipboard.writeText(lines.join("\n"));
+    const raw = specialSlip?.bet9ja_code || specialSlip?.bet9jaCode || "B9OVER25";
+    const clean = raw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    navigator.clipboard.writeText(clean);
     setCopiedCode("b9_over25");
     setTimeout(() => setCopiedCode(null), 2500);
   };
@@ -229,10 +223,10 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-emerald-300 font-mono block">
-                        Bet9ja Slip Selections ({legs.length} Matches)
+                        Bet9ja Coupon Code
                       </span>
-                      <span className="text-sm font-bold font-mono text-white">
-                        📋 Copy 7 Over 2.5 Games
+                      <span className="text-sm font-black font-mono text-white tracking-wider">
+                        {bet9jaCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}
                       </span>
                     </div>
 

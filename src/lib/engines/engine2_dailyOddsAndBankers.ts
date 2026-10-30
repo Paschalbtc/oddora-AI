@@ -209,6 +209,8 @@ export async function generateAndBookDailySlips(): Promise<{
       target_odds: cfg.target,
     });
 
+    const verifiedLegs = booked.legs_json && booked.legs_json.length > 0 ? booked.legs_json : booked.legs;
+
     const slipRecord: V2DailySlipRecord = {
       slip_type: cfg.type,
       slip_category: cfg.type,
@@ -221,8 +223,8 @@ export async function generateAndBookDailySlips(): Promise<{
       sportybet_code: booked.sportybet_code,
       share_url: booked.sporty_url,
       sporty_url: booked.sporty_url,
-      legs: booked.legs,
-      legs_json: booked.legs,
+      legs: verifiedLegs,
+      legs_json: verifiedLegs,
       is_locked_for_tier: cfg.tierLock,
       required_tier: cfg.tierLock,
       created_date: todayStr,
@@ -237,10 +239,10 @@ export async function generateAndBookDailySlips(): Promise<{
       slip_category: cfg.type,
       required_tier: cfg.tierLock,
       total_odds: booked.actual_odds,
-      match_count: booked.legs.length,
+      match_count: verifiedLegs.length,
       sportybet_code: booked.sportybet_code,
       bet9ja_code: null,
-      legs_json: booked.legs,
+      legs_json: verifiedLegs,
       slip_result: "PENDING",
     });
   }
@@ -279,6 +281,11 @@ export async function generateAndBookDailySlips(): Promise<{
     target_odds: 16.0,
   });
 
+  const over25VerifiedLegs =
+    over25Booked.legs_json && over25Booked.legs_json.length > 0
+      ? over25Booked.legs_json
+      : over25Booked.legs;
+
   const over25Record: V2DailySlipRecord = {
     slip_type: "OVER_2_5_SPECIAL",
     slip_category: "OVER_2_5_SPECIAL",
@@ -291,8 +298,8 @@ export async function generateAndBookDailySlips(): Promise<{
     sportybet_code: over25Booked.sportybet_code,
     share_url: over25Booked.sporty_url,
     sporty_url: over25Booked.sporty_url,
-    legs: over25Booked.legs,
-    legs_json: over25Booked.legs,
+    legs: over25VerifiedLegs,
+    legs_json: over25VerifiedLegs,
     is_locked_for_tier: "PRO",
     required_tier: "PRO",
     created_date: todayStr,
@@ -307,10 +314,10 @@ export async function generateAndBookDailySlips(): Promise<{
     slip_category: "OVER_2_5_SPECIAL",
     required_tier: "PRO",
     total_odds: over25Booked.actual_odds,
-    match_count: over25Booked.legs.length,
+    match_count: over25VerifiedLegs.length,
     sportybet_code: over25Booked.sportybet_code,
     bet9ja_code: null,
-    legs_json: over25Booked.legs,
+    legs_json: over25VerifiedLegs,
     slip_result: "PENDING",
   });
 

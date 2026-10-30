@@ -504,7 +504,10 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 (tierConfig.tierLock === "PRO" && currentTier === "FREE") ||
                 (tierConfig.tierLock === "PREMIUM" && currentTier !== "PREMIUM");
 
-              const legs = matchedSlip?.legs || [];
+              // Strict Payload-to-Display Binding: Render strictly from slip.legs_json
+              const legs = Array.isArray(matchedSlip?.legs_json) && matchedSlip.legs_json.length > 0
+                ? matchedSlip.legs_json
+                : (Array.isArray(matchedSlip?.legs) ? matchedSlip.legs : []);
               const actualOdds = matchedSlip?.actual_odds || tierConfig.targetOdds;
               const targetOdds = matchedSlip?.target_odds || tierConfig.targetOdds;
               const sportyCode = matchedSlip?.sporty_code || (isLocked ? "LOCK-VIP" : "SPORTY-CODE");
@@ -623,7 +626,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                                   <span>•</span>
                                   <span className="flex items-center gap-1 shrink-0 font-mono">
                                     <Clock className="w-3 h-3" />
-                                    <span>{formatTime(leg.kickoffTime)}</span>
+                                    <span>{formatTime(leg.kickoffTime || leg.kickoff_time || leg.startTime)}</span>
                                   </span>
                                 </div>
                               </div>

@@ -66,6 +66,7 @@ export interface CustomBuilderResult {
   combined_win_rate: string;
   average_leg_probability: number;
   legs: CustomBuilderLeg[];
+  legs_json?: CustomBuilderLeg[];
 }
 
 export interface CandidateMarketOption {
@@ -1235,6 +1236,24 @@ export async function buildCustomSlip(
 
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
+  const rawVerified = (booked.legs_json && booked.legs_json.length > 0 ? booked.legs_json : booked.legs) || selectedLegs;
+  const verifiedLegs: CustomBuilderLeg[] = rawVerified.map((l: any) => ({
+    match: l.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
+    home_team: l.home_team || "Home",
+    away_team: l.away_team || "Away",
+    league: l.league || "Premier Division",
+    market: l.market || "Match Winner",
+    selection: l.selection || "Selection",
+    odd: Number(l.odd) || 1.35,
+    win_probability: Number(l.win_probability) || 82,
+    eventId: l.eventId,
+    marketId: String(l.marketId || "1"),
+    outcomeId: String(l.outcomeId || "1"),
+    specifier: l.specifier || null,
+    sport: l.sport || "FOOTBALL",
+    marketCategory: l.marketCategory || l.market || "Match Winner",
+    edgeScore: l.edgeScore,
+  }));
 
   return {
     bookmaker: "SPORTYBET",
@@ -1243,14 +1262,15 @@ export async function buildCustomSlip(
     share_url: shareUrl,
     sporty_url: sportyUrl,
     target_odds_requested: target,
-    actual_combined_odds: actualCombinedOdds,
+    actual_combined_odds: booked.actual_odds || actualCombinedOdds,
     odds_accuracy_ratio: `${accuracy}%`,
     match_count_mode: countMode,
-    legs_count: selectedLegs.length,
+    legs_count: verifiedLegs.length,
     safety_grade: safetyGrade,
     safety_grade_desc: safetyGradeDesc,
     combined_win_rate: `${Math.max(1.5, compoundWinRate)}%`,
     average_leg_probability: avgLegProb,
-    legs: selectedLegs,
+    legs: verifiedLegs,
+    legs_json: verifiedLegs,
   };
 }

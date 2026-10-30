@@ -71,7 +71,10 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
   };
 
   const isLocked = currentTier === "FREE";
-  const legs = specialSlip?.legs || [];
+  // Strict Payload-to-Display Binding: Render strictly from slip.legs_json
+  const legs = Array.isArray(specialSlip?.legs_json) && specialSlip.legs_json.length > 0
+    ? specialSlip.legs_json
+    : (Array.isArray(specialSlip?.legs) ? specialSlip.legs : []);
   const sportyCode = specialSlip?.sporty_code || "VIP_ONLY";
   const sportyUrl =
     specialSlip?.sporty_url ||

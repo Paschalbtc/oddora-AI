@@ -163,12 +163,13 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
     // Auto-save user ticket
     if (resultSlip) {
+      const activeLegs = resultSlip.legs_json && resultSlip.legs_json.length > 0 ? resultSlip.legs_json : (resultSlip.legs || []);
       saveUserTicket({
         booking_code: code,
         total_odds: Number(resultSlip.actual_odds) || Number(targetOdds) || 2.0,
         target_odds: Number(targetOdds) || undefined,
-        title: `Slip Builder (${resultSlip.legs?.length || 0} Matches)`,
-        legs: (resultSlip.legs || []).map((l: any) => ({
+        title: `Slip Builder (${activeLegs.length} Matches)`,
+        legs: activeLegs.map((l: any) => ({
           match: l.match,
           home_team: l.home_team,
           away_team: l.away_team,
@@ -186,15 +187,16 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
 
   const handleAddAllToFloatingSlip = () => {
     if (!requireAuth(undefined, "Please create an account or sign in to add accumulator legs to your slip")) return;
-    if (!resultSlip || !resultSlip.legs || resultSlip.legs.length === 0) return;
+    const activeLegs = resultSlip?.legs_json && resultSlip.legs_json.length > 0 ? resultSlip.legs_json : (resultSlip?.legs || []);
+    if (!resultSlip || activeLegs.length === 0) return;
 
     // Auto-save user ticket
     saveUserTicket({
       booking_code: resultSlip.sportyCode || "CART-SLIP",
       total_odds: Number(resultSlip.actual_odds) || Number(targetOdds) || 2.0,
       target_odds: Number(targetOdds) || undefined,
-      title: `Slip Builder (${resultSlip.legs?.length || 0} Matches)`,
-      legs: (resultSlip.legs || []).map((l: any) => ({
+      title: `Slip Builder (${activeLegs.length} Matches)`,
+      legs: activeLegs.map((l: any) => ({
         match: l.match,
         home_team: l.home_team,
         away_team: l.away_team,
@@ -208,7 +210,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
       source: "SLIP_BUILDER",
     });
 
-    const cartLegs: CartLeg[] = resultSlip.legs.map((leg: any, idx: number) => ({
+    const cartLegs: CartLeg[] = activeLegs.map((leg: any, idx: number) => ({
       id: leg.eventId ? `${leg.eventId}_${leg.selection}` : `builder_${idx}_${Date.now()}`,
       matchId: leg.eventId || `builder_match_${idx}`,
       eventId: leg.eventId,
@@ -829,48 +831,60 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             </div>
           </div>
 
-          {/* Solved Leg Rows */}
+          {/* Solved Leg Rows - Strict Payload-to-Display Binding from slip.legs_json */}
           <div className="divide-y divide-white/5">
-            {resultSlip.legs?.map((leg: any, idx: number) => (
-              <div
-                key={idx}
-                className="p-4 sm:p-5 hover:bg-white/[0.02] transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full bg-white/5 text-slate-400 font-mono text-xs flex items-center justify-center shrink-0">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[9.5px] font-mono font-black px-1.5 py-0.2 rounded border uppercase ${getSportBadgeStyle(
-                          leg.sport
-                        )}`}
-                      >
-                        {leg.sport || "SPORT"}
-                      </span>
-                      <span className="text-xs font-bold text-white">{leg.match}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                      <span>{leg.league || "Premier League"}</span>
-                      <span>•</span>
-                      <span className="font-mono text-slate-300">{leg.market}</span>
+            {(Array.isArray(resultSlip.legs_json) && resultSlip.legs_json.length > 0 ? resultSlip.legs_json : (resultSlip.legs || [])).map((leg: any, idx: number) => {
+              const matchTitle = leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`;
+              const kickoff = leg.kickoffTime || leg.kickoff_time;
+              return (
+                <div
+                  key={idx}
+                  className="p-4 sm:p-5 hover:bg-white/[0.02] transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-white/5 text-slate-400 font-mono text-xs flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[9.5px] font-mono font-black px-1.5 py-0.2 rounded border uppercase ${getSportBadgeStyle(
+                            leg.sport
+                          )}`}
+                        >
+                          {leg.sport || "SPORT"}
+                        </span>
+                        <span className="text-xs font-bold text-white">{matchTitle}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                        <span>{leg.league || "Premier League"}</span>
+                        <span>•</span>
+                        <span className="font-mono text-slate-300">{leg.market}</span>
+                        {kickoff && (
+                          <>
+                            <span>•</span>
+                            <span className="font-mono text-slate-400">
+                              {new Date(kickoff).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-400 font-mono text-xs block">
-                      {leg.selection}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      @ {Number(leg.odd).toFixed(2)} ({leg.win_probability}% Win Rate)
-                    </span>
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className="text-right">
+                      <span className="font-bold text-emerald-400 font-mono text-xs block">
+                        {leg.selection}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        @ {Number(leg.odd).toFixed(2)} ({leg.win_probability}% Win Rate)
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

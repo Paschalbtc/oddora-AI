@@ -13,7 +13,7 @@
  */
 
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
-import { isMatchValidForSportyBetBooking } from "../coreBookingVault";
+import { isMatchValidForSportyBetBooking, bookVaultSlip } from "../coreBookingVault";
 
 const SPORTYBET_HEADERS = {
   "User-Agent":
@@ -49,11 +49,14 @@ export interface BookedTicketResult {
   status: "success" | "error";
   sportybet_code: string;
   sporty_url: string;
+  total_odds?: number;
   actual_odds: number;
   legs_count: number;
   legs: BookedLeg[];
+  legs_json?: any[];
   is_verified_live: boolean;
   message?: string;
+  error_message?: string;
   bet9ja_code?: string;
   bet9ja_url?: string;
 }
@@ -530,155 +533,18 @@ export async function bookUniversalSlip(
     target_odds?: number;
   } = {}
 ): Promise<BookedTicketResult> {
-  // Enforce fresh ID normalization & re-mapping against live catalog
-  const finalLegs = await normalizeAndRemapSelectionsForSportyBet(selections, { minCount: 2 });
-  const matchedSelections = finalLegs.map((leg) => ({
-    eventId: leg.eventId,
-    marketId: leg.marketId,
-    outcomeId: leg.outcomeId,
-    specifier: leg.specifier || null,
-  }));
-
-  // Pre-booking logger & debugger check
-  console.log(
-    `[SportyBet Pre-Booking Audit - Universal] Validating ${matchedSelections.length} selections before POST /api/ng/orders/share...`
-  );
-  matchedSelections.forEach((sel, i) => {
-    const isValidEv = typeof sel.eventId === "string" && sel.eventId.startsWith("sr:match:") && sel.eventId.length > 9;
-    const isValidMkt = /^\d+$/.test(sel.marketId);
-    const isValidOut = /^\d+$/.test(sel.outcomeId);
-    console.log(
-      `[SportyBet Leg #${i + 1}] Event: ${sel.eventId} (valid: ${isValidEv}) | Market: ${sel.marketId} (valid: ${isValidMkt}) | Outcome: ${sel.outcomeId} (valid: ${isValidOut}) | Specifier: ${sel.specifier}`
-    );
-  });
-
-  // Post to SportyBet order share endpoint: POST https://www.sportybet.com/api/ng/orders/share
-  let sportyCode = "";
-  let sportyUrl = "";
-  let isVerifiedLive = false;
-
-  if (matchedSelections.length > 0) {
-    try {
-      const res = await fetch("https://www.sportybet.com/api/ng/orders/share", {
-        method: "POST",
-        headers: SPORTYBET_HEADERS,
-        body: JSON.stringify({ selections: matchedSelections }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(7000),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.bizCode === 10000 && json.data?.shareCode) {
-          sportyCode = json.data.shareCode;
-          sportyUrl = json.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-          isVerifiedLive = true;
-        } else {
-          console.warn("SportyBet initial share rejected:", json.bizCode, json.message, json.data);
-          // If specific unavailable outcomes were flagged, retry omitting them
-          if (Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
-            const badIds = new Set(json.data.unavailableOutcomes.map((u: any) => u.eventId));
-            const filteredLegs = finalLegs.filter((s) => !badIds.has(s.eventId));
-            const remappedClean = await normalizeAndRemapSelectionsForSportyBet(filteredLegs, { minCount: 2 });
-            const retryPayload = remappedClean.map((r) => ({
-              eventId: r.eventId,
-              marketId: r.marketId,
-              outcomeId: r.outcomeId,
-              specifier: r.specifier || null,
-            }));
-
-            const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
-              method: "POST",
-              headers: SPORTYBET_HEADERS,
-              body: JSON.stringify({ selections: retryPayload }),
-              cache: "no-store",
-              signal: AbortSignal.timeout(6000),
-            });
-            if (retryRes.ok) {
-              const retryJson = await retryRes.json();
-              if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
-                sportyCode = retryJson.data.shareCode;
-                sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-                isVerifiedLive = true;
-                finalLegs.length = 0;
-                finalLegs.push(...remappedClean);
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("SportyBet order share live call warning:", err);
-    }
-  }
-
-  if (!sportyCode) {
-    // Retry once with fresh live catalog picks if initial failed
-    try {
-      console.log("[SportyBet Universal] Attempting fresh catalog refill retry...");
-      const freshLegs = await normalizeAndRemapSelectionsForSportyBet([], { minCount: 2 });
-      const freshPayload = freshLegs.map((r) => ({
-        eventId: r.eventId,
-        marketId: r.marketId,
-        outcomeId: r.outcomeId,
-        specifier: r.specifier || null,
-      }));
-
-      const freshRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
-        method: "POST",
-        headers: SPORTYBET_HEADERS,
-        body: JSON.stringify({ selections: freshPayload }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (freshRes.ok) {
-        const freshJson = await freshRes.json();
-        if (freshJson.bizCode === 10000 && freshJson.data?.shareCode) {
-          sportyCode = freshJson.data.shareCode;
-          sportyUrl = freshJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-          isVerifiedLive = true;
-          finalLegs.length = 0;
-          finalLegs.push(...freshLegs);
-        }
-      }
-    } catch (retryErr) {
-      console.warn("Fresh catalog refill retry error:", retryErr);
-    }
-  }
-
-  const finalSportyCode = sportyCode;
-  const finalSportyUrl = sportyUrl || (finalSportyCode ? `http://www.sportybet.com/ng/?shareCode=${finalSportyCode}` : "");
-
-  const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * l.odd, 1.0) * 100) / 100;
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  // Save to Supabase `oddora_v2_daily_slips` so changes or updates NEVER lose this code!
-  try {
-    const supabase = getSupabaseAdmin();
-    await supabase.from("oddora_v2_daily_slips").insert({
-      slip_date: todayStr,
-      slip_category: options.slip_category || "CUSTOM_BOOKED_SLIP",
-      required_tier: options.required_tier || "FREE",
-      total_odds: actualOdds,
-      match_count: finalLegs.length,
-      sportybet_code: finalSportyCode,
-      bet9ja_code: null,
-      legs_json: finalLegs,
-      slip_result: "PENDING",
-    });
-  } catch (dbErr) {
-    console.warn("Could not cache booked ticket in Supabase:", dbErr);
-  }
-
+  const vaultRes = await bookVaultSlip(selections, options);
   return {
-    status: "success",
-    sportybet_code: finalSportyCode,
-    sporty_url: finalSportyUrl,
-    actual_odds: actualOdds,
-    legs_count: finalLegs.length,
-    legs: finalLegs,
-    is_verified_live: isVerifiedLive,
+    status: vaultRes.status,
+    sportybet_code: vaultRes.sportybet_code,
+    sporty_url: vaultRes.sporty_url,
+    total_odds: vaultRes.total_odds,
+    actual_odds: vaultRes.actual_odds,
+    legs_count: vaultRes.legs_count,
+    is_verified_live: vaultRes.is_verified_live,
+    legs: vaultRes.legs,
+    legs_json: vaultRes.legs_json,
+    error_message: vaultRes.error_message,
   };
 }
 

@@ -27,6 +27,8 @@ import {
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import { LiveWinningSlipsTicker } from "../LiveWinningSlipsTicker";
+import { saveUserTicket } from "@/lib/userTicketTracker";
 
 export interface HomeDailyOddsTabProps {
   currentTier: UserTier;
@@ -199,7 +201,15 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     }
   }
 
-  const handleCopyCode = (code: string) => {
+  const handleCopyCode = (
+    code: string,
+    ticketMeta?: {
+      tierName?: string;
+      targetOdds?: number;
+      actualOdds?: number;
+      legs?: any[];
+    }
+  ) => {
     if (!requireAuth(undefined, "Please create an account or sign in to copy verified booking codes")) {
       return;
     }
@@ -210,6 +220,18 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
+
+    // Auto-save user ticket
+    if (ticketMeta) {
+      saveUserTicket({
+        booking_code: code,
+        total_odds: ticketMeta.actualOdds || ticketMeta.targetOdds || 2.0,
+        target_odds: ticketMeta.targetOdds,
+        title: ticketMeta.tierName || "Daily Accumulator Ticket",
+        legs: ticketMeta.legs || [],
+        source: "DAILY_PRESET",
+      });
+    }
   };
 
   const handleCopyManualList = (
@@ -222,6 +244,17 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     if (!requireAuth(undefined, "Please create an account or sign in to copy match selections")) {
       return;
     }
+
+    // Auto-save user ticket
+    saveUserTicket({
+      booking_code: sportyCode || "ODDORA-LIST",
+      total_odds: actualOdds || targetOdds || 2.0,
+      target_odds: targetOdds,
+      title: tierName,
+      legs: legs || [],
+      source: "MANUAL_PICKS_LIST",
+    });
+
     const lines = [
       `ODDORA AI — ${tierName}`,
       `Target Odds: ${targetOdds}x | Actual Total Odds: ${actualOdds}x`,
@@ -380,6 +413,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
           <Award className="w-5 h-5 text-amber-500 shrink-0" />
         </div>
       </div>
+
+      {/* Real-Time Live Winning Slips Marquee Ticker */}
+      <LiveWinningSlipsTicker />
 
       {/* =========================================================================
           STICKY HORIZONTAL PILL / TAB SELECTOR (7 Target Odds Categories)
@@ -722,7 +758,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                             {/* One-Tap Copy SportyBet Code Button */}
                             <button
                               type="button"
-                              onClick={() => handleCopyCode(sportyCode)}
+                              onClick={() =>
+                                handleCopyCode(sportyCode, {
+                                  tierName: tierConfig.tierName,
+                                  targetOdds: tierConfig.targetOdds,
+                                  actualOdds: actualOdds,
+                                  legs: legs,
+                                })
+                              }
                               className="flex-1 sm:flex-none py-2 px-3.5 rounded-xl bg-white dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-900 dark:text-white border border-slate-300 dark:border-white/15 transition flex items-center justify-center gap-1.5 text-xs font-black shadow-xs active:scale-95 cursor-pointer"
                               title="Copy SportyBet Code to Clipboard"
                             >

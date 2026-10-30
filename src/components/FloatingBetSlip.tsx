@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useBetSlip } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import { saveUserTicket } from "@/lib/userTicketTracker";
 import {
   Ticket,
   X,
@@ -50,6 +51,25 @@ export const FloatingBetSlip: React.FC = () => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
+
+    // Auto-save user ticket
+    saveUserTicket({
+      booking_code: code,
+      total_odds: Number(totalOdds) || 2.0,
+      title: `Custom Bet Slip (${legs.length} Games)`,
+      legs: legs.map((l) => ({
+        match: `${l.homeTeam} vs ${l.awayTeam}`,
+        home_team: l.homeTeam,
+        away_team: l.awayTeam,
+        league: l.league,
+        market: l.market,
+        selection: l.selection,
+        odd: l.odd,
+        win_probability: l.winProbability,
+        eventId: l.eventId,
+      })),
+      source: "FLOATING_SLIP",
+    });
   };
 
   return (

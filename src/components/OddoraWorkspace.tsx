@@ -19,14 +19,19 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { FloatingBetSlip } from "./FloatingBetSlip";
 import { ProfileModal } from "./ProfileModal";
 import { AuthModal } from "./AuthModal";
+import { MyBetsTab } from "./tabs/MyBetsTab";
 
-const OddoraWorkspaceInner: React.FC = () => {
+interface OddoraWorkspaceProps {
+  initialTab?: WorkspaceTab;
+}
+
+const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) => {
   const searchParams = useSearchParams();
   const urlTab = searchParams?.get("tab") as WorkspaceTab | null;
   const urlSport = searchParams?.get("sport");
   const { user, profile, isAuthenticated, openAuthModal, requireAuth } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("home");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab || "home");
   const [selectedSportFilter, setSelectedSportFilter] = useState<string>(urlSport || "football");
   const [currentTier, setCurrentTier] = useState<UserTier>("FREE");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -64,6 +69,7 @@ const OddoraWorkspaceInner: React.FC = () => {
         "over_25",
         "slip_builder",
         "edit_game",
+        "my_bets",
         "copilot",
         "leagues",
         "other_sports",
@@ -249,6 +255,17 @@ const OddoraWorkspaceInner: React.FC = () => {
           />
         )}
 
+        {/* My Bets & Slip Tracker Tab */}
+        {activeTab === "my_bets" && (
+          <MyBetsTab
+            onNavigateTab={handleTabChange}
+            onOpenUpgradeModal={() => {
+              setAccountModalSubTab("plan");
+              setIsUpgradeModalOpen(true);
+            }}
+          />
+        )}
+
         {/* Dedicated Platform Guide View */}
         {(activeTab === "guide" || activeTab === "how_it_works") && (
           <PlatformGuideView onNavigateTab={handleTabChange} />
@@ -306,7 +323,7 @@ const OddoraWorkspaceInner: React.FC = () => {
   );
 };
 
-export const OddoraWorkspace: React.FC = () => {
+export const OddoraWorkspace: React.FC<OddoraWorkspaceProps> = ({ initialTab }) => {
   return (
     <Suspense
       fallback={
@@ -320,7 +337,7 @@ export const OddoraWorkspace: React.FC = () => {
     >
       <AuthProvider>
         <BetSlipProvider>
-          <OddoraWorkspaceInner />
+          <OddoraWorkspaceInner initialTab={initialTab} />
         </BetSlipProvider>
       </AuthProvider>
     </Suspense>

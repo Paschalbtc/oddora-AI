@@ -23,6 +23,7 @@ import { UserTier } from "../Navbar";
 import { getOutcomesForSport } from "@/lib/highProbabilityOutcomes";
 import { useBetSlip, CartLeg } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import { saveUserTicket } from "@/lib/userTicketTracker";
 
 export interface SlipBuilderTabProps {
   currentTier: UserTier;
@@ -65,13 +66,13 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   const [addedToCart, setAddedToCart] = useState(false);
 
   const isProOrPremium = currentTier === "PRO" || currentTier === "PREMIUM";
+  const isPremium = currentTier === "PREMIUM";
 
   // Isolated betting markets for the selected sport category
   const currentSportOutcomes = getOutcomesForSport(sportType);
   const freeMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "FREE");
-  const advancedMarkets = currentSportOutcomes.filter(
-    (o) => o.tierAccess === "PRO" || o.tierAccess === "PREMIUM"
-  );
+  const proMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "PRO");
+  const premiumMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "PREMIUM");
 
   const quickOddsPresets = [
     { label: "2x", val: 2 },
@@ -86,8 +87,12 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     { label: "20,000x", val: 20000 },
   ];
 
-  const toggleMarket = (marketId: string, isAdvanced: boolean) => {
-    if (isAdvanced && !isProOrPremium) {
+  const toggleMarket = (marketId: string, tierAccess: "FREE" | "PRO" | "PREMIUM" = "FREE") => {
+    if (tierAccess === "PREMIUM" && !isPremium) {
+      onOpenUpgradeModal();
+      return;
+    }
+    if (tierAccess === "PRO" && !isProOrPremium) {
       onOpenUpgradeModal();
       return;
     }
@@ -155,11 +160,53 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
+
+    // Auto-save user ticket
+    if (resultSlip) {
+      saveUserTicket({
+        booking_code: code,
+        total_odds: Number(resultSlip.actual_odds) || Number(targetOdds) || 2.0,
+        target_odds: Number(targetOdds) || undefined,
+        title: `Slip Builder (${resultSlip.legs?.length || 0} Matches)`,
+        legs: (resultSlip.legs || []).map((l: any) => ({
+          match: l.match,
+          home_team: l.home_team,
+          away_team: l.away_team,
+          league: l.league,
+          market: l.market || l.marketCategory,
+          selection: l.selection,
+          odd: l.odd,
+          win_probability: l.win_probability,
+          eventId: l.eventId,
+        })),
+        source: "SLIP_BUILDER",
+      });
+    }
   };
 
   const handleAddAllToFloatingSlip = () => {
     if (!requireAuth(undefined, "Please create an account or sign in to add accumulator legs to your slip")) return;
     if (!resultSlip || !resultSlip.legs || resultSlip.legs.length === 0) return;
+
+    // Auto-save user ticket
+    saveUserTicket({
+      booking_code: resultSlip.sportyCode || "CART-SLIP",
+      total_odds: Number(resultSlip.actual_odds) || Number(targetOdds) || 2.0,
+      target_odds: Number(targetOdds) || undefined,
+      title: `Slip Builder (${resultSlip.legs?.length || 0} Matches)`,
+      legs: (resultSlip.legs || []).map((l: any) => ({
+        match: l.match,
+        home_team: l.home_team,
+        away_team: l.away_team,
+        league: l.league,
+        market: l.market || l.marketCategory,
+        selection: l.selection,
+        odd: l.odd,
+        win_probability: l.win_probability,
+        eventId: l.eventId,
+      })),
+      source: "SLIP_BUILDER",
+    });
 
     const cartLegs: CartLeg[] = resultSlip.legs.map((leg: any, idx: number) => ({
       id: leg.eventId ? `${leg.eventId}_${leg.selection}` : `builder_${idx}_${Date.now()}`,
@@ -572,7 +619,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => toggleMarket("all", false)}
+                onClick={() => toggleMarket("all", "FREE")}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                   selectedMarkets.includes("all")
                     ? "bg-emerald-500 text-black border-emerald-400 font-black"
@@ -582,13 +629,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 All Markets (Balanced Diversity)
               </button>
 
+              {/* Free Markets */}
               {freeMarkets.map((m) => {
                 const isSelected = selectedMarkets.includes(m.id);
                 return (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => toggleMarket(m.id, false)}
+                    onClick={() => toggleMarket(m.id, "FREE")}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                       isSelected
                         ? "bg-emerald-500 text-black border-emerald-400 font-black shadow-sm"
@@ -600,13 +648,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 );
               })}
 
-              {advancedMarkets.map((m) => {
+              {/* Pro Markets */}
+              {proMarkets.map((m) => {
                 const isSelected = selectedMarkets.includes(m.id);
                 return (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => toggleMarket(m.id, true)}
+                    onClick={() => toggleMarket(m.id, "PRO")}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5 ${
                       isSelected
                         ? "bg-cyan-500 text-black border-cyan-400 font-black shadow-sm"
@@ -614,7 +663,34 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                     }`}
                   >
                     <span>{m.outcomeName}</span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">
+                      PRO
+                    </span>
                     {!isProOrPremium && <Lock className="w-3 h-3 text-amber-400" />}
+                  </button>
+                );
+              })}
+
+              {/* Premium Markets */}
+              {premiumMarkets.map((m) => {
+                const isSelected = selectedMarkets.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMarket(m.id, "PREMIUM")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-amber-500 text-black border-amber-400 font-black shadow-sm"
+                        : "bg-white/[0.02] text-slate-300 border-amber-500/30 hover:border-amber-500/60"
+                    }`}
+                  >
+                    <Crown className="w-3 h-3 text-amber-400" />
+                    <span>{m.outcomeName}</span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                      VIP
+                    </span>
+                    {!isPremium && <Lock className="w-3 h-3 text-amber-400" />}
                   </button>
                 );
               })}

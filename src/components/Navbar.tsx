@@ -38,6 +38,7 @@ import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import { NotificationCenter } from "./NotificationCenter";
 
 export type WorkspaceTab =
   | "home"
@@ -45,6 +46,7 @@ export type WorkspaceTab =
   | "over_25"
   | "slip_builder"
   | "edit_game"
+  | "my_bets"
   | "copilot"
   | "leagues"
   | "other_sports"
@@ -149,6 +151,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     tagColor?: string;
     isSupport?: boolean;
   }> = [
+    {
+      id: "my_bets",
+      targetTab: "my_bets",
+      label: "My Bets Tracker",
+      desc: "Live grading, pending slips & win stats",
+      icon: Trophy,
+      tag: "TRACKER",
+      tagColor: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30",
+    },
     {
       id: "edit_game",
       targetTab: "edit_game",
@@ -329,7 +340,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
-          {/* Right Controls: Mobile Search + Profile Dropdown + 3-Bar Drawer Toggle */}
+          {/* Right Controls: Mobile Search + Notifications + Profile Dropdown + 3-Bar Drawer Toggle */}
           <div className="shrink-0 flex items-center gap-2">
             {/* Mobile Search Icon Button */}
             <button
@@ -341,6 +352,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+
+            {/* Notification Center */}
+            <NotificationCenter onNavigateTab={handleSelectNav} />
 
             {/* Profile Dropdown Trigger (Authenticated) OR Sign In Button */}
             {isAuthenticated ? (
@@ -399,6 +413,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* My Bets Tracker Link */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileDropdownOpen(false);
+                        handleSelectNav("my_bets");
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/10 dark:hover:bg-amber-500/15 border border-amber-500/30 transition flex items-center justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <Trophy className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                            My Bets Tracker
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                            Track saved slips & live match grading
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    </button>
 
                     {/* 2. My Profile / Account Details Button */}
                     <button

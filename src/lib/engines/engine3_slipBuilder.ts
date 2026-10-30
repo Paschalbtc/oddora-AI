@@ -14,6 +14,7 @@ import { bookVaultSlip, isMatchValidForSportyBetBooking } from "../coreBookingVa
 import { bookUniversalSlip } from "./bookingEngine";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { isMatchEnded } from "../multiSportScheduleFeed";
+import { isMarketAllowedForTier } from "../highProbabilityOutcomes";
 
 export const MAX_GAMES_PER_TICKET = 50;
 export const MIN_GAMES_PER_TICKET = 2;
@@ -86,7 +87,8 @@ export interface CandidateMarketOption {
  * =========================================================================
  */
 export function generateCandidateMarketsForFixture(
-  matchRow: any
+  matchRow: any,
+  userTier: "FREE" | "PRO" | "PREMIUM" = "FREE"
 ): CandidateMarketOption[] {
   const sport = (matchRow.sport_type || matchRow.sport || "FOOTBALL").toUpperCase();
   const home = matchRow.home_team || "Home";
@@ -110,17 +112,20 @@ export function generateCandidateMarketsForFixture(
   if (Array.isArray(rawJson) && rawJson.length > 0) {
     for (const item of rawJson) {
       if (item && item.selection && item.market) {
-        candidates.push({
-          marketCategory: classifyMarketCategory(item.market, item.selection, sport),
-          outcomeLabel: String(item.selection),
-          oddValue: Number(item.odd || item.odd_value) || 1.35,
-          trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
-          sport,
-          marketId: String(item.marketId || "1"),
-          outcomeId: String(item.outcomeId || "1"),
-          specifier: item.specifier || null,
-          eventId: item.eventId || matchEventId,
-        });
+        const cat = classifyMarketCategory(item.market, item.selection, sport);
+        if (isMarketAllowedForTier(cat, userTier)) {
+          candidates.push({
+            marketCategory: cat,
+            outcomeLabel: String(item.selection),
+            oddValue: Number(item.odd || item.odd_value) || 1.35,
+            trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
+            sport,
+            marketId: String(item.marketId || "1"),
+            outcomeId: String(item.outcomeId || "1"),
+            specifier: item.specifier || null,
+            eventId: item.eventId || matchEventId,
+          });
+        }
       }
     }
   }
@@ -130,14 +135,19 @@ export function generateCandidateMarketsForFixture(
     return candidates;
   }
 
+  const isProOrPremium = userTier === "PRO" || userTier === "PREMIUM";
+  const isPremium = userTier === "PREMIUM";
+
   // Generate complete sport-specific multi-market array
   if (sport === "FOOTBALL") {
-    // 1. Double Chance (High probability 87%-94%)
+    // ----------------------------------------------------
+    // 1. FREE TIER MARKETS (1X2, Double Chance, Over 1.5)
+    // ----------------------------------------------------
     candidates.push({
       marketCategory: "DOUBLE_CHANCE",
       outcomeLabel: "1X (Home or Draw)",
       oddValue: Math.round(Math.max(1.15, Math.min(1.38, 1 + (baseOdd - 1) * 0.45)) * 100) / 100,
-      trueWinProbability: Math.min(95, baseProb + 12),
+      trueWinProbability: Math.min(93, baseProb + 10),
       sport,
       marketId: "10",
       outcomeId: "9",
@@ -147,376 +157,381 @@ export function generateCandidateMarketsForFixture(
       marketCategory: "DOUBLE_CHANCE",
       outcomeLabel: "X2 (Away or Draw)",
       oddValue: Math.round(Math.max(1.18, Math.min(1.42, 1 + (baseOdd - 1) * 0.50)) * 100) / 100,
-      trueWinProbability: Math.min(93, baseProb + 9),
+      trueWinProbability: Math.min(91, baseProb + 8),
       sport,
       marketId: "10",
       outcomeId: "11",
+      eventId: matchEventId,
     });
     candidates.push({
       marketCategory: "DOUBLE_CHANCE",
       outcomeLabel: "12 (No Draw)",
       oddValue: 1.25,
-      trueWinProbability: 88,
+      trueWinProbability: 86,
       sport,
       marketId: "10",
       outcomeId: "10",
+      eventId: matchEventId,
     });
 
-    // 2. Over/Under Goals
+    // Over 1.5 Goals (Strictly balanced, not over-weighted)
     candidates.push({
       marketCategory: "OVER_UNDER",
       outcomeLabel: "Over 1.5 Goals",
-      oddValue: 1.26,
-      trueWinProbability: 90,
+      oddValue: 1.25,
+      trueWinProbability: 88,
       sport,
       marketId: "18",
       outcomeId: "12",
       specifier: "total=1.5",
-    });
-    candidates.push({
-      marketCategory: "OVER_UNDER",
-      outcomeLabel: "Under 3.5 Goals",
-      oddValue: 1.28,
-      trueWinProbability: 88,
-      sport,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=3.5",
-    });
-    candidates.push({
-      marketCategory: "OVER_UNDER",
-      outcomeLabel: "Under 4.5 Goals",
-      oddValue: 1.15,
-      trueWinProbability: 94,
-      sport,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=4.5",
-    });
-    candidates.push({
-      marketCategory: "OVER_UNDER",
-      outcomeLabel: "Over 2.5 Goals",
-      oddValue: 1.72,
-      trueWinProbability: 78,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=2.5",
+      eventId: matchEventId,
     });
 
-    // 3. Draw No Bet (DNB)
-    candidates.push({
-      marketCategory: "DRAW_NO_BET",
-      outcomeLabel: `${home} DNB (DNB1)`,
-      oddValue: 1.34,
-      trueWinProbability: 87,
-      sport,
-      marketId: "11",
-      outcomeId: "1",
-    });
-    candidates.push({
-      marketCategory: "DRAW_NO_BET",
-      outcomeLabel: `${away} DNB (DNB2)`,
-      oddValue: 1.38,
-      trueWinProbability: 85,
-      sport,
-      marketId: "11",
-      outcomeId: "2",
-    });
-
-    // 4. Handicap
-    candidates.push({
-      marketCategory: "HANDICAP",
-      outcomeLabel: `${away} (+1.5 Handicap)`,
-      oddValue: 1.28,
-      trueWinProbability: 89,
-      sport,
-      marketId: "16",
-      outcomeId: "3",
-      specifier: "hcp=+1.5",
-    });
-    candidates.push({
-      marketCategory: "HANDICAP",
-      outcomeLabel: `${home} (-1.0 Handicap)`,
-      oddValue: 1.68,
-      trueWinProbability: 77,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=-1.0",
-    });
-
-    // 5. BTTS (Both Teams To Score)
-    candidates.push({
-      marketCategory: "BTTS",
-      outcomeLabel: "BTTS - Yes (GG)",
-      oddValue: 1.70,
-      trueWinProbability: 78,
-      sport,
-      marketId: "29",
-      outcomeId: "74",
-    });
-    candidates.push({
-      marketCategory: "BTTS",
-      outcomeLabel: "BTTS - No (NG)",
-      oddValue: 1.75,
-      trueWinProbability: 76,
-      sport,
-      marketId: "29",
-      outcomeId: "76",
-    });
-
-    // 6. Corners
-    candidates.push({
-      marketCategory: "CORNERS",
-      outcomeLabel: "Over 7.5 Total Corners",
-      oddValue: 1.28,
-      trueWinProbability: 89,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=7.5",
-    });
-    candidates.push({
-      marketCategory: "CORNERS",
-      outcomeLabel: "Over 8.5 Total Corners",
-      oddValue: 1.45,
-      trueWinProbability: 82,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=8.5",
-    });
-    candidates.push({
-      marketCategory: "CORNERS",
-      outcomeLabel: "Under 11.5 Total Corners",
-      oddValue: 1.32,
-      trueWinProbability: 87,
-      sport,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=11.5",
-    });
-
-    // 7. Half Markets
-    candidates.push({
-      marketCategory: "HALF_MARKETS",
-      outcomeLabel: "1st Half Over 0.5 Goals",
-      oddValue: 1.32,
-      trueWinProbability: 88,
-      sport,
-      marketId: "68",
-      outcomeId: "12",
-      specifier: "total=0.5",
-    });
-    candidates.push({
-      marketCategory: "HALF_MARKETS",
-      outcomeLabel: `${home} Win Either Half (WEH)`,
-      oddValue: 1.30,
-      trueWinProbability: 89,
-      sport,
-      marketId: "1",
-      outcomeId: "1",
-    });
-
-    // 8. 1X2 Match Winner (Only allowed if true probability >= 75%)
-    if (baseProb >= 75) {
+    if (baseProb >= 74) {
       candidates.push({
         marketCategory: "1X2",
         outcomeLabel: `${home} Win (1)`,
-        oddValue: baseOdd,
+        oddValue: Math.max(1.22, Math.min(1.60, baseOdd)),
         trueWinProbability: baseProb,
         sport,
         marketId: "1",
         outcomeId: "1",
+        eventId: matchEventId,
+      });
+    }
+
+    // ----------------------------------------------------
+    // 2. PRO TIER MARKETS (+ O2.5, BTTS, DNB, U3.5, Team Goals, HCP +1.5)
+    // ----------------------------------------------------
+    if (isProOrPremium) {
+      candidates.push({
+        marketCategory: "OVER_UNDER",
+        outcomeLabel: "Under 3.5 Goals",
+        oddValue: 1.28,
+        trueWinProbability: 87,
+        sport,
+        marketId: "18",
+        outcomeId: "13",
+        specifier: "total=3.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "OVER_UNDER",
+        outcomeLabel: "Over 2.5 Goals",
+        oddValue: 1.68,
+        trueWinProbability: 79,
+        sport,
+        marketId: "18",
+        outcomeId: "12",
+        specifier: "total=2.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "DRAW_NO_BET",
+        outcomeLabel: `${home} DNB (DNB 1)`,
+        oddValue: 1.32,
+        trueWinProbability: 87,
+        sport,
+        marketId: "11",
+        outcomeId: "1",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "DRAW_NO_BET",
+        outcomeLabel: `${away} DNB (DNB 2)`,
+        oddValue: 1.36,
+        trueWinProbability: 85,
+        sport,
+        marketId: "11",
+        outcomeId: "2",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "BTTS",
+        outcomeLabel: "BTTS - Yes (GG)",
+        oddValue: 1.65,
+        trueWinProbability: 80,
+        sport,
+        marketId: "29",
+        outcomeId: "74",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "BTTS",
+        outcomeLabel: "BTTS - No (NG)",
+        oddValue: 1.68,
+        trueWinProbability: 78,
+        sport,
+        marketId: "29",
+        outcomeId: "76",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "TEAM_GOALS",
+        outcomeLabel: `${home} Over 0.5 Goals`,
+        oddValue: 1.22,
+        trueWinProbability: 89,
+        sport,
+        marketId: "19",
+        outcomeId: "12",
+        specifier: "total=0.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "HANDICAP",
+        outcomeLabel: `${away} (+1.5 Handicap)`,
+        oddValue: 1.28,
+        trueWinProbability: 88,
+        sport,
+        marketId: "16",
+        outcomeId: "3",
+        specifier: "hcp=+1.5",
+        eventId: matchEventId,
+      });
+    }
+
+    // ----------------------------------------------------
+    // 3. PREMIUM TIER ELITE MARKETS (Corners, Cards, Clean Sheet, 1H Goals, WEH, CS, Asian HCP)
+    // ----------------------------------------------------
+    if (isPremium) {
+      candidates.push({
+        marketCategory: "CORNERS",
+        outcomeLabel: "Over 8.5 Total Corners",
+        oddValue: 1.38,
+        trueWinProbability: 84,
+        sport,
+        marketId: "166",
+        outcomeId: "12",
+        specifier: "total=8.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "CORNERS",
+        outcomeLabel: "Over 9.5 Total Corners",
+        oddValue: 1.55,
+        trueWinProbability: 80,
+        sport,
+        marketId: "166",
+        outcomeId: "12",
+        specifier: "total=9.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "CARDS",
+        outcomeLabel: "Over 3.5 Total Bookings / Cards",
+        oddValue: 1.40,
+        trueWinProbability: 83,
+        sport,
+        marketId: "240",
+        outcomeId: "12",
+        specifier: "total=3.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "CARDS",
+        outcomeLabel: "Under 5.5 Total Cards",
+        oddValue: 1.30,
+        trueWinProbability: 87,
+        sport,
+        marketId: "240",
+        outcomeId: "13",
+        specifier: "total=5.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "CLEAN_SHEET",
+        outcomeLabel: `${home} Clean Sheet - Yes`,
+        oddValue: 1.58,
+        trueWinProbability: 79,
+        sport,
+        marketId: "77",
+        outcomeId: "1",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "FIRST_HALF_GOALS",
+        outcomeLabel: "1st Half Over 0.5 Goals",
+        oddValue: 1.30,
+        trueWinProbability: 87,
+        sport,
+        marketId: "68",
+        outcomeId: "12",
+        specifier: "total=0.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "FIRST_HALF_GOALS",
+        outcomeLabel: "1st Half Under 1.5 Goals",
+        oddValue: 1.32,
+        trueWinProbability: 86,
+        sport,
+        marketId: "68",
+        outcomeId: "13",
+        specifier: "total=1.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "WIN_EITHER_HALF",
+        outcomeLabel: `${home} Win Either Half (WEH)`,
+        oddValue: 1.28,
+        trueWinProbability: 88,
+        sport,
+        marketId: "47",
+        outcomeId: "1",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "CORRECT_SCORE",
+        outcomeLabel: "Correct Score Cluster (1-0 / 2-0 / 2-1)",
+        oddValue: 2.10,
+        trueWinProbability: 74,
+        sport,
+        marketId: "45",
+        outcomeId: "1",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "ASIAN_HANDICAP",
+        outcomeLabel: `${home} Asian Handicap -0.5`,
+        oddValue: 1.45,
+        trueWinProbability: 82,
+        sport,
+        marketId: "281",
+        outcomeId: "1",
+        specifier: "hcp=-0.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "ASIAN_HANDICAP",
+        outcomeLabel: `${away} Asian Handicap +0.5`,
+        oddValue: 1.26,
+        trueWinProbability: 88,
+        sport,
+        marketId: "281",
+        outcomeId: "2",
+        specifier: "hcp=0.5",
+        eventId: matchEventId,
       });
     }
   } else if (sport === "BASKETBALL") {
     // Basketball Candidates
     candidates.push({
-      marketCategory: "BK_SPREAD",
-      outcomeLabel: `${away} (+8.5 Safe Alternate Spread)`,
-      oddValue: 1.28,
-      trueWinProbability: 90,
-      sport,
-      marketId: "16",
-      outcomeId: "3",
-      specifier: "hcp=+8.5",
-    });
-    candidates.push({
-      marketCategory: "BK_SPREAD",
-      outcomeLabel: `${home} (+10.5 Alternate Spread)`,
-      oddValue: 1.22,
-      trueWinProbability: 93,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=+10.5",
-    });
-    candidates.push({
-      marketCategory: "BK_SPREAD",
-      outcomeLabel: `${home} (-3.5 Favourite Spread)`,
-      oddValue: 1.62,
-      trueWinProbability: 79,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=-3.5",
-    });
-
-    candidates.push({
-      marketCategory: "BK_TOTALS",
-      outcomeLabel: "Buffered Total Points Over 208.5",
-      oddValue: 1.32,
-      trueWinProbability: 88,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=208.5",
-    });
-    candidates.push({
-      marketCategory: "BK_TOTALS",
-      outcomeLabel: "Buffered Total Points Under 235.5",
-      oddValue: 1.30,
-      trueWinProbability: 89,
-      sport,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=235.5",
-    });
-
-    candidates.push({
-      marketCategory: "BK_HALF",
-      outcomeLabel: `${home} 1st Half Winner`,
-      oddValue: 1.45,
-      trueWinProbability: 82,
-      sport,
-      marketId: "60",
-      outcomeId: "1",
-    });
-    candidates.push({
       marketCategory: "BK_MONEYLINE",
       outcomeLabel: `${home} Moneyline Winner (Inc. OT)`,
       oddValue: baseOdd > 1.05 ? baseOdd : 1.40,
-      trueWinProbability: Math.max(78, baseProb),
+      trueWinProbability: Math.max(76, baseProb),
       sport,
-      marketId: "186",
-      outcomeId: "4",
+      marketId: "219",
+      outcomeId: "1",
+      eventId: matchEventId,
     });
+    if (isProOrPremium) {
+      candidates.push({
+        marketCategory: "BK_SPREAD",
+        outcomeLabel: `${away} (+8.5 Safe Alternate Spread)`,
+        oddValue: 1.28,
+        trueWinProbability: 89,
+        sport,
+        marketId: "16",
+        outcomeId: "3",
+        specifier: "hcp=+8.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "BK_TOTALS",
+        outcomeLabel: "Buffered Total Points Over 208.5",
+        oddValue: 1.32,
+        trueWinProbability: 87,
+        sport,
+        marketId: "18",
+        outcomeId: "12",
+        specifier: "total=208.5",
+        eventId: matchEventId,
+      });
+    }
+    if (isPremium) {
+      candidates.push({
+        marketCategory: "BK_TOTALS",
+        outcomeLabel: "Buffered Total Points Under 235.5",
+        oddValue: 1.30,
+        trueWinProbability: 88,
+        sport,
+        marketId: "18",
+        outcomeId: "13",
+        specifier: "total=235.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "BK_HALF",
+        outcomeLabel: `${home} 1st Half Winner`,
+        oddValue: 1.45,
+        trueWinProbability: 82,
+        sport,
+        marketId: "60",
+        outcomeId: "1",
+        eventId: matchEventId,
+      });
+    }
   } else if (sport === "TABLE_TENNIS") {
-    // Table Tennis Candidates
-    candidates.push({
-      marketCategory: "TT_HANDICAP",
-      outcomeLabel: `${home} Set Handicap (+1.5 Sets)`,
-      oddValue: 1.26,
-      trueWinProbability: 91,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=+1.5",
-    });
-    candidates.push({
-      marketCategory: "TT_HANDICAP",
-      outcomeLabel: `${away} Set Handicap (+2.5 Sets / Win >= 1 Set)`,
-      oddValue: 1.16,
-      trueWinProbability: 95,
-      sport,
-      marketId: "16",
-      outcomeId: "3",
-      specifier: "hcp=+2.5",
-    });
-    candidates.push({
-      marketCategory: "TT_HANDICAP",
-      outcomeLabel: `${home} Point Handicap (+6.5 Points)`,
-      oddValue: 1.34,
-      trueWinProbability: 87,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=+6.5",
-    });
-
-    candidates.push({
-      marketCategory: "TT_SETS",
-      outcomeLabel: "Over 3.5 Total Sets (No 3-0 Sweep)",
-      oddValue: 1.38,
-      trueWinProbability: 87,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=3.5",
-    });
-    candidates.push({
-      marketCategory: "TT_POINTS",
-      outcomeLabel: "Total Points Over 73.5",
-      oddValue: 1.68,
-      trueWinProbability: 78,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=73.5",
-    });
     candidates.push({
       marketCategory: "TT_WINNER",
       outcomeLabel: `${home} Match Winner`,
-      oddValue: baseOdd > 1.05 ? baseOdd : 1.42,
+      oddValue: baseOdd > 1.05 ? baseOdd : 1.35,
       trueWinProbability: Math.max(78, baseProb),
       sport,
       marketId: "186",
       outcomeId: "4",
+      eventId: matchEventId,
     });
+    if (isProOrPremium) {
+      candidates.push({
+        marketCategory: "TT_SETS",
+        outcomeLabel: "Over 3.5 Total Sets",
+        oddValue: 1.32,
+        trueWinProbability: 86,
+        sport,
+        marketId: "199",
+        outcomeId: "12",
+        specifier: "total=3.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "TT_HANDICAP",
+        outcomeLabel: `${away} (+1.5 Set Handicap)`,
+        oddValue: 1.28,
+        trueWinProbability: 88,
+        sport,
+        marketId: "187",
+        outcomeId: "3",
+        specifier: "hcp=+1.5",
+        eventId: matchEventId,
+      });
+    }
+    if (isPremium) {
+      candidates.push({
+        marketCategory: "TT_HANDICAP",
+        outcomeLabel: `${away} (+2.5 Set Handicap)`,
+        oddValue: 1.18,
+        trueWinProbability: 91,
+        sport,
+        marketId: "187",
+        outcomeId: "3",
+        specifier: "hcp=+2.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "TT_POINTS",
+        outcomeLabel: "Total Match Points Over 73.5",
+        oddValue: 1.38,
+        trueWinProbability: 84,
+        sport,
+        marketId: "201",
+        outcomeId: "12",
+        specifier: "total=73.5",
+        eventId: matchEventId,
+      });
+    }
   } else if (sport === "VOLLEYBALL") {
-    // Volleyball Candidates
-    candidates.push({
-      marketCategory: "VB_HANDICAP",
-      outcomeLabel: `${home} Set Handicap (+1.5 Sets)`,
-      oddValue: 1.26,
-      trueWinProbability: 90,
-      sport,
-      marketId: "16",
-      outcomeId: "1",
-      specifier: "hcp=+1.5",
-    });
-    candidates.push({
-      marketCategory: "VB_HANDICAP",
-      outcomeLabel: `${away} Set Handicap (+2.5 Sets)`,
-      oddValue: 1.15,
-      trueWinProbability: 95,
-      sport,
-      marketId: "16",
-      outcomeId: "3",
-      specifier: "hcp=+2.5",
-    });
-    candidates.push({
-      marketCategory: "VB_SETS",
-      outcomeLabel: "Over 3.5 Total Sets",
-      oddValue: 1.35,
-      trueWinProbability: 88,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=3.5",
-    });
-    candidates.push({
-      marketCategory: "VB_POINTS",
-      outcomeLabel: "Total Match Points Over 176.5",
-      oddValue: 1.68,
-      trueWinProbability: 78,
-      sport,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=176.5",
-    });
-    candidates.push({
-      marketCategory: "VB_POINTS",
-      outcomeLabel: "1st Set Over 44.5 Points",
-      oddValue: 1.42,
-      trueWinProbability: 84,
-      sport,
-      marketId: "68",
-      outcomeId: "12",
-      specifier: "total=44.5",
-    });
     candidates.push({
       marketCategory: "VB_WINNER",
       outcomeLabel: `${home} Match Winner`,
@@ -525,7 +540,45 @@ export function generateCandidateMarketsForFixture(
       sport,
       marketId: "186",
       outcomeId: "4",
+      eventId: matchEventId,
     });
+    if (isProOrPremium) {
+      candidates.push({
+        marketCategory: "VB_SETS",
+        outcomeLabel: `${away} (+2.5 Set Handicap)`,
+        oddValue: 1.22,
+        trueWinProbability: 89,
+        sport,
+        marketId: "313",
+        outcomeId: "3",
+        specifier: "hcp=+2.5",
+        eventId: matchEventId,
+      });
+    }
+    if (isPremium) {
+      candidates.push({
+        marketCategory: "VB_POINTS",
+        outcomeLabel: "1st Set Over 44.5 Points",
+        oddValue: 1.42,
+        trueWinProbability: 84,
+        sport,
+        marketId: "315",
+        outcomeId: "12",
+        specifier: "total=44.5",
+        eventId: matchEventId,
+      });
+      candidates.push({
+        marketCategory: "VB_POINTS",
+        outcomeLabel: "Total Match Points Over 175.5",
+        oddValue: 1.48,
+        trueWinProbability: 82,
+        sport,
+        marketId: "238",
+        outcomeId: "12",
+        specifier: "total=175.5",
+        eventId: matchEventId,
+      });
+    }
   }
 
   return candidates;
@@ -561,12 +614,19 @@ export function classifyMarketCategory(market: string, selection: string, sport:
 
   // Football Buckets
   if (s.includes("1x") || s.includes("x2") || s.includes("12") || m.includes("double")) return "DOUBLE_CHANCE";
-  if (s.includes("over 1.5") || s.includes("under 3.5") || s.includes("under 4.5") || s.includes("over 2.5") || m.includes("over") || m.includes("under")) return "OVER_UNDER";
+  if (m.includes("corner") || s.includes("corner")) return "CORNERS";
+  if (m.includes("card") || s.includes("card") || m.includes("booking") || s.includes("booking")) return "CARDS";
+  if (m.includes("clean sheet") || s.includes("clean sheet")) return "CLEAN_SHEET";
+  if (m.includes("correct score") || s.includes("correct score") || s.includes("cs ")) return "CORRECT_SCORE";
+  if (m.includes("asian") || s.includes("ah ") || s.includes("asian")) return "ASIAN_HANDICAP";
+  if (s.includes("weh") || m.includes("either half") || s.includes("either half")) return "WIN_EITHER_HALF";
+  if (m.includes("1st half") || s.includes("1st half") || s.includes("ht ")) return "FIRST_HALF_GOALS";
+  if (s.includes("team over") || m.includes("team goals") || s.includes("to score")) return "TEAM_GOALS";
   if (s.includes("dnb") || m.includes("draw no bet") || m.includes("dnb")) return "DRAW_NO_BET";
   if (s.includes("btts") || s.includes("gg") || s.includes("ng") || m.includes("both")) return "BTTS";
   if (m.includes("handicap") || m.includes("spread") || s.includes("+") || s.includes("-")) return "HANDICAP";
-  if (m.includes("corner") || s.includes("corner")) return "CORNERS";
-  if (m.includes("half") || s.includes("1h") || s.includes("weh") || m.includes("either half")) return "HALF_MARKETS";
+  if (s.includes("over 1.5") || s.includes("under 3.5") || s.includes("over 2.5") || m.includes("over") || m.includes("under")) return "OVER_UNDER";
+  if (s.includes("win") || s.includes("(1)") || s.includes("(2)")) return "1X2";
   return "1X2";
 }
 
@@ -594,7 +654,7 @@ function isOptionAllowedByFilter(
     } else if (f === "over 1.5" || f === "o1.5" || f === "over_1_5") {
       if (labelLower.includes("over 1.5")) return true;
     } else if (f === "under 3.5" || f === "u3.5" || f === "under_3_5") {
-      if (labelLower.includes("under 3.5") || labelLower.includes("under 4.5")) return true;
+      if (labelLower.includes("under 3.5")) return true;
     } else if (f === "over 2.5" || f === "o2.5" || f === "over_2_5") {
       if (labelLower.includes("over 2.5")) return true;
     } else if (f === "dnb" || f === "draw no bet") {
@@ -603,8 +663,20 @@ function isOptionAllowedByFilter(
       if (option.marketCategory === "BTTS") return true;
     } else if (f === "corners" || f === "corner") {
       if (option.marketCategory === "CORNERS") return true;
-    } else if (f === "half" || f === "1st half" || f === "weh") {
-      if (option.marketCategory === "HALF_MARKETS") return true;
+    } else if (f === "cards" || f === "card" || f === "bookings") {
+      if (option.marketCategory === "CARDS") return true;
+    } else if (f === "clean sheet" || f === "clean_sheet") {
+      if (option.marketCategory === "CLEAN_SHEET") return true;
+    } else if (f === "first half" || f === "1st half" || f === "ht") {
+      if (option.marketCategory === "FIRST_HALF_GOALS") return true;
+    } else if (f === "weh" || f === "win either half") {
+      if (option.marketCategory === "WIN_EITHER_HALF") return true;
+    } else if (f === "correct score" || f === "exact score") {
+      if (option.marketCategory === "CORRECT_SCORE") return true;
+    } else if (f === "asian handicap" || f === "asian") {
+      if (option.marketCategory === "ASIAN_HANDICAP") return true;
+    } else if (f === "team goals" || f === "to score") {
+      if (option.marketCategory === "TEAM_GOALS") return true;
     } else if (f === "handicap" || f === "spread") {
       if (option.marketCategory === "HANDICAP" || option.marketCategory === "BK_SPREAD" || option.marketCategory === "TT_HANDICAP" || option.marketCategory === "VB_HANDICAP") return true;
     } else if (f === "sets" || f === "sets o3.5") {
@@ -794,8 +866,12 @@ function solveHighWinRatePortfolio(
     (k) => poolBySport[k].length > 0
   );
 
-  // Cap per market: MAX 25% of legs (or max 2 legs for small tickets) to enforce Balanced Diversity!
-  const maxPerMarket = isAllMarkets ? Math.max(1, Math.ceil(N * 0.25)) : 999;
+  // Cap per market: Strict 20% Multi-Market Distribution Rule!
+  // Never allow a generated ticket to repeat the same market type across more than 20% of its legs
+  // E.g. N=5 -> max 1 per market (all 5 distinct)
+  // E.g. N=10 -> max 2 per market
+  // E.g. N=20 -> max 4 per market
+  const maxPerMarket = isAllMarkets ? Math.max(1, Math.floor(N * 0.20)) : 999;
   // Cap per sport: Max ~40% when All Sports is active
   const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(1, Math.ceil(N * 0.40)) : 999;
 
@@ -1081,7 +1157,7 @@ export async function buildCustomSlip(
     const key = `${m.home_team}_vs_${m.away_team}`.toLowerCase();
     if (seenMatches.has(key)) continue;
 
-    const options = generateCandidateMarketsForFixture(m);
+    const options = generateCandidateMarketsForFixture(m, userTier as any);
     if (options.length > 0) {
       seenMatches.add(key);
       candidateMatches.push({ matchRow: m, options });

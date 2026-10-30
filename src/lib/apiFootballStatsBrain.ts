@@ -241,24 +241,31 @@ export function pruneLegsByStatisticalRisk(
     return { surviving: totalLegs, pruned: [] };
   }
 
-  // Attach statistical danger score to each leg
-  const scoredLegs = totalLegs.map((l) => ({
+  // Attach statistical danger score and exact original index to each leg
+  const scoredLegs = totalLegs.map((l, idx) => ({
     ...l,
+    _origIndex: idx,
     _dangerScore: scoreLegDanger(l),
   }));
 
   if (mode === "SPLIT_TICKET") {
-    // Sort by danger to evenly distribute risk across split chunks
-    scoredLegs.sort((a, b) => b._dangerScore - a._dangerScore);
-    const parts = Math.max(2, Math.min(5, splitParts));
-    const chunks: any[][] = Array.from({ length: parts }, () => []);
+    const parts = Math.max(
+      2,
+      Math.min(5, Math.min(Math.max(1, Math.floor(totalLegs.length / 2)), splitParts))
+    );
+    const baseSize = Math.floor(totalLegs.length / parts);
+    const remainder = totalLegs.length % parts;
+    const chunks: any[][] = [];
+    let currentStart = 0;
 
-    scoredLegs.forEach((leg, i) => {
-      chunks[i % parts].push(leg);
-    });
+    for (let i = 0; i < parts; i++) {
+      const currentChunkSize = baseSize + (i < remainder ? 1 : 0);
+      chunks.push(totalLegs.slice(currentStart, currentStart + currentChunkSize));
+      currentStart += currentChunkSize;
+    }
 
     return {
-      surviving: chunks[0],
+      surviving: chunks[0] || totalLegs,
       pruned: [],
       split_chunks: chunks,
     };
@@ -267,35 +274,42 @@ export function pruneLegsByStatisticalRisk(
   const maxRemovable = Math.max(1, totalLegs.length - 2);
   const count = Math.min(maxRemovable, Math.max(1, removeCount));
 
+  let removeIndices: Set<number>;
+
   if (mode === "LOWEST_PROBABILITY") {
     // Sort descending by danger score (highest risk first)
-    scoredLegs.sort((a, b) => b._dangerScore - a._dangerScore);
-    const pruned = scoredLegs.slice(0, count);
-    const prunedEventIds = new Set(pruned.map((p) => p.eventId || p.match));
-    const surviving = totalLegs.filter((l) => !prunedEventIds.has(l.eventId || l.match));
-    return { surviving, pruned };
-  }
-
-  if (mode === "COMBO_HYBRID") {
+    const sortedByRisk = [...scoredLegs].sort((a, b) => b._dangerScore - a._dangerScore);
+    const chosenToRemove = sortedByRisk.slice(0, count);
+    removeIndices = new Set(chosenToRemove.map((p) => p._origIndex));
+  } else if (mode === "COMBO_HYBRID") {
     // Remove highest danger leg + lowest value leg (odds < 1.12 with little contribution)
-    scoredLegs.sort((a, b) => b._dangerScore - a._dangerScore);
+    const sortedByRisk = [...scoredLegs].sort((a, b) => b._dangerScore - a._dangerScore);
     const half = Math.ceil(count / 2);
-    const highRisk = scoredLegs.slice(0, half);
-    const remaining = scoredLegs.slice(half);
+    const highRisk = sortedByRisk.slice(0, half);
+    const highRiskIndices = new Set(highRisk.map((p) => p._origIndex));
+
+    const remaining = scoredLegs.filter((p) => !highRiskIndices.has(p._origIndex));
     // Sort remaining by odd ascending to find tiny low-value legs
-    remaining.sort((a, b) => Number(a.odd) - Number(b.odd));
+    remaining.sort((a, b) => Number(a.odd || 1.0) - Number(b.odd || 1.0));
     const lowValue = remaining.slice(0, count - half);
-    const pruned = [...highRisk, ...lowValue];
-    const prunedEventIds = new Set(pruned.map((p) => p.eventId || p.match));
-    const surviving = totalLegs.filter((l) => !prunedEventIds.has(l.eventId || l.match));
-    return { surviving, pruned };
+
+    removeIndices = new Set([
+      ...highRisk.map((p) => p._origIndex),
+      ...lowValue.map((p) => p._origIndex),
+    ]);
+  } else {
+    // RANDOM_TRIM: Randomly remove exact `count` legs using Fisher-Yates shuffle on indices
+    const indices = totalLegs.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    removeIndices = new Set(indices.slice(0, count));
   }
 
-  // RANDOM_TRIM: Randomly remove `count` legs
-  const shuffled = [...totalLegs].sort(() => 0.5 - Math.random());
-  const pruned = shuffled.slice(0, count);
-  const prunedEventIds = new Set(pruned.map((p) => p.eventId || p.match));
-  const surviving = totalLegs.filter((l) => !prunedEventIds.has(l.eventId || l.match));
+  // Strict index-based separation guarantees surviving.length === totalLegs.length - count
+  const surviving = totalLegs.filter((_, idx) => !removeIndices.has(idx));
+  const pruned = totalLegs.filter((_, idx) => removeIndices.has(idx));
 
   return { surviving, pruned };
 }

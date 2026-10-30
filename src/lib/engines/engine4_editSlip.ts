@@ -16,7 +16,6 @@ import { decodeVaultBookingCode, bookVaultSlip } from "../coreBookingVault";
 import {
   decodeAnyBookingCode,
   bookUniversalSlip,
-  normalizeAndRemapSelectionsForSportyBet,
   BookedLeg,
 } from "./bookingEngine";
 import { pruneLegsByStatisticalRisk } from "../apiFootballStatsBrain";
@@ -91,12 +90,22 @@ export async function executeEditSlip(
 
   // MODE 1: SPLIT_TICKET
   if (req.mode === "SPLIT_TICKET") {
-    const partsCount = Math.max(2, Math.min(5, Number(req.split_parts) || 2));
-    const chunkSize = Math.ceil(originalLegs.length / partsCount);
-    const splitChunks: any[][] = [];
+    const requestedParts = parseInt(String(req.split_parts ?? 2), 10);
+    const maxPartsPossible = Math.max(1, Math.floor(originalLegs.length / 2));
+    const partsCount = Math.max(
+      2,
+      Math.min(5, Math.min(maxPartsPossible, isNaN(requestedParts) ? 2 : requestedParts))
+    );
 
-    for (let i = 0; i < originalLegs.length; i += chunkSize) {
-      splitChunks.push(originalLegs.slice(i, i + chunkSize));
+    const baseSize = Math.floor(originalLegs.length / partsCount);
+    const remainder = originalLegs.length % partsCount;
+    const splitChunks: any[][] = [];
+    let currentStart = 0;
+
+    for (let i = 0; i < partsCount; i++) {
+      const currentChunkSize = baseSize + (i < remainder ? 1 : 0);
+      splitChunks.push(originalLegs.slice(currentStart, currentStart + currentChunkSize));
+      currentStart += currentChunkSize;
     }
 
     const outputSlips: EditedSlipPayload[] = [];
@@ -106,12 +115,8 @@ export async function executeEditSlip(
       const chunkOdds =
         Math.round(chunk.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
 
-      // 1. Enforce fresh ID re-mapping for each split chunk
-      const normalizedChunk = await normalizeAndRemapSelectionsForSportyBet(chunk, { minCount: 2 });
-      const finalChunk = normalizedChunk.length >= 2 ? normalizedChunk : chunk;
-
       // Book each split chunk using Core Booking Vault with strict preservation
-      let bookedChunk = await bookVaultSlip(finalChunk, {
+      let bookedChunk = await bookVaultSlip(chunk, {
         slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
       });
 
@@ -120,7 +125,7 @@ export async function executeEditSlip(
       let sportyUrl = bookedChunk.sporty_url;
 
       if (!sportyCode) {
-        const uBooked = await bookUniversalSlip(finalChunk, {
+        const uBooked = await bookUniversalSlip(chunk, {
           slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
         });
         sportyCode = uBooked.sportybet_code;
@@ -129,7 +134,10 @@ export async function executeEditSlip(
 
       const primaryCode = sportyCode;
       const shareUrl = sportyUrl;
-      const chunkLegs = bookedChunk.legs && bookedChunk.legs.length > 0 ? bookedChunk.legs : finalChunk;
+      const chunkLegs =
+        bookedChunk.legs && bookedChunk.legs.length === chunk.length
+          ? bookedChunk.legs
+          : chunk;
       const finalOdds = bookedChunk.actual_odds || chunkOdds;
 
       outputSlips.push({
@@ -154,9 +162,11 @@ export async function executeEditSlip(
     };
   }
 
-  // MODES 2, 3, 4: PRUNING (Using API-Football Statistical Risk Brain)
+  // MODES 2, 3, 4: PRUNING (Exact Count Pruning Math)
+  const parsedCount = parseInt(String(req.remove_count ?? 2), 10);
   const maxRemovable = Math.max(1, originalLegs.length - 2); // Keep at least 2 legs
-  const removeCount = Math.min(maxRemovable, Math.max(1, Number(req.remove_count) || 2));
+  const removeCount = Math.max(1, Math.min(maxRemovable, isNaN(parsedCount) ? 2 : parsedCount));
+  const expectedRemainingCount = originalLegs.length - removeCount;
 
   const pruneResult = pruneLegsByStatisticalRisk(
     originalLegs as any,
@@ -168,19 +178,14 @@ export async function executeEditSlip(
   let surviving: any[] = pruneResult.surviving;
   let pruned: any[] = pruneResult.pruned || [];
 
-  // Ensure surviving has at least 2 legs
-  if (surviving.length < 2) {
-    surviving = originalLegs.slice(0, 2);
-    pruned = originalLegs.slice(2);
+  // Strict parity safeguard: Ensure surviving has strictly expectedRemainingCount legs
+  if (surviving.length !== expectedRemainingCount) {
+    surviving = originalLegs.slice(0, expectedRemainingCount);
+    pruned = originalLegs.slice(expectedRemainingCount);
   }
 
-  // 2. ENFORCE FRESH ID RE-MAPPING BEFORE BOOKING:
-  // Surviving matches must undergo normalization and live catalog verification
-  const normalizedSurviving = await normalizeAndRemapSelectionsForSportyBet(surviving, { minCount: 2 });
-  const finalSurvivingLegs = normalizedSurviving.length >= 2 ? normalizedSurviving : surviving;
-
   // Book the surviving legs into a real booking code via Core Booking Vault
-  let bookedSurviving = await bookVaultSlip(finalSurvivingLegs, {
+  let bookedSurviving = await bookVaultSlip(surviving, {
     slip_category: `PRUNED_${req.mode}`,
   });
 
@@ -188,7 +193,7 @@ export async function executeEditSlip(
   let sportyUrl = bookedSurviving.sporty_url;
 
   if (!sportyCode) {
-    const uBooked = await bookUniversalSlip(finalSurvivingLegs, {
+    const uBooked = await bookUniversalSlip(surviving, {
       slip_category: `PRUNED_${req.mode}`,
     });
     sportyCode = uBooked.sportybet_code;
@@ -198,7 +203,9 @@ export async function executeEditSlip(
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
   const verifiedLegs =
-    bookedSurviving.legs && bookedSurviving.legs.length > 0 ? bookedSurviving.legs : finalSurvivingLegs;
+    bookedSurviving.legs && bookedSurviving.legs.length === expectedRemainingCount
+      ? bookedSurviving.legs
+      : surviving;
   const verifiedOdds =
     bookedSurviving.actual_odds ||
     Math.round(verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;

@@ -442,8 +442,10 @@ export async function bookVaultSlip(
     slip_category?: string;
     required_tier?: "FREE" | "PRO" | "PREMIUM";
     target_odds?: number;
+    preserve_exact_legs?: boolean;
   } = {}
 ): Promise<VaultBookingResult> {
+  const isPreserve = options.preserve_exact_legs === true || options.slip_category === "CUSTOM_SOLVER";
   const targetCount = Math.max(2, (selections || []).length);
   const usedEvents = new Set<string>();
   const finalLegs: VaultBookedLeg[] = [];
@@ -493,8 +495,8 @@ export async function bookVaultSlip(
         kickoff_time: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
       };
       usedEvents.add(cleanEvId!);
-    } else {
-      // Automatic substitution for unmapped or invalid leg
+    } else if (!isPreserve) {
+      // Automatic substitution for unmapped or invalid leg (only when not preserving exact legs)
       console.warn(
         `[SportyBet Parity Notice] Leg #${idx + 1} (${sel.match || sel.home_team}) failed mapping/pre-flight. Substituting with verified fallback safe match...`
       );
@@ -503,6 +505,27 @@ export async function bookVaultSlip(
         legToAdd = safeMatch;
         usedEvents.add(safeMatch.eventId);
       }
+    } else {
+      // In preserve mode, keep the selection intact with its verified properties
+      const oddVal = Number(sel.odd || sel.odds || sel.odd_value) || 1.35;
+      legToAdd = {
+        match: sel.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
+        home_team: sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : "Home"),
+        away_team: sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : "Away"),
+        league: sel.league || "Premier Division",
+        market: sel.market || "Match Winner",
+        selection: sel.selection || "Selection",
+        odd: oddVal,
+        win_probability: Number(sel.win_probability) || 82,
+        eventId: cleanEvId || sel.eventId,
+        marketId: mId || "1",
+        outcomeId: oId || "1",
+        specifier: spec,
+        sport: sel.sport || sel.sport_type || "FOOTBALL",
+        kickoffTime: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
+        kickoff_time: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
+      };
+      if (cleanEvId) usedEvents.add(cleanEvId);
     }
 
     if (legToAdd) {
@@ -510,8 +533,8 @@ export async function bookVaultSlip(
     }
   }
 
-  // 3. Guarantee targetCount parity: Refill if legs dropped
-  if (finalLegs.length < targetCount) {
+  // 3. Guarantee targetCount parity: Refill if legs dropped (only when not preserving exact legs)
+  if (!isPreserve && finalLegs.length < targetCount) {
     const needed = targetCount - finalLegs.length;
     console.warn(`[SportyBet Parity Refill] Current legs (${finalLegs.length}) < target (${targetCount}). Refilling ${needed} safe matches...`);
     const additional = await fetchVerifiedFallbackSafeMatches(needed, usedEvents);
@@ -551,7 +574,7 @@ export async function bookVaultSlip(
         sportyCode = json.data.shareCode;
         sportyUrl = json.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
         isVerifiedLive = true;
-      } else if (Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
+      } else if (!isPreserve && Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
         // Substitute unavailable outcomes immediately
         console.warn("[SportyBet Parity Notice] Unavailable outcomes returned by SportyBet:", json.data.unavailableOutcomes);
         const badSet = new Set(json.data.unavailableOutcomes.map((u: any) => u.eventId));
@@ -597,8 +620,8 @@ export async function bookVaultSlip(
   }
 
   // 6. VALIDATE MATCH PARITY BEFORE DISPLAYING CODE:
-  // Verify that outcomes.length === finalLegs.length
-  if (sportyCode) {
+  // Verify that outcomes.length === finalLegs.length (only when not preserving exact calculated odds)
+  if (!isPreserve && sportyCode) {
     try {
       const outcomes = await getSportyBetShareOutcomes(sportyCode);
       if (outcomes.length > 0 && outcomes.length !== finalLegs.length) {
@@ -646,8 +669,28 @@ export async function bookVaultSlip(
     }
   }
 
-  // 7. Emergency Live Catalog Recovery if first share attempt failed
-  if (!sportyCode) {
+  // 7. Retry exact selections if isPreserve, or Emergency Live Catalog Recovery if !isPreserve
+  if (isPreserve && !sportyCode) {
+    try {
+      const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+        method: "POST",
+        headers: SPORTYBET_BROWSER_HEADERS,
+        body: JSON.stringify({ selections: formattedSelections }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(6000),
+      });
+      if (retryRes.ok) {
+        const retryJson = await retryRes.json();
+        if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
+          sportyCode = retryJson.data.shareCode;
+          sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+          isVerifiedLive = true;
+        }
+      }
+    } catch (retryErr) {
+      console.warn("SportyBet exact selections retry notice:", retryErr);
+    }
+  } else if (!isPreserve && !sportyCode) {
     try {
       console.warn(
         "[SportyBet Vault] Primary attempt did not return shareCode. Retrying with verified active SportyBet catalog outcomes..."

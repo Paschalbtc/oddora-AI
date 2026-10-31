@@ -92,11 +92,14 @@ export function generateCandidateMarketsForFixture(
   userTier: "FREE" | "PRO" | "PREMIUM" = "FREE"
 ): CandidateMarketOption[] {
   const sport = (matchRow.sport_type || matchRow.sport || "FOOTBALL").toUpperCase();
-  const home = matchRow.home_team || "Home";
-  const away = matchRow.away_team || "Away";
   const baseProb = Math.min(95, Math.max(55, Number(matchRow.win_probability) || 75));
   const baseOdd = Number(matchRow.odd_value) || 1.45;
-  const matchEventId = matchRow.sportybet_selection?.eventId || matchRow.match_id;
+  const rawEvId = matchRow.sportybet_selection?.eventId || matchRow.match_id;
+  const matchEventId = rawEvId
+    ? String(rawEvId).startsWith("sr:match:")
+      ? String(rawEvId)
+      : `sr:match:${rawEvId}`
+    : null;
 
   const candidates: CandidateMarketOption[] = [];
 
@@ -112,22 +115,38 @@ export function generateCandidateMarketsForFixture(
 
   if (Array.isArray(rawJson) && rawJson.length > 0) {
     for (const item of rawJson) {
-      if (item && item.selection && item.market) {
-        const cat = classifyMarketCategory(item.market, item.selection, sport);
-        if (isMarketAllowedForTier(cat, userTier)) {
-          candidates.push({
-            marketCategory: cat,
-            outcomeLabel: String(item.selection),
-            oddValue: Number(item.odd || item.odd_value) || 1.35,
-            trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
-            sport,
-            marketId: String(item.marketId || "1"),
-            outcomeId: String(item.outcomeId || "1"),
-            specifier: item.specifier || null,
-            eventId: item.eventId || matchEventId,
-          });
-        }
-      }
+      if (!item || !item.selection || !item.market) continue;
+
+      const rawItemEvId = item.eventId || matchEventId;
+      const cleanEvId = rawItemEvId
+        ? String(rawItemEvId).startsWith("sr:match:")
+          ? String(rawItemEvId)
+          : `sr:match:${rawItemEvId}`
+        : null;
+      if (!cleanEvId || cleanEvId.length < 10) continue;
+
+      const mId = item.marketId != null ? String(item.marketId).trim() : "";
+      const oId = item.outcomeId != null ? String(item.outcomeId).trim() : "";
+      // Strictly require recognized numeric SportyBet IDs — NEVER fabricate or default!
+      if (!/^\d+$/.test(mId) || !/^\d+$/.test(oId)) continue;
+
+      const odd = Number(item.odd || item.odd_value);
+      if (isNaN(odd) || odd < 1.05 || odd > 50) continue;
+
+      const cat = classifyMarketCategory(item.market, item.selection, sport);
+      if (!isMarketAllowedForTier(cat, userTier)) continue;
+
+      candidates.push({
+        marketCategory: cat,
+        outcomeLabel: String(item.selection),
+        oddValue: odd,
+        trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
+        sport,
+        marketId: mId,
+        outcomeId: oId,
+        specifier: item.specifier || null,
+        eventId: cleanEvId,
+      });
     }
   }
 
@@ -137,31 +156,40 @@ export function generateCandidateMarketsForFixture(
   }
 
   // If no multi-market candidate was in all_markets_json, extract verified direct sportybet_selection
-  if (
-    matchRow.sportybet_selection &&
-    matchRow.sportybet_selection.eventId &&
-    matchRow.sportybet_selection.marketId &&
-    matchRow.sportybet_selection.outcomeId
-  ) {
+  if (matchRow.sportybet_selection) {
     const sSel = matchRow.sportybet_selection;
-    const cat = classifyMarketCategory(
-      sSel.market || matchRow.market_name || "1X2",
-      sSel.selection || matchRow.selection_label || "1",
-      sport
-    );
-    if (isMarketAllowedForTier(cat, userTier)) {
-      candidates.push({
-        marketCategory: cat,
-        outcomeLabel: String(sSel.selection || matchRow.selection_label || "Home Win"),
-        oddValue: Number(sSel.odd || matchRow.odd_value) || baseOdd,
-        trueWinProbability: Number(matchRow.win_probability) || baseProb,
-        sport,
-        marketId: String(sSel.marketId),
-        outcomeId: String(sSel.outcomeId),
-        specifier: sSel.specifier || null,
-        eventId: sSel.eventId,
-      });
-      return candidates;
+    const rawSSelEvId = sSel.eventId || matchEventId;
+    const cleanEvId = rawSSelEvId
+      ? String(rawSSelEvId).startsWith("sr:match:")
+        ? String(rawSSelEvId)
+        : `sr:match:${rawSSelEvId}`
+      : null;
+    const mId = sSel.marketId != null ? String(sSel.marketId).trim() : "";
+    const oId = sSel.outcomeId != null ? String(sSel.outcomeId).trim() : "";
+
+    if (cleanEvId && cleanEvId.length >= 10 && /^\d+$/.test(mId) && /^\d+$/.test(oId)) {
+      const odd = Number(sSel.odd || matchRow.odd_value) || baseOdd;
+      if (odd >= 1.05 && odd <= 50) {
+        const cat = classifyMarketCategory(
+          sSel.market || matchRow.market_name || "1X2",
+          sSel.selection || matchRow.selection_label || "1",
+          sport
+        );
+        if (isMarketAllowedForTier(cat, userTier)) {
+          candidates.push({
+            marketCategory: cat,
+            outcomeLabel: String(sSel.selection || matchRow.selection_label || "Home Win"),
+            oddValue: odd,
+            trueWinProbability: Number(matchRow.win_probability) || baseProb,
+            sport,
+            marketId: mId,
+            outcomeId: oId,
+            specifier: sSel.specifier || null,
+            eventId: cleanEvId,
+          });
+          return candidates;
+        }
+      }
     }
   }
 
@@ -354,16 +382,7 @@ function solveHighWinRatePortfolio(
   isBankerMode = false
 ): CustomBuilderLeg[] {
   const nowMs = Date.now();
-
-  // Banker mode requires >= 85% probability pure bankers; standard modes allow down to 70% floor per user requirement
-  const minProbFloor = isBankerMode ? 85 : 70;
-
-  const validPool: Array<{
-    matchKey: string;
-    matchRow: any;
-    option: CandidateMarketOption;
-    edgeScore: number;
-  }> = [];
+  const minLeadTimeMs = 5 * 60 * 1000;
 
   // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.28) / ln(1.22))
   const avgOddPerLeg = isBankerMode ? 1.22 : 1.28;
@@ -376,9 +395,27 @@ function solveHighWinRatePortfolio(
 
   const targetLogPerLeg = Math.log(targetOdds) / Math.max(2, N);
 
+  // Banker mode requires >= 85% probability pure bankers; standard modes allow down to 70% floor.
+  // When Custom Match Count is specified, dynamically scale the safety floor with targetOddPerLeg
+  // so that if a user requests e.g. 5 games for 10 odds (target odd ≈ 1.58), candidates with fair market probability
+  // (e.g. 54%+) are unlocked rather than blocking odds > 1.30.
+  let minProbFloor = isBankerMode ? 85 : 70;
+  if (!isBankerMode && exactCount > 0) {
+    const targetOddPerLeg = Math.pow(targetOdds, 1 / N);
+    minProbFloor = Math.max(50, Math.min(70, Math.round(85 / targetOddPerLeg)));
+  }
+
+  const validPool: Array<{
+    matchKey: string;
+    matchRow: any;
+    option: CandidateMarketOption;
+    edgeScore: number;
+  }> = [];
+
   for (const { matchRow, options } of candidateMatches) {
     if (isMatchEnded(matchRow)) continue;
-    if (matchRow.kickoff_time && new Date(matchRow.kickoff_time).getTime() < nowMs) continue;
+    const kTime = matchRow.kickoff_time || matchRow.kickoffTime;
+    if (kTime && new Date(kTime).getTime() <= nowMs + minLeadTimeMs) continue;
 
     const matchKey = `${matchRow.home_team}_vs_${matchRow.away_team}`.toLowerCase();
 
@@ -453,163 +490,296 @@ function solveHighWinRatePortfolio(
 
   // Cap per market: Strict 20% Multi-Market Distribution Rule!
   // Never allow a generated ticket to repeat the same market type across more than 20% of its legs
-  // E.g. N=5 -> max 1 per market (all 5 distinct)
-  // E.g. N=10 -> max 2 per market
-  // E.g. N=20 -> max 4 per market
   const maxPerMarket = isAllMarkets ? Math.max(1, Math.floor(N * 0.20)) : 999;
   // Cap per sport: Max ~40% when All Sports is active
   const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(1, Math.ceil(N * 0.40)) : 999;
 
+  // Strict Target Corridor Tolerance (0.95x <= actualOdds <= 1.08x, tight bounds)
+  const minTolerance = targetOdds * 0.95;
+  const maxTolerance = targetOdds * 1.08;
+
   const picked: Array<{
     matchKey: string;
     leg: CustomBuilderLeg;
+    option: CandidateMarketOption;
+    matchRow: any;
+    edgeScore: number;
   }> = [];
 
   const usedMatchKeys = new Set<string>();
   const marketCounts: Record<string, number> = {};
   const sportCounts: Record<string, number> = {};
-  let currentOdds = 1.0;
 
-  // PASS 1: Round-Robin Multi-Sport & Multi-Market Selection
-  let sportRotationIdx = 0;
+  if (exactCount > 0) {
+    // =========================================================================
+    // CUSTOM MATCH COUNT MODE (e.g. 5 games for 10 odds => 10^(1/5) ≈ 1.58)
+    // =========================================================================
+    for (let i = 0; i < N; i++) {
+      const remainingSlots = N - picked.length;
+      const currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+      const neededMultiplier = targetOdds / currentProduct;
+      const targetOddForRemaining = Math.max(1.05, Math.pow(neededMultiplier, 1 / remainingSlots));
 
-  while (usedMatchKeys.size < validPool.length) {
-    if (exactCount > 0 && picked.length >= exactCount) {
-      break;
+      let bestCand: (typeof validPool)[0] | null = null;
+      let bestScore = Infinity;
+
+      for (const item of validPool) {
+        if (usedMatchKeys.has(item.matchKey)) continue;
+        const mCat = item.option.marketCategory;
+        const mSport = item.option.sport;
+
+        if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && validPool.length > 20) continue;
+        if (isAllSports && (sportCounts[mSport] || 0) >= maxPerSport && validPool.length > 20) continue;
+
+        const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
+        const score = diff - (item.option.trueWinProbability / 500);
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestCand = item;
+        }
+      }
+
+      // If blocked by diversity cap, fallback to closest without cap
+      if (!bestCand) {
+        for (const item of validPool) {
+          if (usedMatchKeys.has(item.matchKey)) continue;
+          const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
+          if (diff < bestScore) {
+            bestScore = diff;
+            bestCand = item;
+          }
+        }
+      }
+
+      if (!bestCand) break;
+
+      const customLeg = buildCustomLeg(bestCand);
+      picked.push({
+        matchKey: bestCand.matchKey,
+        leg: customLeg,
+        option: bestCand.option,
+        matchRow: bestCand.matchRow,
+        edgeScore: bestCand.edgeScore,
+      });
+      usedMatchKeys.add(bestCand.matchKey);
+      marketCounts[bestCand.option.marketCategory] = (marketCounts[bestCand.option.marketCategory] || 0) + 1;
+      sportCounts[bestCand.option.sport] = (sportCounts[bestCand.option.sport] || 0) + 1;
     }
-    // If AUTO count mode, stop when target odds is hit or max games reached
-    if (exactCount === 0 && picked.length >= 2) {
-      if (currentOdds >= targetOdds * 0.96) {
+  } else {
+    // =========================================================================
+    // AUTO MATCH COUNT MODE
+    // =========================================================================
+    let sportRotationIdx = 0;
+
+    for (let step = 0; step < 50; step++) {
+      const currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+      if (picked.length >= 2 && currentProduct >= minTolerance && currentProduct <= maxTolerance) {
         break;
       }
       if (picked.length >= Math.min(MAX_GAMES_PER_TICKET, validPool.length)) {
         break;
       }
+
+      // Single-leg finisher check: If we have >= 2 legs, see if an available leg lands directly inside [minTolerance, maxTolerance]
+      let perfectFinisher: (typeof validPool)[0] | null = null;
+      if (picked.length >= 2) {
+        for (const item of validPool) {
+          if (usedMatchKeys.has(item.matchKey)) continue;
+          const testProd = currentProduct * item.option.oddValue;
+          if (testProd >= minTolerance && testProd <= maxTolerance) {
+            perfectFinisher = item;
+            break;
+          }
+        }
+      }
+
+      if (perfectFinisher) {
+        const customLeg = buildCustomLeg(perfectFinisher);
+        picked.push({
+          matchKey: perfectFinisher.matchKey,
+          leg: customLeg,
+          option: perfectFinisher.option,
+          matchRow: perfectFinisher.matchRow,
+          edgeScore: perfectFinisher.edgeScore,
+        });
+        usedMatchKeys.add(perfectFinisher.matchKey);
+        marketCounts[perfectFinisher.option.marketCategory] = (marketCounts[perfectFinisher.option.marketCategory] || 0) + 1;
+        sportCounts[perfectFinisher.option.sport] = (sportCounts[perfectFinisher.option.sport] || 0) + 1;
+        break;
+      }
+
+      const neededMultiplier = targetOdds / currentProduct;
+      const remainingSlots = Math.max(1, N - picked.length);
+      const targetOddForRemaining = Math.max(1.05, Math.pow(neededMultiplier, 1 / remainingSlots));
+
+      const targetSport =
+        isAllSports && activeSports.length > 1
+          ? activeSports[sportRotationIdx % activeSports.length]
+          : null;
+      sportRotationIdx++;
+
+      const candidatesToScan =
+        targetSport && poolBySport[targetSport]?.length > 0
+          ? poolBySport[targetSport]
+          : validPool;
+
+      let bestCand: (typeof validPool)[0] | null = null;
+      let bestScore = Infinity;
+
+      for (const item of candidatesToScan) {
+        if (usedMatchKeys.has(item.matchKey)) continue;
+        const mCat = item.option.marketCategory;
+        const mSport = item.option.sport;
+
+        if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && validPool.length > 20) continue;
+        if (isAllSports && (sportCounts[mSport] || 0) >= maxPerSport && validPool.length > 20) continue;
+
+        // Prevent overshooting maxTolerance if we already have >= 2 legs
+        if (picked.length >= 2 && currentProduct * item.option.oddValue > maxTolerance) continue;
+
+        const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
+        const score = diff - (item.option.trueWinProbability / 500);
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestCand = item;
+        }
+      }
+
+      if (!bestCand) {
+        // Fallback: search all candidates
+        for (const item of validPool) {
+          if (usedMatchKeys.has(item.matchKey)) continue;
+          if (picked.length >= 2 && currentProduct * item.option.oddValue > maxTolerance) continue;
+
+          const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
+          if (diff < bestScore) {
+            bestScore = diff;
+            bestCand = item;
+          }
+        }
+      }
+
+      if (!bestCand) break;
+
+      const customLeg = buildCustomLeg(bestCand);
+      picked.push({
+        matchKey: bestCand.matchKey,
+        leg: customLeg,
+        option: bestCand.option,
+        matchRow: bestCand.matchRow,
+        edgeScore: bestCand.edgeScore,
+      });
+      usedMatchKeys.add(bestCand.matchKey);
+      marketCounts[bestCand.option.marketCategory] = (marketCounts[bestCand.option.marketCategory] || 0) + 1;
+      sportCounts[bestCand.option.sport] = (sportCounts[bestCand.option.sport] || 0) + 1;
     }
+  }
 
-    let candidateFound = false;
+  // =========================================================================
+  // TARGETED LOCAL SWAPPING OPTIMIZATION (Up to 25 passes)
+  // Ensures combined odds strictly land within [0.95 * targetOdds, 1.08 * targetOdds]
+  // =========================================================================
+  let currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+  let bestDiff = Math.abs(currentProduct - targetOdds);
 
-    // In All Sports mode, rotate sport by sport
-    const targetSport =
-      isAllSports && activeSports.length > 1
-        ? activeSports[sportRotationIdx % activeSports.length]
-        : null;
-
-    sportRotationIdx++;
-
-    const candidatesToScan =
-      targetSport && poolBySport[targetSport]?.length > 0
-        ? poolBySport[targetSport]
-        : validPool;
-
-    for (const item of candidatesToScan) {
-      if (usedMatchKeys.has(item.matchKey)) continue;
-
-      const mCat = item.option.marketCategory;
-      const mSport = item.option.sport;
-
-      // Check market diversity cap (max 25%) to ensure multiple outcomes on the ticket
-      if (
-        isAllMarkets &&
-        (marketCounts[mCat] || 0) >= maxPerMarket &&
-        picked.length < N - 2 &&
-        validPool.length > 20
-      ) {
-        continue;
-      }
-
-      // Check sport diversity cap
-      if (
-        isAllSports &&
-        (sportCounts[mSport] || 0) >= maxPerSport &&
-        picked.length < N - 2 &&
-        validPool.length > 20
-      ) {
-        continue;
-      }
-
-      const legOdd = item.option.oddValue;
-
-      // In AUTO mode, stop if adding this leg would massively overshoot target
-      if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.15) {
-        continue;
-      }
-
-      const customLeg = buildCustomLeg(item);
-      picked.push({ matchKey: item.matchKey, leg: customLeg });
-      usedMatchKeys.add(item.matchKey);
-      marketCounts[mCat] = (marketCounts[mCat] || 0) + 1;
-      sportCounts[mSport] = (sportCounts[mSport] || 0) + 1;
-      currentOdds *= legOdd;
-      candidateFound = true;
+  for (let pass = 0; pass < 25; pass++) {
+    if (currentProduct >= minTolerance && currentProduct <= maxTolerance) {
       break;
     }
 
-    if (!candidateFound) {
-      // Fallback: pick any best remaining candidate
-      for (const item of validPool) {
-        if (usedMatchKeys.has(item.matchKey)) continue;
-        const legOdd = item.option.oddValue;
-        if (exactCount === 0 && picked.length >= 2 && currentOdds * legOdd > targetOdds * 1.18) {
+    let improved = false;
+    for (let j = 0; j < picked.length; j++) {
+      const oldItem = picked[j];
+      const prodWithoutJ = currentProduct / oldItem.leg.odd;
+      const idealOdd = targetOdds / prodWithoutJ;
+
+      let bestReplacement: (typeof validPool)[0] | null = null;
+      let bestReplDiff = bestDiff;
+
+      for (const cand of validPool) {
+        if (cand.matchKey !== oldItem.matchKey && usedMatchKeys.has(cand.matchKey)) continue;
+        if (
+          isAllMarkets &&
+          cand.option.marketCategory !== oldItem.option.marketCategory &&
+          (marketCounts[cand.option.marketCategory] || 0) >= maxPerMarket
+        ) {
           continue;
         }
 
-        const customLeg = buildCustomLeg(item);
-        picked.push({ matchKey: item.matchKey, leg: customLeg });
-        usedMatchKeys.add(item.matchKey);
-        currentOdds *= legOdd;
-        candidateFound = true;
-        break;
+        const testProd = prodWithoutJ * cand.option.oddValue;
+        const testDiff = Math.abs(testProd - targetOdds);
+
+        if (testDiff < bestReplDiff) {
+          bestReplDiff = testDiff;
+          bestReplacement = cand;
+        }
       }
-      if (!candidateFound) break;
+
+      if (bestReplacement && bestReplDiff < bestDiff) {
+        usedMatchKeys.delete(oldItem.matchKey);
+        marketCounts[oldItem.option.marketCategory] = (marketCounts[oldItem.option.marketCategory] || 1) - 1;
+        sportCounts[oldItem.option.sport] = (sportCounts[oldItem.option.sport] || 1) - 1;
+
+        const customLeg = buildCustomLeg(bestReplacement);
+        picked[j] = {
+          matchKey: bestReplacement.matchKey,
+          leg: customLeg,
+          option: bestReplacement.option,
+          matchRow: bestReplacement.matchRow,
+          edgeScore: bestReplacement.edgeScore,
+        };
+        usedMatchKeys.add(bestReplacement.matchKey);
+        marketCounts[bestReplacement.option.marketCategory] = (marketCounts[bestReplacement.option.marketCategory] || 0) + 1;
+        sportCounts[bestReplacement.option.sport] = (sportCounts[bestReplacement.option.sport] || 0) + 1;
+
+        currentProduct = prodWithoutJ * bestReplacement.option.oddValue;
+        bestDiff = bestReplDiff;
+        improved = true;
+
+        if (currentProduct >= minTolerance && currentProduct <= maxTolerance) {
+          break;
+        }
+      }
+    }
+
+    if (!improved) break;
+  }
+
+  // Graceful Add: If AUTO mode is still below minTolerance, add the closest safe leg rather than overshooting
+  if (exactCount === 0 && currentProduct < minTolerance && picked.length < MAX_GAMES_PER_TICKET) {
+    let closestCand: (typeof validPool)[0] | null = null;
+    let closestDist = Infinity;
+
+    for (const cand of validPool) {
+      if (usedMatchKeys.has(cand.matchKey)) continue;
+      const testProd = currentProduct * cand.option.oddValue;
+      const dist = Math.abs(testProd - targetOdds);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestCand = cand;
+      }
+    }
+
+    if (closestCand) {
+      const testProd = currentProduct * closestCand.option.oddValue;
+      if (testProd <= maxTolerance || Math.abs(testProd - targetOdds) < Math.abs(currentProduct - targetOdds)) {
+        const customLeg = buildCustomLeg(closestCand);
+        picked.push({
+          matchKey: closestCand.matchKey,
+          leg: customLeg,
+          option: closestCand.option,
+          matchRow: closestCand.matchRow,
+          edgeScore: closestCand.edgeScore,
+        });
+        usedMatchKeys.add(closestCand.matchKey);
+        currentProduct = testProd;
+      }
     }
   }
 
-  // If in AUTO mode and still below targetOdds * 0.96, continue accumulating remaining candidates up to 50 legs!
-  if (exactCount === 0 && currentOdds < targetOdds * 0.96 && picked.length < MAX_GAMES_PER_TICKET) {
-    for (const item of validPool) {
-      if (usedMatchKeys.has(item.matchKey)) continue;
-      const legOdd = item.option.oddValue;
-      const customLeg = buildCustomLeg(item);
-      picked.push({ matchKey: item.matchKey, leg: customLeg });
-      usedMatchKeys.add(item.matchKey);
-      currentOdds *= legOdd;
-      if (currentOdds >= targetOdds * 0.96 || picked.length >= MAX_GAMES_PER_TICKET) {
-        break;
-      }
-    }
-  }
-
-  // PASS 2: Combinatorial Swap Optimization (Up to 1000 iterations for both AUTO and CUSTOM)
-  // Guarantees ticket always lands within [targetOdds * 0.96, targetOdds * 1.12]
-  let bestLegs = picked.map((p) => p.leg);
-  let bestCombinedOdds = bestLegs.reduce((acc, l) => acc * l.odd, 1.0);
-  let bestDiff = Math.abs(bestCombinedOdds - targetOdds);
-
-  const swapCandidates = validPool.filter((p) => !usedMatchKeys.has(p.matchKey));
-
-  if (swapCandidates.length > 0 && bestLegs.length > 0) {
-    for (let iter = 0; iter < 1000; iter++) {
-      if (bestCombinedOdds >= targetOdds * 0.96 && bestCombinedOdds <= targetOdds * 1.12) {
-        break; // Within target precision window!
-      }
-
-      const randIdx = Math.floor(Math.random() * bestLegs.length);
-      const randCand = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
-      const candidateLeg = buildCustomLeg(randCand);
-
-      const testLegs = [...bestLegs];
-      testLegs[randIdx] = candidateLeg;
-      const testOdds = testLegs.reduce((acc, l) => acc * l.odd, 1.0);
-      const testDiff = Math.abs(testOdds - targetOdds);
-
-      if (testDiff < bestDiff) {
-        bestLegs = testLegs;
-        bestCombinedOdds = testOdds;
-        bestDiff = testDiff;
-      }
-    }
-  }
+  const bestLegs = picked.map((p) => p.leg);
 
   // Final sort: highest win_probability first
   bestLegs.sort((a, b) => b.win_probability - a.win_probability);
@@ -658,10 +828,15 @@ export async function buildCustomSlip(
       ? Math.max(MIN_GAMES_PER_TICKET, Math.min(MAX_GAMES_PER_TICKET, Number(req.custom_match_count)))
       : 0;
 
-  // 1. Fetch eligible matches based on horizon from Supabase oddora_v2_matches
+  const nowMs = Date.now();
+  const minLeadTimeMs = 5 * 60 * 1000;
+  const minKickoffIso = new Date(nowMs + minLeadTimeMs).toISOString();
+
+  // 1. Fetch eligible matches based on horizon from Supabase oddora_v2_matches (Pre-filter kickoff > 5 mins)
   let query = supabase
     .from("oddora_v2_matches")
     .select("*")
+    .gte("kickoff_time", minKickoffIso)
     .order("win_probability", { ascending: false });
 
   if (horizon === "today") {
@@ -670,7 +845,7 @@ export async function buildCustomSlip(
     const daysToAdd = horizon === "30_days" ? 30 : 14;
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysToAdd);
-    query = query.gte("match_date", todayStr).lte("match_date", futureDate.toISOString().split("T")[0]);
+    query = query.lte("match_date", futureDate.toISOString().split("T")[0]);
   }
 
   if (sport !== "all" && sport !== "banker") {
@@ -683,7 +858,29 @@ export async function buildCustomSlip(
 
   let { data: rawMatches } = await query;
 
-  // Auto-sync fallback if database is empty for today
+  // If few matches found for today (< 15), broaden horizon to upcoming dates so solver has rich pre-verified candidate pool
+  if (!rawMatches || rawMatches.length < 15) {
+    let broadQuery = supabase
+      .from("oddora_v2_matches")
+      .select("*")
+      .gte("kickoff_time", minKickoffIso)
+      .order("win_probability", { ascending: false })
+      .limit(200);
+
+    if (sport !== "all" && sport !== "banker") {
+      if (sport === "tennis" || sport === "table_tennis") {
+        broadQuery = broadQuery.in("sport_type", ["TENNIS", "TABLE_TENNIS", "tennis", "table_tennis"]);
+      } else {
+        broadQuery = broadQuery.ilike("sport_type", sport);
+      }
+    }
+    const { data: broadMatches } = await broadQuery;
+    if (broadMatches && broadMatches.length > (rawMatches?.length || 0)) {
+      rawMatches = broadMatches;
+    }
+  }
+
+  // Auto-sync fallback if database is empty
   if (!rawMatches || rawMatches.length === 0) {
     try {
       await syncTodayAllMatches();
@@ -696,16 +893,9 @@ export async function buildCustomSlip(
       let retryQuery = supabase
         .from("oddora_v2_matches")
         .select("*")
-        .order("win_probability", { ascending: false });
-
-      if (horizon === "today") {
-        retryQuery = retryQuery.eq("match_date", todayStr);
-      } else {
-        const daysToAdd = horizon === "30_days" ? 30 : 14;
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + daysToAdd);
-        retryQuery = retryQuery.gte("match_date", todayStr).lte("match_date", futureDate.toISOString().split("T")[0]);
-      }
+        .gte("kickoff_time", minKickoffIso)
+        .order("win_probability", { ascending: false })
+        .limit(200);
 
       if (sport !== "all" && sport !== "banker") {
         if (sport === "tennis" || sport === "table_tennis") {
@@ -724,11 +914,11 @@ export async function buildCustomSlip(
 
   if (!rawMatches || rawMatches.length === 0) {
     throw new Error(
-      `No active fixtures found for ${horizon === "today" ? "today" : horizon.replace("_", " ")}. Run Engine 1 sync first.`
+      `No active upcoming fixtures found for ${horizon === "today" ? "today" : horizon.replace("_", " ")}. Run Engine 1 sync first.`
     );
   }
 
-  // 2. STAGE 1: Generate Candidate Markets per Match
+  // 2. STAGE 1: Generate Candidate Markets per Match (Pre-Filter & Pre-Validate)
   const candidateMatches: Array<{
     matchRow: any;
     options: CandidateMarketOption[];
@@ -739,6 +929,13 @@ export async function buildCustomSlip(
   for (const m of rawMatches) {
     if (isMatchEnded(m)) continue;
     if (!isMatchValidForSportyBetBooking(m)) continue;
+
+    const kTime = m.kickoff_time || m.kickoffTime;
+    if (kTime) {
+      const kMs = new Date(kTime).getTime();
+      if (isNaN(kMs) || kMs <= nowMs + minLeadTimeMs) continue;
+    }
+
     const key = `${m.home_team}_vs_${m.away_team}`.toLowerCase();
     if (seenMatches.has(key)) continue;
 
@@ -753,7 +950,7 @@ export async function buildCustomSlip(
   const isAllSports = sport === "all" || isBanker;
   const isAllMarkets = allowedFilters.length === 0 || allowedFilters.includes("all");
 
-  // 3. STAGE 2, 3 & 4: Run Solver
+  // 3. STAGE 2, 3 & 4: Run Strict Target Odds Multiplier Solver
   let selectedLegs = solveHighWinRatePortfolio(
     candidateMatches,
     target,
@@ -800,23 +997,15 @@ export async function buildCustomSlip(
       selectedLegs.reduce((acc, l) => acc * (l.win_probability / 100), 1.0) * 1000
     ) / 10;
 
-  // 4. Book authentic verified live booking codes via Core Booking Vault
+  // 4. Book authentic verified live booking codes via Core Booking Vault with PRESERVE EXACT LEGS
   let booked = await bookVaultSlip(selectedLegs, {
     slip_category: "CUSTOM_SOLVER",
     target_odds: target,
+    preserve_exact_legs: true,
   });
 
   let sportyCode = booked.sportybet_code;
   let sportyUrl = booked.sporty_url;
-
-  if (!sportyCode) {
-    const uBooked = await bookUniversalSlip(selectedLegs, {
-      slip_category: "CUSTOM_SOLVER",
-      target_odds: target,
-    });
-    sportyCode = uBooked.sportybet_code;
-    sportyUrl = uBooked.sporty_url;
-  }
 
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;

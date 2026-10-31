@@ -507,8 +507,35 @@ function solveHighWinRatePortfolio(
   }> = [];
 
   const usedMatchKeys = new Set<string>();
+  const usedMatchIds = new Set<string>();
+  const usedEventIds = new Set<string>();
   const marketCounts: Record<string, number> = {};
   const sportCounts: Record<string, number> = {};
+
+  const isItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
+    const mId = item.matchRow?.match_id || item.matchRow?.id;
+    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    if (item.matchKey && usedMatchKeys.has(item.matchKey)) return true;
+    if (mId && usedMatchIds.has(String(mId))) return true;
+    if (evId && usedEventIds.has(String(evId))) return true;
+    return false;
+  };
+
+  const markItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
+    const mId = item.matchRow?.match_id || item.matchRow?.id;
+    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    if (item.matchKey) usedMatchKeys.add(item.matchKey);
+    if (mId) usedMatchIds.add(String(mId));
+    if (evId) usedEventIds.add(String(evId));
+  };
+
+  const unmarkItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
+    const mId = item.matchRow?.match_id || item.matchRow?.id;
+    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    if (item.matchKey) usedMatchKeys.delete(item.matchKey);
+    if (mId) usedMatchIds.delete(String(mId));
+    if (evId) usedEventIds.delete(String(evId));
+  };
 
   if (exactCount > 0) {
     // =========================================================================
@@ -524,7 +551,7 @@ function solveHighWinRatePortfolio(
       let bestScore = Infinity;
 
       for (const item of validPool) {
-        if (usedMatchKeys.has(item.matchKey)) continue;
+        if (isItemUsed(item)) continue;
         const mCat = item.option.marketCategory;
         const mSport = item.option.sport;
 
@@ -543,7 +570,7 @@ function solveHighWinRatePortfolio(
       // If blocked by diversity cap, fallback to closest without cap
       if (!bestCand) {
         for (const item of validPool) {
-          if (usedMatchKeys.has(item.matchKey)) continue;
+          if (isItemUsed(item)) continue;
           const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
           if (diff < bestScore) {
             bestScore = diff;
@@ -562,7 +589,7 @@ function solveHighWinRatePortfolio(
         matchRow: bestCand.matchRow,
         edgeScore: bestCand.edgeScore,
       });
-      usedMatchKeys.add(bestCand.matchKey);
+      markItemUsed(bestCand);
       marketCounts[bestCand.option.marketCategory] = (marketCounts[bestCand.option.marketCategory] || 0) + 1;
       sportCounts[bestCand.option.sport] = (sportCounts[bestCand.option.sport] || 0) + 1;
     }
@@ -585,7 +612,7 @@ function solveHighWinRatePortfolio(
       let perfectFinisher: (typeof validPool)[0] | null = null;
       if (picked.length >= 2) {
         for (const item of validPool) {
-          if (usedMatchKeys.has(item.matchKey)) continue;
+          if (isItemUsed(item)) continue;
           const testProd = currentProduct * item.option.oddValue;
           if (testProd >= minTolerance && testProd <= maxTolerance) {
             perfectFinisher = item;
@@ -603,7 +630,7 @@ function solveHighWinRatePortfolio(
           matchRow: perfectFinisher.matchRow,
           edgeScore: perfectFinisher.edgeScore,
         });
-        usedMatchKeys.add(perfectFinisher.matchKey);
+        markItemUsed(perfectFinisher);
         marketCounts[perfectFinisher.option.marketCategory] = (marketCounts[perfectFinisher.option.marketCategory] || 0) + 1;
         sportCounts[perfectFinisher.option.sport] = (sportCounts[perfectFinisher.option.sport] || 0) + 1;
         break;
@@ -628,7 +655,7 @@ function solveHighWinRatePortfolio(
       let bestScore = Infinity;
 
       for (const item of candidatesToScan) {
-        if (usedMatchKeys.has(item.matchKey)) continue;
+        if (isItemUsed(item)) continue;
         const mCat = item.option.marketCategory;
         const mSport = item.option.sport;
 
@@ -650,7 +677,7 @@ function solveHighWinRatePortfolio(
       if (!bestCand) {
         // Fallback: search all candidates
         for (const item of validPool) {
-          if (usedMatchKeys.has(item.matchKey)) continue;
+          if (isItemUsed(item)) continue;
           if (picked.length >= 2 && currentProduct * item.option.oddValue > maxTolerance) continue;
 
           const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
@@ -671,7 +698,7 @@ function solveHighWinRatePortfolio(
         matchRow: bestCand.matchRow,
         edgeScore: bestCand.edgeScore,
       });
-      usedMatchKeys.add(bestCand.matchKey);
+      markItemUsed(bestCand);
       marketCounts[bestCand.option.marketCategory] = (marketCounts[bestCand.option.marketCategory] || 0) + 1;
       sportCounts[bestCand.option.sport] = (sportCounts[bestCand.option.sport] || 0) + 1;
     }
@@ -699,7 +726,7 @@ function solveHighWinRatePortfolio(
       let bestReplDiff = bestDiff;
 
       for (const cand of validPool) {
-        if (cand.matchKey !== oldItem.matchKey && usedMatchKeys.has(cand.matchKey)) continue;
+        if (cand.matchKey !== oldItem.matchKey && isItemUsed(cand)) continue;
         if (
           isAllMarkets &&
           cand.option.marketCategory !== oldItem.option.marketCategory &&
@@ -718,7 +745,7 @@ function solveHighWinRatePortfolio(
       }
 
       if (bestReplacement && bestReplDiff < bestDiff) {
-        usedMatchKeys.delete(oldItem.matchKey);
+        unmarkItemUsed(oldItem);
         marketCounts[oldItem.option.marketCategory] = (marketCounts[oldItem.option.marketCategory] || 1) - 1;
         sportCounts[oldItem.option.sport] = (sportCounts[oldItem.option.sport] || 1) - 1;
 
@@ -730,7 +757,7 @@ function solveHighWinRatePortfolio(
           matchRow: bestReplacement.matchRow,
           edgeScore: bestReplacement.edgeScore,
         };
-        usedMatchKeys.add(bestReplacement.matchKey);
+        markItemUsed(bestReplacement);
         marketCounts[bestReplacement.option.marketCategory] = (marketCounts[bestReplacement.option.marketCategory] || 0) + 1;
         sportCounts[bestReplacement.option.sport] = (sportCounts[bestReplacement.option.sport] || 0) + 1;
 
@@ -753,7 +780,7 @@ function solveHighWinRatePortfolio(
     let closestDist = Infinity;
 
     for (const cand of validPool) {
-      if (usedMatchKeys.has(cand.matchKey)) continue;
+      if (isItemUsed(cand)) continue;
       const testProd = currentProduct * cand.option.oddValue;
       const dist = Math.abs(testProd - targetOdds);
       if (dist < closestDist) {
@@ -773,13 +800,37 @@ function solveHighWinRatePortfolio(
           matchRow: closestCand.matchRow,
           edgeScore: closestCand.edgeScore,
         });
-        usedMatchKeys.add(closestCand.matchKey);
+        markItemUsed(closestCand);
         currentProduct = testProd;
       }
     }
   }
 
-  const bestLegs = picked.map((p) => p.leg);
+  const rawBestLegs = picked.map((p) => p.leg);
+
+  // Strict 1-to-1 Deduplication: Max 1 selection per eventId and match
+  const bestLegs: CustomBuilderLeg[] = [];
+  const finalSeenEvents = new Set<string>();
+  const finalSeenMatches = new Set<string>();
+
+  for (const leg of rawBestLegs) {
+    const evId = leg.eventId ? String(leg.eventId).trim() : "";
+    const mKey = (leg.home_team && leg.away_team)
+      ? `${leg.home_team.trim().toLowerCase()}_vs_${leg.away_team.trim().toLowerCase()}`
+      : (leg.match || "").trim().toLowerCase();
+
+    if (evId && finalSeenEvents.has(evId)) continue;
+    if (mKey && finalSeenMatches.has(mKey)) continue;
+
+    if (evId) finalSeenEvents.add(evId);
+    if (mKey) finalSeenMatches.add(mKey);
+    bestLegs.push(leg);
+  }
+
+  // Final sort: highest win_probability first
+  bestLegs.sort((a, b) => b.win_probability - a.win_probability);
+
+  return bestLegs;
 
   // Final sort: highest win_probability first
   bestLegs.sort((a, b) => b.win_probability - a.win_probability);

@@ -60,6 +60,29 @@ const BetSlipContext = createContext<BetSlipContextType | undefined>(undefined);
 
 const STORAGE_KEY = "oddora_betslip_cart_v2";
 
+function normalizeTeamName(t: string = ""): string {
+  return t.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isDuplicateLeg(a: CartLeg, b: CartLeg): boolean {
+  if (!a || !b) return false;
+  if (a.id && b.id && a.id === b.id) return true;
+  if (a.matchId && b.matchId && a.matchId === b.matchId) return true;
+  if (a.eventId && b.eventId && a.eventId === b.eventId) return true;
+  if (a.sportybetSelection?.eventId && b.sportybetSelection?.eventId && a.sportybetSelection.eventId === b.sportybetSelection.eventId) return true;
+  if (a.eventId && b.sportybetSelection?.eventId && a.eventId === b.sportybetSelection.eventId) return true;
+  if (a.sportybetSelection?.eventId && b.eventId && a.sportybetSelection.eventId === b.eventId) return true;
+  if (a.matchId && b.eventId && a.matchId === b.eventId) return true;
+  if (a.eventId && b.matchId && a.eventId === b.matchId) return true;
+
+  if (a.homeTeam && a.awayTeam && b.homeTeam && b.awayTeam) {
+    const aNorm = `${normalizeTeamName(a.homeTeam)}_vs_${normalizeTeamName(a.awayTeam)}`;
+    const bNorm = `${normalizeTeamName(b.homeTeam)}_vs_${normalizeTeamName(b.awayTeam)}`;
+    if (aNorm.length > 5 && aNorm === bNorm) return true;
+  }
+  return false;
+}
+
 export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [legs, setLegs] = useState<CartLeg[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -75,7 +98,14 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setLegs(parsed);
+          // Deduplicate restored legs
+          const uniqueRestored: CartLeg[] = [];
+          for (const item of parsed) {
+            if (!uniqueRestored.some((existing) => isDuplicateLeg(existing, item))) {
+              uniqueRestored.push(item);
+            }
+          }
+          setLegs(uniqueRestored);
         }
       }
     } catch {
@@ -114,9 +144,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       odd: Number(leg.odd || leg.odds) || 1.45,
     };
     setLegs((prev) => {
-      const filtered = prev.filter(
-        (l) => (l.matchId || l.eventId || l.id) !== targetKey
-      );
+      const filtered = prev.filter((l) => !isDuplicateLeg(l, normalizedLeg));
       return [...filtered, normalizedLeg];
     });
     setBookedTicket(null);
@@ -133,9 +161,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
           matchId: targetKey,
           odd: Number(leg.odd || leg.odds) || 1.45,
         };
-        current = current.filter(
-          (l) => (l.matchId || l.eventId || l.id) !== targetKey
-        );
+        current = current.filter((l) => !isDuplicateLeg(l, normalizedLeg));
         current.push(normalizedLeg);
       }
       return current;
@@ -147,7 +173,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const removeLeg = (id: string) => {
     setLegs((prev) =>
       prev.filter(
-        (l) => l.id !== id && l.matchId !== id && l.eventId !== id
+        (l) => l.id !== id && l.matchId !== id && l.eventId !== id && l.sportybetSelection?.eventId !== id
       )
     );
     setBookedTicket(null);
@@ -155,12 +181,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const toggleLeg = (leg: CartLeg) => {
-    const targetKey = leg.matchId || leg.eventId || leg.id;
-    const existing = legs.find(
-      (l) =>
-        (l.matchId || l.eventId || l.id) === targetKey &&
-        (!leg.selection || l.selection === leg.selection)
-    );
+    const existing = legs.find((l) => isDuplicateLeg(l, leg));
     if (existing) {
       removeLeg(existing.id);
     } else {
@@ -172,7 +193,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!matchId) return false;
     return legs.some(
       (l) =>
-        ((l.matchId || l.eventId || l.id) === matchId || l.id === matchId) &&
+        ((l.matchId || l.eventId || l.id) === matchId || l.id === matchId || l.sportybetSelection?.eventId === matchId) &&
         (!selection || l.selection === selection)
     );
   };
@@ -202,8 +223,30 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setBookedTicket(null);
 
     try {
+      // Deduplicate selections before sending to /api/bookmaker
+      const seenEvents = new Set<string>();
+      const seenMatches = new Set<string>();
+      const uniqueLegs: CartLeg[] = [];
+
+      for (const leg of legs) {
+        const cleanEvId = String(leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id || "").trim();
+        const matchKey = `${normalizeTeamName(leg.homeTeam)}_vs_${normalizeTeamName(leg.awayTeam)}`;
+
+        if (cleanEvId && seenEvents.has(cleanEvId)) continue;
+        if (matchKey && matchKey.length > 5 && seenMatches.has(matchKey)) continue;
+
+        if (cleanEvId) seenEvents.add(cleanEvId);
+        if (matchKey && matchKey.length > 5) seenMatches.add(matchKey);
+        uniqueLegs.push(leg);
+      }
+
+      if (uniqueLegs.length === 0) {
+        setBookingError("Please add at least 1 valid unique match to book your slip.");
+        return null;
+      }
+
       // Format selections for /api/bookmaker
-      const selectionsPayload = legs.map((leg) => ({
+      const selectionsPayload = uniqueLegs.map((leg) => ({
         eventId: leg.sportybetSelection?.eventId || leg.matchId || leg.eventId,
         marketId: leg.sportybetSelection?.marketId || undefined,
         outcomeId: leg.sportybetSelection?.outcomeId || undefined,
@@ -241,7 +284,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         sportyCode: code,
         shareUrl: url,
         totalOdds: data.actual_odds || totalOdds,
-        legsCount: data.legs_count || legs.length,
+        legsCount: data.legs_count || uniqueLegs.length,
       };
 
       setBookedTicket(result);

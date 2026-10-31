@@ -17,18 +17,20 @@ export async function POST(req: Request) {
     try {
       const { data } = await supabase
         .from("oddora_v2_matches")
-        .select("match_id, sport_type, sport, home_team, away_team, home_score, away_score, status, outcome_result")
-        .limit(500);
+        .select(
+          "match_id, event_id, sport_type, sport, home_team, away_team, home_score, away_score, status, outcome_result, actual_score, match_status, leg_result"
+        )
+        .limit(1000);
       liveMatches = data || [];
     } catch {
       liveMatches = [];
     }
 
-    // Also fetch tickets from database if userId/userEmail provided and userTickets is empty
+    // 2. Fetch all tickets from user_saved_tickets if userId or userEmail is provided
     let ticketsToGrade: SavedTicket[] = [...userTickets];
-    if (ticketsToGrade.length === 0 && (userId || userEmail)) {
+    if (userId || userEmail) {
       try {
-        let query = supabase.from("user_saved_tickets").select("*").limit(50);
+        let query = supabase.from("user_saved_tickets").select("*").limit(200);
         if (userId && userEmail) {
           query = query.or(`user_id.eq.${userId},user_email.ilike.${userEmail}`);
         } else if (userId) {
@@ -38,18 +40,36 @@ export async function POST(req: Request) {
         }
         const { data: dbTickets } = await query;
         if (dbTickets && dbTickets.length > 0) {
-          ticketsToGrade = dbTickets.map((t: any) => ({
-            ...t,
-            legs: Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [],
-          }));
+          const map = new Map<string, SavedTicket>();
+          ticketsToGrade.forEach((t) => map.set(t.id || t.booking_code, t));
+          dbTickets.forEach((t: any) => {
+            const key = t.id || t.booking_code;
+            if (!map.has(key)) {
+              map.set(key, {
+                ...t,
+                legs: Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [],
+              });
+            }
+          });
+          ticketsToGrade = Array.from(map.values());
         }
       } catch {}
     }
 
     // Normalization helper for team matching
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const norm = (s: string = "") => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    const findMatch = (home?: string, away?: string, matchName?: string) => {
+    const findMatch = (home?: string, away?: string, matchName?: string, eventId?: string) => {
+      if (eventId) {
+        const cleanEv = String(eventId).trim();
+        const found = liveMatches.find((m) => {
+          if (m.event_id && String(m.event_id).trim() === cleanEv) return true;
+          if (m.match_id && String(m.match_id).trim() === cleanEv) return true;
+          return false;
+        });
+        if (found) return found;
+      }
+
       const hNorm = home ? norm(home) : "";
       const aNorm = away ? norm(away) : "";
 
@@ -72,37 +92,60 @@ export async function POST(req: Request) {
       });
     };
 
-    // 2. Grade each ticket
+    // 3. Retroactive leg-by-leg re-grading (NO SKIP for already WON/LOST legs)
     const gradedTickets: SavedTicket[] = ticketsToGrade.map((ticket) => {
-      const updatedLegs: SavedTicket["legs"] = (ticket.legs || []).map((leg) => {
-        if (leg.status === "WON" || leg.status === "LOST" || leg.status === "VOID") {
-          return leg; // Already finalized
-        }
+      const updatedLegs: SavedTicket["legs"] = (ticket.legs || []).map((leg: any) => {
+        const match = findMatch(
+          leg.home_team,
+          leg.away_team,
+          leg.match,
+          leg.eventId || leg.matchId || leg.match_id
+        );
 
-        const match = findMatch(leg.home_team, leg.away_team, leg.match);
         if (match) {
-          const mappedStatus = mapMatchStatus(match.status);
+          // Parse score if not directly numbers
+          let hScore: number | null =
+            match.home_score !== undefined && match.home_score !== null
+              ? Number(match.home_score)
+              : null;
+          let aScore: number | null =
+            match.away_score !== undefined && match.away_score !== null
+              ? Number(match.away_score)
+              : null;
 
-          // If postponed or cancelled, void immediately
+          if ((hScore === null || isNaN(hScore)) && match.actual_score) {
+            const scoreParts = String(match.actual_score)
+              .split(/[-:]/)
+              .map((s) => parseInt(s.trim()));
+            if (scoreParts.length === 2 && !isNaN(scoreParts[0]) && !isNaN(scoreParts[1])) {
+              hScore = scoreParts[0];
+              aScore = scoreParts[1];
+            }
+          }
+
+          const rawStatus = match.match_status || match.status;
+          const mappedStatus = mapMatchStatus(rawStatus);
+
+          // If postponed or cancelled, mark leg VOID
           if (mappedStatus === "Void") {
             return {
               ...leg,
               status: "VOID" as const,
-              home_score: match.home_score ?? null,
-              away_score: match.away_score ?? null,
+              home_score: hScore,
+              away_score: aScore,
             };
           }
 
-          // If finished, grade according to multi-sport rule
-          if (mappedStatus === "Finished" && match.home_score !== null && match.away_score !== null) {
+          // If finished, grade strictly according to final score
+          if (mappedStatus === "Finished" && hScore !== null && aScore !== null) {
             const grading = gradeMatchLeg(
               {
                 ...leg,
                 sport: leg.sport || match.sport_type || match.sport || "FOOTBALL",
               },
-              match.home_score,
-              match.away_score,
-              match.status
+              hScore,
+              aScore,
+              rawStatus
             );
             return {
               ...leg,
@@ -112,18 +155,23 @@ export async function POST(req: Request) {
             };
           }
 
-          // Live or upcoming -> remains PENDING with current live score attached
+          // Live or upcoming -> remains PENDING with current live score
           return {
             ...leg,
             status: "PENDING" as const,
-            home_score: match.home_score ?? null,
-            away_score: match.away_score ?? null,
+            home_score: hScore,
+            away_score: aScore,
           };
         }
 
+        // Match not in active DB batch -> keep leg's existing status
         return leg;
       });
 
+      // Recalculate ticket status:
+      // LOST if any 1 leg is LOST at FT;
+      // WON only if 100% legs are WON/VOID;
+      // PENDING if any leg is still in play or upcoming
       const newTicketStatus = gradeEntireTicket(updatedLegs);
 
       return {
@@ -134,18 +182,26 @@ export async function POST(req: Request) {
       };
     });
 
-    // 3. Update in Supabase if ticket exists in user_saved_tickets
+    // 4. Update in Supabase user_saved_tickets table
     for (const t of gradedTickets) {
-      if (t.id && !t.id.startsWith("ticket_")) {
-        supabase
-          .from("user_saved_tickets")
-          .update({
-            status: t.status,
-            legs: t.legs,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", t.id)
-          .then();
+      try {
+        const updatePayload = {
+          status: t.status,
+          legs: t.legs,
+          legs_json: t.legs,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (t.id && !t.id.startsWith("ticket_")) {
+          await supabase.from("user_saved_tickets").update(updatePayload).eq("id", t.id);
+        } else if (t.booking_code) {
+          await supabase
+            .from("user_saved_tickets")
+            .update(updatePayload)
+            .eq("booking_code", t.booking_code);
+        }
+      } catch (err) {
+        console.warn("Could not sync ticket to Supabase:", t.booking_code, err);
       }
     }
 

@@ -7,6 +7,8 @@
  * - Bet Slip cart generation & leg additions
  */
 
+import { addUserNotification } from "./userNotifications";
+
 export interface SavedTicket {
   id: string;
   user_id?: string;
@@ -115,6 +117,13 @@ export async function saveUserTicket(ticket: {
       if (!isDuplicate) {
         existing.unshift(newTicket);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existing.slice(0, 100)));
+        addUserNotification({
+          title: "📋 Ticket Saved to Tracker",
+          message: `Saved "${newTicket.title}" (${newTicket.total_odds}x) with code ${newTicket.booking_code}. Tracking live in My Bets.`,
+          type: "TICKET_SAVED",
+          targetTab: "my_bets",
+          metadata: { ticketId: newTicket.id, bookingCode: newTicket.booking_code },
+        });
       }
       window.dispatchEvent(new CustomEvent("oddora:ticket-saved", { detail: newTicket }));
     } catch (lsErr) {
@@ -148,9 +157,30 @@ export function updateLocalTicketStatus(ticketId: string, status: "WON" | "LOST"
   if (typeof window === "undefined") return;
   try {
     const existing = getLocalSavedTickets();
+    const target = existing.find((t) => t.id === ticketId);
     const updated = existing.map((t) => (t.id === ticketId ? { ...t, status } : t));
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent("oddora:ticket-updated", { detail: { id: ticketId, status } }));
+
+    if (target && target.status !== status) {
+      if (status === "WON") {
+        addUserNotification({
+          title: "🎉 Ticket Won!",
+          message: `Your ticket (${target.booking_code}) won with ${target.total_odds}x odds!`,
+          type: "WON",
+          targetTab: "my_bets",
+          metadata: { ticketId, bookingCode: target.booking_code },
+        });
+      } else if (status === "LOST") {
+        addUserNotification({
+          title: "❌ Ticket Settled (Lost)",
+          message: `Your ticket (${target.booking_code}) has settled. View match leg audit in My Bets.`,
+          type: "LOST",
+          targetTab: "my_bets",
+          metadata: { ticketId, bookingCode: target.booking_code },
+        });
+      }
+    }
   } catch {}
 }
 

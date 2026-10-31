@@ -497,16 +497,17 @@ export async function bookVaultSlip(
       usedEvents.add(cleanEvId!);
     } else if (!isPreserve) {
       // Automatic substitution for unmapped or invalid leg (only when not preserving exact legs)
+      // Strictly ensure the fallback safe match is not already in usedEvents
       console.warn(
         `[SportyBet Parity Notice] Leg #${idx + 1} (${sel.match || sel.home_team}) failed mapping/pre-flight. Substituting with verified fallback safe match...`
       );
       const [safeMatch] = await fetchVerifiedFallbackSafeMatches(1, usedEvents);
-      if (safeMatch) {
+      if (safeMatch && !usedEvents.has(safeMatch.eventId)) {
         legToAdd = safeMatch;
         usedEvents.add(safeMatch.eventId);
       }
-    } else {
-      // In preserve mode, keep the selection intact with its verified properties
+    } else if (hasValidEvId && !usedEvents.has(cleanEvId!)) {
+      // In preserve mode, keep the selection intact with its verified properties if not already used
       const oddVal = Number(sel.odd || sel.odds || sel.odd_value) || 1.35;
       legToAdd = {
         match: sel.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
@@ -517,7 +518,7 @@ export async function bookVaultSlip(
         selection: sel.selection || "Selection",
         odd: oddVal,
         win_probability: Number(sel.win_probability) || 82,
-        eventId: cleanEvId || sel.eventId,
+        eventId: cleanEvId!,
         marketId: mId || "1",
         outcomeId: oId || "1",
         specifier: spec,
@@ -525,7 +526,7 @@ export async function bookVaultSlip(
         kickoffTime: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
         kickoff_time: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
       };
-      if (cleanEvId) usedEvents.add(cleanEvId);
+      usedEvents.add(cleanEvId!);
     }
 
     if (legToAdd) {
@@ -541,8 +542,36 @@ export async function bookVaultSlip(
     finalLegs.push(...additional);
   }
 
-  // 4. Strict Payload-to-Display 1-to-1 Binding
-  // formattedSelections is derived DIRECTLY from finalLegs
+  // 4. Strict Deduplication: MAX 1 SELECTION PER EVENT ID (Prevents repeat match bug on SportyBet)
+  const deduplicatedLegs: VaultBookedLeg[] = [];
+  const seenEventIds = new Set<string>();
+  const seenMatchTitles = new Set<string>();
+
+  for (const leg of finalLegs) {
+    if (!leg || !leg.eventId) continue;
+    const cleanId = String(leg.eventId).trim();
+    const matchKey = (leg.home_team && leg.away_team)
+      ? `${leg.home_team.trim().toLowerCase()}_vs_${leg.away_team.trim().toLowerCase()}`
+      : (leg.match || "").trim().toLowerCase();
+
+    if (seenEventIds.has(cleanId)) {
+      console.warn(`[SportyBet Vault Audit] Dropping duplicate selection for eventId: ${cleanId} (${leg.match})`);
+      continue;
+    }
+    if (matchKey && seenMatchTitles.has(matchKey)) {
+      console.warn(`[SportyBet Vault Audit] Dropping duplicate selection for match: ${leg.match}`);
+      continue;
+    }
+
+    seenEventIds.add(cleanId);
+    if (matchKey) seenMatchTitles.add(matchKey);
+    deduplicatedLegs.push(leg);
+  }
+
+  finalLegs.splice(0, finalLegs.length, ...deduplicatedLegs);
+
+  // 5. Strict Payload-to-Display 1-to-1 Binding
+  // formattedSelections is derived DIRECTLY from finalLegs with 100% agreement
   let formattedSelections = finalLegs.map((l) => ({
     eventId: l.eventId,
     marketId: String(l.marketId),

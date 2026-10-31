@@ -770,46 +770,47 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
               </p>
             </div>
 
-            {/* Quick Actions: Add to Bet Slip Cart + Booking Codes */}
-            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+            {/* Quick Actions Header: Add to Bet Slip Cart + SportyBet Code */}
+            <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
               {/* Add All to Persistent Floating Slip Button */}
               <button
                 type="button"
                 onClick={handleAddAllToFloatingSlip}
-                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm active:scale-95 cursor-pointer ${
                   addedToCart
-                    ? "bg-[#10B981] text-black font-black"
+                    ? "bg-[#10B981] text-black font-black ring-2 ring-[#10B981]/50"
                     : "bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] border border-[#10B981]/40"
                 }`}
               >
                 {addedToCart ? (
                   <>
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4 stroke-[3]" />
                     <span>Added to Cart!</span>
                   </>
                 ) : (
                   <>
-                    <PlusCircle className="w-3.5 h-3.5" />
+                    <PlusCircle className="w-4 h-4" />
                     <span>[+ Add All to Slip]</span>
                   </>
                 )}
               </button>
 
-              {/* SportyBet Code Button */}
+              {/* SportyBet Code Button Header */}
               {sportyCode && (
                 <button
                   type="button"
                   onClick={() => handleCopy(sportyCode)}
-                  className="py-2 px-3.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                  className="py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+                  title="Click to copy SportyBet booking code"
                 >
                   {copiedCode === sportyCode ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Copied!</span>
+                      <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                      <span>Code Copied!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-4 h-4" />
                       <span>Sporty: {sportyCode}</span>
                     </>
                   )}
@@ -822,14 +823,71 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                   href={sportyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition"
-                  title="Load directly on SportyBet"
+                  className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 transition flex items-center justify-center gap-1.5 text-xs font-bold"
+                  title="Load ticket directly in SportyBet"
                 >
                   <ExternalLink className="w-4 h-4" />
+                  <span className="hidden sm:inline">Open SportyBet</span>
                 </a>
               )}
             </div>
           </div>
+
+          {/* Prominent Verified SportyBet Booking Banner */}
+          {sportyCode && (
+            <div className="mx-5 my-4 sm:mx-7 p-4 rounded-2xl bg-gradient-to-r from-red-500/15 via-red-500/10 to-transparent border border-red-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E51D25] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
+                  SB
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono uppercase text-red-400 font-bold tracking-wider">
+                      Verified SportyBet Booking Code
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                      LIVE READY
+                    </span>
+                  </div>
+                  <div className="font-mono font-black text-white text-lg sm:text-xl tracking-wider">
+                    {sportyCode}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(sportyCode)}
+                  className="flex-1 sm:flex-none py-2 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition flex items-center justify-center gap-2 text-xs font-bold cursor-pointer active:scale-95"
+                >
+                  {copiedCode === sportyCode ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                      <span className="text-emerald-400">Copied to Clipboard!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-red-400" />
+                      <span>Copy Code</span>
+                    </>
+                  )}
+                </button>
+
+                {sportyUrl && (
+                  <a
+                    href={sportyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 sm:flex-none py-2 px-4 rounded-xl bg-[#E51D25] hover:bg-[#cc181f] text-white transition flex items-center justify-center gap-1.5 text-xs font-black shadow-md cursor-pointer active:scale-95"
+                  >
+                    <span>Load on SportyBet</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Solved Leg Rows - Strict Payload-to-Display Binding from slip.legs_json */}
           <div className="divide-y divide-white/5">
@@ -885,6 +943,58 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Solved Card Bottom Action Bar */}
+          <div className="p-4 sm:p-5 bg-white/[0.02] border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-slate-400 font-mono">
+              <span>{resultSlip.legs_count} Leg Portfolio</span> •{" "}
+              <span className="text-emerald-400 font-bold">{resultSlip.actual_combined_odds}x Odds</span>
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleAddAllToFloatingSlip}
+                className={`flex-1 sm:flex-none py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm active:scale-95 cursor-pointer ${
+                  addedToCart
+                    ? "bg-[#10B981] text-black font-black"
+                    : "bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] border border-[#10B981]/40"
+                }`}
+              >
+                {addedToCart ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Added to Cart!</span>
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-4 h-4" />
+                    <span>[+ Add All to Slip]</span>
+                  </>
+                )}
+              </button>
+
+              {sportyCode && (
+                <button
+                  type="button"
+                  onClick={() => handleCopy(sportyCode)}
+                  className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+                >
+                  {copiedCode === sportyCode ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Sporty: {sportyCode}</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

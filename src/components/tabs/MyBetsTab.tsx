@@ -67,6 +67,7 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
   const loadTickets = async () => {
     // 1. Load from localStorage
     const local = getLocalSavedTickets();
+    let currentTickets = local;
 
     // 2. Also fetch from API using authenticated user's uid & email
     try {
@@ -81,16 +82,38 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
         // Merge without duplicates
         const map = new Map<string, SavedTicket>();
         [...json.data, ...local].forEach((t) => map.set(t.id || t.booking_code, t));
-        const merged = Array.from(map.values());
-        setTickets(merged);
+        currentTickets = Array.from(map.values());
+        setTickets(currentTickets);
         if (typeof window !== "undefined") {
-          localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(merged));
+          localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(currentTickets));
         }
-        return;
+      } else {
+        setTickets(local);
       }
-    } catch {}
+    } catch {
+      setTickets(local);
+    }
 
-    setTickets(local);
+    // Auto-sync on mount to audit live results immediately
+    if (currentTickets.length > 0) {
+      try {
+        fetch("/api/sync-user-tickets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tickets: currentTickets, userId: user?.id, userEmail: user?.email }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.status === "success" && data.data?.tickets) {
+              setTickets(data.data.tickets);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(data.data.tickets));
+              }
+            }
+          })
+          .catch(() => {});
+      } catch {}
+    }
   };
 
   const handleCopyCode = (code: string) => {
@@ -110,12 +133,12 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
 
   const handleSyncScores = async () => {
     setIsSyncing(true);
-    setSyncMessage("Syncing real-time match scores & grading tickets...");
+    setSyncMessage("Auditing and re-grading all tickets against verified match results...");
     try {
       const res = await fetch("/api/sync-user-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickets, userId: user?.id }),
+        body: JSON.stringify({ tickets, userId: user?.id, userEmail: user?.email }),
       });
       const data = await res.json();
       if (data.status === "success" && data.data?.tickets) {
@@ -124,9 +147,9 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
         if (typeof window !== "undefined") {
           localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(data.data.tickets));
         }
-        setSyncMessage(`Sync complete! ${data.data.summary.won} won, ${data.data.summary.lost} lost, ${data.data.summary.pending} pending.`);
+        setSyncMessage(`Audit complete! ${data.data.summary.won} won, ${data.data.summary.lost} lost, ${data.data.summary.pending} in play.`);
       } else {
-        setSyncMessage("Tickets up to date with cached fixture feeds.");
+        setSyncMessage("Tickets up to date with verified match feeds.");
       }
     } catch {
       setSyncMessage("Synced with local fixture schedule.");
@@ -174,10 +197,11 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
               type="button"
               onClick={handleSyncScores}
               disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-white/10 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-500/30 transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-sm"
+              title="Retroactively audit and re-grade all saved slips against official scores"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-emerald-500" : ""}`} />
-              <span>{isSyncing ? "Grading..." : "Sync Live Scores"}</span>
+              <span>{isSyncing ? "Auditing Slips..." : "🔄 Re-Sync & Audit All Slips"}</span>
             </button>
           </div>
         </div>

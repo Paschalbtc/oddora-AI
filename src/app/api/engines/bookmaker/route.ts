@@ -19,7 +19,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const booked = await bookUniversalSlip(selections);
+      // Strict Deduplication: MAX 1 SELECTION PER EVENT ID & MATCH
+      const seenEventIds = new Set<string>();
+      const seenMatches = new Set<string>();
+      const deduplicatedSelections: any[] = [];
+
+      for (const sel of selections) {
+        if (!sel) continue;
+        const rawEvId = sel.eventId || sel.sportybet_selection?.eventId || sel.match_id || sel.matchId;
+        const cleanEvId = rawEvId ? String(rawEvId).trim() : null;
+        const matchKey = (sel.home_team && sel.away_team)
+          ? `${sel.home_team.trim().toLowerCase()}_vs_${sel.away_team.trim().toLowerCase()}`
+          : (sel.match || "").trim().toLowerCase();
+
+        if (cleanEvId && seenEventIds.has(cleanEvId)) continue;
+        if (matchKey && seenMatches.has(matchKey)) continue;
+
+        if (cleanEvId) seenEventIds.add(cleanEvId);
+        if (matchKey) seenMatches.add(matchKey);
+        deduplicatedSelections.push(sel);
+      }
+
+      const booked = await bookUniversalSlip(deduplicatedSelections, {
+        preserve_exact_legs: true,
+      });
 
       return NextResponse.json({
         status: "success",

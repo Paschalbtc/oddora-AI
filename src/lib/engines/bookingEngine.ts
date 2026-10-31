@@ -531,6 +531,7 @@ export async function bookUniversalSlip(
     slip_category?: string;
     required_tier?: "FREE" | "PRO" | "PREMIUM";
     target_odds?: number;
+    preserve_exact_legs?: boolean;
   } = {}
 ): Promise<BookedTicketResult> {
   const vaultRes = await bookVaultSlip(selections, options);

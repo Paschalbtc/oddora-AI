@@ -13,6 +13,7 @@ import {
   Trash2,
   BookmarkCheck,
   XCircle,
+  X,
 } from "lucide-react";
 import {
   getUserNotifications,
@@ -148,11 +149,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
         )}
       </button>
 
-      {/* Notifications Popover Dropdown */}
+      {/* Mobile Backdrop Overlay */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-24px)] sm:w-88 max-w-[360px] rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[90] sm:hidden animate-in fade-in duration-150"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Notifications Pop-Up Modal (Mobile) / Popover (Desktop) */}
+      {isOpen && (
+        <div className="fixed inset-x-3 top-16 z-[100] mx-auto w-[calc(100vw-1.5rem)] max-w-md max-h-[80dvh] flex flex-col rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 shadow-2xl sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[380px] sm:max-h-[520px] sm:z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
           {/* Header */}
-          <div className="p-3 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <div className="p-3 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-1.5">
               <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span className="font-black text-xs text-slate-900 dark:text-white">
@@ -185,16 +194,25 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                   <span>Clear all</span>
                 </button>
               )}
+              {/* Mobile Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition sm:hidden cursor-pointer"
+                aria-label="Close notifications"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
           {/* Notifications List */}
-          <div className="divide-y divide-slate-100 dark:divide-white/[0.05] max-h-72 overflow-y-auto">
+          <div className="divide-y divide-slate-100 dark:divide-white/[0.05] overflow-y-auto flex-1 overscroll-contain">
             {notifications.length === 0 ? (
               <div className="p-6 text-center text-slate-400 text-xs">
                 <Bell className="w-6 h-6 mx-auto mb-2 text-slate-500 opacity-40" />
                 <p className="font-medium">No notifications yet</p>
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-slate-500 mt-1 break-words whitespace-normal">
                   Alerts for saved slips, SportyBet bookings, and match grading will appear here.
                 </p>
               </div>
@@ -215,16 +233,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                     {getNotifIcon(n.type)}
                   </div>
 
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 break-words whitespace-normal">
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                         {n.title}
                       </span>
-                      <span className="font-mono text-[9px] text-slate-400 shrink-0">
+                      <span className="font-mono text-[9px] text-slate-400 shrink-0 ml-1">
                         {formatTimeAgo(n.createdAt)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5 break-words whitespace-normal">
                       {n.message}
                     </p>
                   </div>
@@ -234,7 +252,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
           </div>
 
           {/* Footer CTA */}
-          <div className="p-2.5 bg-slate-50 dark:bg-white/[0.03] border-t border-slate-200 dark:border-white/10">
+          <div className="p-2.5 bg-slate-50 dark:bg-white/[0.03] border-t border-slate-200 dark:border-white/10 shrink-0">
             <button
               type="button"
               onClick={() => {

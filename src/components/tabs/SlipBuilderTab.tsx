@@ -236,9 +236,21 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     setTimeout(() => setAddedToCart(false), 2500);
   };
 
-  const sportyCode = resultSlip?.sporty_code || resultSlip?.booking_code;
+  const sportyCode =
+    resultSlip?.sportybet_code ||
+    resultSlip?.sportybetCode ||
+    resultSlip?.bookingCode ||
+    resultSlip?.shareCode ||
+    resultSlip?.code ||
+    resultSlip?.sporty_code ||
+    resultSlip?.booking_code ||
+    resultSlip?.sportyCode ||
+    "";
   const sportyUrl =
     resultSlip?.sporty_url ||
+    resultSlip?.share_url ||
+    resultSlip?.sportyUrl ||
+    resultSlip?.shareUrl ||
     (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
 
   const getSafetyGradeDetails = (gradeStr?: string, avgProb: number = 85) => {
@@ -849,7 +861,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                       LIVE READY
                     </span>
                   </div>
-                  <div className="font-mono font-black text-white text-lg sm:text-xl tracking-wider">
+                  <div className="font-mono font-black text-emerald-400 text-lg sm:text-2xl tracking-widest drop-shadow-sm">
                     {sportyCode}
                   </div>
                 </div>

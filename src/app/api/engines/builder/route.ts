@@ -16,11 +16,56 @@ export async function POST(request: NextRequest) {
       body.target_odds = 10.0;
     }
 
-    const slip = await buildCustomSlip(body);
+    const slip: any = await buildCustomSlip(body);
+
+    const generatedCode =
+      slip.sportybet_code ||
+      slip.sportybetCode ||
+      slip.bookingCode ||
+      slip.shareCode ||
+      slip.code ||
+      slip.sporty_code ||
+      slip.booking_code ||
+      slip.sportyCode ||
+      "";
+    const shareUrl =
+      slip.sporty_url ||
+      slip.share_url ||
+      slip.shareUrl ||
+      (generatedCode ? `https://www.sportybet.com/ng/?shareCode=${generatedCode}` : "");
+
+    // Populate all aliases directly on slip object
+    slip.code = generatedCode;
+    slip.shareCode = generatedCode;
+    slip.bookingCode = generatedCode;
+    slip.sportybet_code = generatedCode;
+    slip.sportybetCode = generatedCode;
+    slip.sportyCode = generatedCode;
+    slip.booking_code = generatedCode;
+    slip.sporty_url = shareUrl;
+    slip.share_url = shareUrl;
+    slip.sportyUrl = shareUrl;
+    slip.shareUrl = shareUrl;
 
     return NextResponse.json({
       status: "success",
+      success: true,
       data: slip,
+      slip,
+      code: generatedCode,
+      shareCode: generatedCode,
+      bookingCode: generatedCode,
+      sportybet_code: generatedCode,
+      sportybetCode: generatedCode,
+      sporty_code: generatedCode,
+      sportyCode: generatedCode,
+      booking_code: generatedCode,
+      share_url: shareUrl,
+      sporty_url: shareUrl,
+      shareUrl,
+      sportyUrl: shareUrl,
+      legs: slip.legs_json || slip.legs || [],
+      legs_json: slip.legs_json || slip.legs || [],
     });
   } catch (error: any) {
     return NextResponse.json(

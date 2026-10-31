@@ -44,16 +44,39 @@ export async function POST(request: NextRequest) {
         preserve_exact_legs: true,
       });
 
+      const generatedCode =
+        booked.sportybet_code ||
+        booked.sporty_code ||
+        booked.booking_code ||
+        booked.code ||
+        booked.shareCode ||
+        "";
+      const shareUrl =
+        booked.sporty_url ||
+        booked.share_url ||
+        (generatedCode ? `https://www.sportybet.com/ng/?shareCode=${generatedCode}` : "");
+
       return NextResponse.json({
         status: "success",
+        success: true,
         bookmaker: "SportyBet",
-        booking_code: booked.sportybet_code,
-        sporty_code: booked.sportybet_code,
-        share_url: booked.sporty_url,
-        sporty_url: booked.sporty_url,
+        code: generatedCode,
+        shareCode: generatedCode,
+        bookingCode: generatedCode,
+        sportybet_code: generatedCode,
+        sportybetCode: generatedCode,
+        sporty_code: generatedCode,
+        sportyCode: generatedCode,
+        booking_code: generatedCode,
+        share_url: shareUrl,
+        sporty_url: shareUrl,
+        shareUrl,
+        sportyUrl: shareUrl,
         actual_odds: booked.actual_odds,
+        total_odds: booked.total_odds || booked.actual_odds,
         legs_count: booked.legs_count,
-        legs: booked.legs,
+        legs: booked.legs || booked.legs_json || [],
+        legs_json: booked.legs_json || booked.legs || [],
         is_verified_live: booked.is_verified_live,
       });
     }

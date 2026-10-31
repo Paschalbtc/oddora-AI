@@ -47,8 +47,19 @@ export interface BookedLeg {
 
 export interface BookedTicketResult {
   status: "success" | "error";
+  success?: boolean;
+  code?: string;
+  shareCode?: string;
+  bookingCode?: string;
   sportybet_code: string;
+  sportybetCode?: string;
+  sporty_code?: string;
+  sportyCode?: string;
+  booking_code?: string;
   sporty_url: string;
+  sportyUrl?: string;
+  share_url?: string;
+  shareUrl?: string;
   total_odds?: number;
   actual_odds: number;
   legs_count: number;
@@ -535,10 +546,24 @@ export async function bookUniversalSlip(
   } = {}
 ): Promise<BookedTicketResult> {
   const vaultRes = await bookVaultSlip(selections, options);
+  const code = vaultRes.sportybet_code || vaultRes.code || "";
+  const url = vaultRes.sporty_url || vaultRes.share_url || "";
+
   return {
     status: vaultRes.status,
-    sportybet_code: vaultRes.sportybet_code,
-    sporty_url: vaultRes.sporty_url,
+    success: Boolean(code),
+    code,
+    shareCode: code,
+    bookingCode: code,
+    sportybet_code: code,
+    sportybetCode: code,
+    sporty_code: code,
+    sportyCode: code,
+    booking_code: code,
+    sporty_url: url,
+    sportyUrl: url,
+    share_url: url,
+    shareUrl: url,
     total_odds: vaultRes.total_odds,
     actual_odds: vaultRes.actual_odds,
     legs_count: vaultRes.legs_count,

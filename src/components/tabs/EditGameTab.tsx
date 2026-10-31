@@ -316,9 +316,21 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(result.slips || []).map((slip: any, idx: number) => {
-              const sportyCode = slip.sporty_code || slip.booking_code;
+              const sportyCode =
+                slip.sportybet_code ||
+                slip.sportybetCode ||
+                slip.bookingCode ||
+                slip.shareCode ||
+                slip.code ||
+                slip.sporty_code ||
+                slip.booking_code ||
+                slip.sportyCode ||
+                "";
               const sportyUrl =
                 slip.sporty_url ||
+                slip.share_url ||
+                slip.sportyUrl ||
+                slip.shareUrl ||
                 (sportyCode ? `https://www.sportybet.com/ng/?shareCode=${sportyCode}` : "");
 
               return (

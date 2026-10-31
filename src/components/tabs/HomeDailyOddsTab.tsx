@@ -510,7 +510,16 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 : (Array.isArray(matchedSlip?.legs) ? matchedSlip.legs : []);
               const actualOdds = matchedSlip?.actual_odds || tierConfig.targetOdds;
               const targetOdds = matchedSlip?.target_odds || tierConfig.targetOdds;
-              const sportyCode = matchedSlip?.sporty_code || (isLocked ? "LOCK-VIP" : "SPORTY-CODE");
+              const sportyCode =
+                matchedSlip?.sportybet_code ||
+                matchedSlip?.sportybetCode ||
+                matchedSlip?.bookingCode ||
+                matchedSlip?.shareCode ||
+                matchedSlip?.code ||
+                matchedSlip?.sporty_code ||
+                matchedSlip?.booking_code ||
+                matchedSlip?.sportyCode ||
+                (isLocked ? "LOCK-VIP" : "SPORTY-CODE");
               const sportyUrl =
                 matchedSlip?.share_url ||
                 `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
@@ -751,7 +760,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                               <span className="text-[10px] font-mono uppercase text-red-700 dark:text-red-400 font-bold block">
                                 SportyBet Booking Code
                               </span>
-                              <span className="font-mono font-black text-slate-900 dark:text-white text-base tracking-wider truncate block">
+                              <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-lg tracking-widest truncate block drop-shadow-sm">
                                 {sportyCode}
                               </span>
                             </div>

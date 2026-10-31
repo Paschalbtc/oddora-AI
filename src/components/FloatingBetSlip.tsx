@@ -265,18 +265,18 @@ export const FloatingBetSlip: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/50 border border-emerald-500/30">
-                      <span className="font-mono font-black text-white text-base tracking-widest">
-                        {bookedTicket.bookingCode}
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/60 border border-emerald-500/40">
+                      <span className="font-mono font-black text-emerald-400 text-lg tracking-widest drop-shadow-sm">
+                        {(bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || ""}
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleCopy(bookedTicket.bookingCode)}
-                        className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center gap-1 transition"
+                        onClick={() => handleCopy((bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || "")}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
                       >
-                        {copiedCode === bookedTicket.bookingCode ? (
+                        {copiedCode === ((bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || "") ? (
                           <>
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
                             <span>Copied!</span>
                           </>
                         ) : (
@@ -291,7 +291,7 @@ export const FloatingBetSlip: React.FC = () => {
                     <a
                       href={
                         bookedTicket.shareUrl ||
-                        `http://www.sportybet.com/ng/?shareCode=${bookedTicket.bookingCode}`
+                        `https://www.sportybet.com/ng/?shareCode=${(bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || ""}`
                       }
                       target="_blank"
                       rel="noopener noreferrer"

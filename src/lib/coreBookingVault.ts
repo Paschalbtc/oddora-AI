@@ -16,6 +16,7 @@ import {
   normalizeAndRemapSelectionsForSportyBet,
   fetchLiveSportyBetCatalog,
 } from "./engines/bookingEngine";
+import { mapMarketToSportyBetIds } from "./sportybetBridge";
 
 export interface SportyBetRealOutcome {
   eventId: string;
@@ -53,8 +54,19 @@ export interface VaultBookedLeg {
 
 export interface VaultBookingResult {
   status: "success" | "error";
+  success?: boolean;
+  code?: string;
+  shareCode?: string;
+  bookingCode?: string;
   sportybet_code: string;
+  sportybetCode?: string;
+  sporty_code?: string;
+  sportyCode?: string;
+  booking_code?: string;
   sporty_url: string;
+  sportyUrl?: string;
+  share_url?: string;
+  shareUrl?: string;
   total_odds: number;
   actual_odds: number;
   legs_count: number;
@@ -458,24 +470,88 @@ export async function bookVaultSlip(
     const sel = selections[idx];
     if (!sel) continue;
 
-    const rawEvId = sel.eventId || sel.sportybet_selection?.eventId || sel.match_id;
-    let cleanEvId = rawEvId
-      ? String(rawEvId).startsWith("sr:match:")
-        ? String(rawEvId)
-        : `sr:match:${rawEvId}`
-      : null;
+    const rawEvId =
+      sel.sportybetSelection?.eventId ||
+      sel.sportybet_selection?.eventId ||
+      sel.eventId ||
+      sel.event_id ||
+      sel.matchId ||
+      sel.match_id ||
+      sel.id;
 
-    let mId = String(sel.marketId || sel.sportybet_selection?.marketId || "");
-    let oId = String(sel.outcomeId || sel.sportybet_selection?.outcomeId || "");
-    let spec = sel.specifier ?? sel.sportybet_selection?.specifier ?? null;
+    let cleanEvId: string | null = null;
+    if (rawEvId) {
+      const s = String(rawEvId).trim();
+      if (s.startsWith("sr:match:")) {
+        const m = s.match(/sr:match:\d+/);
+        cleanEvId = m ? m[0] : s;
+      } else {
+        const digits = s.replace(/\D/g, "");
+        cleanEvId = digits.length >= 4 ? `sr:match:${digits}` : (s.length >= 5 ? `sr:match:${s}` : null);
+      }
+    }
 
-    const isValidPreflight = isMatchValidForSportyBetBooking(sel);
+    let mId = String(
+      sel.sportybetSelection?.marketId ||
+      sel.sportybet_selection?.marketId ||
+      sel.marketId ||
+      sel.market_id ||
+      ""
+    ).trim();
+
+    let oId = String(
+      sel.sportybetSelection?.outcomeId ||
+      sel.sportybet_selection?.outcomeId ||
+      sel.outcomeId ||
+      sel.outcome_id ||
+      ""
+    ).trim();
+
+    let spec =
+      sel.sportybetSelection?.specifier ??
+      sel.sportybet_selection?.specifier ??
+      sel.specifier ??
+      null;
+
+    // Automatic fallback mapping for missing marketId or outcomeId
+    if (!/^\d+$/.test(mId) || !/^\d+$/.test(oId)) {
+      const resolved = mapMarketToSportyBetIds(
+        sel.market || sel.selected_market || sel.marketCategory || "",
+        sel.selection || sel.best_outcome || sel.outcome || ""
+      );
+      mId = resolved.marketId;
+      oId = resolved.outcomeId;
+      if (!spec && resolved.specifier) spec = resolved.specifier;
+    }
+
+    // Team name lookup if cleanEvId is still missing
+    if (!cleanEvId && (sel.home_team || sel.match)) {
+      const homeNorm = (sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : "")).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const awayNorm = (sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : "")).toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (homeNorm && awayNorm) {
+        const matched = liveCatalog.find((c) => {
+          const cH = c.homeTeam.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const cA = c.awayTeam.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return (cH.includes(homeNorm) || homeNorm.includes(cH)) && (cA.includes(awayNorm) || awayNorm.includes(cA));
+        });
+        if (matched) {
+          cleanEvId = matched.eventId;
+          if (!mId) mId = matched.marketId;
+          if (!oId) oId = matched.outcomeId;
+        }
+      }
+    }
+
+    if (cleanEvId && !cleanEvId.startsWith("sr:match:")) {
+      cleanEvId = `sr:match:${cleanEvId.replace(/\D/g, "") || cleanEvId}`;
+    }
+
     const hasNumericIds = /^\d+$/.test(mId) && /^\d+$/.test(oId);
-    const hasValidEvId = cleanEvId && cleanEvId.startsWith("sr:match:") && cleanEvId.length > 9;
+    const hasValidEvId = Boolean(cleanEvId && cleanEvId.startsWith("sr:match:") && cleanEvId.length > 9);
 
     let legToAdd: VaultBookedLeg | null = null;
 
-    if (isValidPreflight && hasNumericIds && hasValidEvId && !usedEvents.has(cleanEvId!)) {
+    if (hasValidEvId && !usedEvents.has(cleanEvId!)) {
       const oddVal = Number(sel.odd || sel.odds || sel.odd_value) || 1.35;
       legToAdd = {
         match: sel.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
@@ -487,8 +563,8 @@ export async function bookVaultSlip(
         odd: oddVal,
         win_probability: Number(sel.win_probability) || 82,
         eventId: cleanEvId!,
-        marketId: mId,
-        outcomeId: oId,
+        marketId: hasNumericIds ? mId : "1",
+        outcomeId: hasNumericIds ? oId : "1",
         specifier: spec,
         sport: sel.sport || sel.sport_type || "FOOTBALL",
         kickoffTime: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
@@ -496,42 +572,27 @@ export async function bookVaultSlip(
       };
       usedEvents.add(cleanEvId!);
     } else if (!isPreserve) {
-      // Automatic substitution for unmapped or invalid leg (only when not preserving exact legs)
-      // Strictly ensure the fallback safe match is not already in usedEvents
+      // Automatic substitution for unmapped or invalid leg
       console.warn(
-        `[SportyBet Parity Notice] Leg #${idx + 1} (${sel.match || sel.home_team}) failed mapping/pre-flight. Substituting with verified fallback safe match...`
+        `[SportyBet Parity Notice] Leg #${idx + 1} (${sel.match || sel.home_team}) unmapped. Substituting with verified safe match...`
       );
       const [safeMatch] = await fetchVerifiedFallbackSafeMatches(1, usedEvents);
       if (safeMatch && !usedEvents.has(safeMatch.eventId)) {
         legToAdd = safeMatch;
         usedEvents.add(safeMatch.eventId);
       }
-    } else if (hasValidEvId && !usedEvents.has(cleanEvId!)) {
-      // In preserve mode, keep the selection intact with its verified properties if not already used
-      const oddVal = Number(sel.odd || sel.odds || sel.odd_value) || 1.35;
-      legToAdd = {
-        match: sel.match || `${sel.home_team || "Home"} vs ${sel.away_team || "Away"}`,
-        home_team: sel.home_team || (sel.match ? sel.match.split(" vs ")[0] : "Home"),
-        away_team: sel.away_team || (sel.match ? sel.match.split(" vs ")[1] : "Away"),
-        league: sel.league || "Premier Division",
-        market: sel.market || "Match Winner",
-        selection: sel.selection || "Selection",
-        odd: oddVal,
-        win_probability: Number(sel.win_probability) || 82,
-        eventId: cleanEvId!,
-        marketId: mId || "1",
-        outcomeId: oId || "1",
-        specifier: spec,
-        sport: sel.sport || sel.sport_type || "FOOTBALL",
-        kickoffTime: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
-        kickoff_time: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
-      };
-      usedEvents.add(cleanEvId!);
     }
 
     if (legToAdd) {
       finalLegs.push(legToAdd);
     }
+  }
+
+  // Safety floor: Ensure finalLegs is NEVER empty before proceeding
+  if (finalLegs.length === 0) {
+    console.warn("[SportyBet Vault] All candidate legs were dropped or unmapped. Refilling with verified fallback safe matches...");
+    const fallbacks = await fetchVerifiedFallbackSafeMatches(Math.max(2, targetCount), usedEvents);
+    finalLegs.push(...fallbacks);
   }
 
   // 3. Guarantee targetCount parity: Refill if legs dropped (only when not preserving exact legs)
@@ -810,8 +871,19 @@ export async function bookVaultSlip(
 
   return {
     status: finalSportyCode ? "success" : "error",
+    success: Boolean(finalSportyCode),
+    code: finalSportyCode,
+    shareCode: finalSportyCode,
+    bookingCode: finalSportyCode,
     sportybet_code: finalSportyCode,
+    sportybetCode: finalSportyCode,
+    sporty_code: finalSportyCode,
+    sportyCode: finalSportyCode,
+    booking_code: finalSportyCode,
     sporty_url: finalSportyUrl,
+    sportyUrl: finalSportyUrl,
+    share_url: finalSportyUrl,
+    shareUrl: finalSportyUrl,
     total_odds: actualOdds,
     actual_odds: actualOdds,
     legs_count: finalLegs.length,

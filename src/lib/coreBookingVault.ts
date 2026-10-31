@@ -145,7 +145,7 @@ export async function fetchLiveSportyBetCatalogWithRealMarkets(
     for (const ev of events) {
       if (!ev || !ev.eventId) continue;
       const startTime = Number(ev.estimateStartTime);
-      if (startTime && startTime < nowMs + 45 * 60 * 1000) continue; // Exclude past / imminent kickoff
+      if (startTime && startTime <= nowMs + 5 * 60 * 1000) continue; // Exclude past / kicking off within 5 minutes
 
       const home = (ev.homeTeamName || "").trim();
       const away = (ev.awayTeamName || "").trim();
@@ -227,9 +227,9 @@ export function isMatchValidForSportyBetBooking(sel: any): boolean {
   if (timeVal) {
     const kickoffMs = typeof timeVal === "number" ? timeVal : new Date(timeVal).getTime();
     if (!isNaN(kickoffMs)) {
-      const minLeadTimeMs = 45 * 60 * 1000;
+      const minLeadTimeMs = 5 * 60 * 1000; // Filter out matches kicking off within 5 minutes
       const now = Date.now();
-      if (kickoffMs - now < minLeadTimeMs) {
+      if (kickoffMs <= now + minLeadTimeMs) {
         return false;
       }
     }
@@ -301,7 +301,7 @@ export async function fetchVerifiedFallbackSafeMatches(
 ): Promise<VaultBookedLeg[]> {
   const fallbacks: VaultBookedLeg[] = [];
   const nowMs = Date.now();
-  const minLeadTimeMs = 45 * 60 * 1000;
+  const minLeadTimeMs = 5 * 60 * 1000;
 
   // 1. Check Supabase active database cache: oddora_v2_matches
   try {
@@ -646,15 +646,69 @@ export async function bookVaultSlip(
     }
   }
 
-  // Fallback generation if external API was unreachable (e.g., in sandbox)
+  // 7. Emergency Live Catalog Recovery if first share attempt failed
   if (!sportyCode) {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let fallbackCode = "";
-    for (let i = 0; i < 6; i++) {
-      fallbackCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    try {
+      console.warn(
+        "[SportyBet Vault] Primary attempt did not return shareCode. Retrying with verified active SportyBet catalog outcomes..."
+      );
+      const liveRealOutcomes = await fetchLiveSportyBetCatalogWithRealMarkets("sr:sport:1", 2);
+      if (liveRealOutcomes.length >= targetCount) {
+        const emergencySelections = liveRealOutcomes.slice(0, targetCount).map((o) => ({
+          eventId: o.eventId,
+          marketId: String(o.marketId),
+          outcomeId: String(o.outcomeId),
+          specifier: o.specifier || null,
+        }));
+
+        const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+          method: "POST",
+          headers: SPORTYBET_BROWSER_HEADERS,
+          body: JSON.stringify({ selections: emergencySelections }),
+          cache: "no-store",
+          signal: AbortSignal.timeout(7000),
+        });
+
+        if (retryRes.ok) {
+          const retryJson = await retryRes.json();
+          if (
+            (retryJson.bizCode === 10000 ||
+              retryJson.innerCode === "10000" ||
+              retryJson.innerCode === 10000) &&
+            retryJson.data?.shareCode
+          ) {
+            sportyCode = retryJson.data.shareCode;
+            sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+            isVerifiedLive = true;
+
+            // Reflect the verified live outcomes in finalLegs
+            finalLegs.splice(
+              0,
+              finalLegs.length,
+              ...liveRealOutcomes.slice(0, targetCount).map((o) => ({
+                match: `${o.homeTeam} vs ${o.awayTeam}`,
+                home_team: o.homeTeam,
+                away_team: o.awayTeam,
+                league: o.league,
+                market: o.market,
+                selection: o.selection,
+                odd: o.odd,
+                win_probability: 85,
+                eventId: o.eventId,
+                marketId: o.marketId,
+                outcomeId: o.outcomeId,
+                specifier: o.specifier,
+                sport: o.sport,
+                kickoffTime: o.kickoffTime,
+                kickoff_time: o.kickoffTime,
+              }))
+            );
+          }
+        }
+      }
+    } catch (emergencyErr) {
+      console.warn("SportyBet emergency recovery warning:", emergencyErr);
     }
-    sportyCode = fallbackCode;
-    sportyUrl = `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
   }
 
   const finalSportyCode = sportyCode;
@@ -662,26 +716,28 @@ export async function bookVaultSlip(
   const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * Number(l.odd || 1.30), 1.0) * 100) / 100;
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Save to Supabase oddora_v2_daily_slips with exact legs_json
-  try {
-    const supabase = getSupabaseAdmin();
-    await supabase.from("oddora_v2_daily_slips").insert({
-      slip_date: todayStr,
-      slip_category: options.slip_category || "CUSTOM_BOOKED_SLIP",
-      required_tier: options.required_tier || "FREE",
-      total_odds: actualOdds,
-      match_count: finalLegs.length,
-      sportybet_code: finalSportyCode,
-      bet9ja_code: null,
-      legs_json: finalLegs,
-      slip_result: "PENDING",
-    });
-  } catch (dbErr) {
-    console.warn("Could not cache booked ticket in Supabase:", dbErr);
+  // Save to Supabase oddora_v2_daily_slips if code was verified
+  if (finalSportyCode) {
+    try {
+      const supabase = getSupabaseAdmin();
+      await supabase.from("oddora_v2_daily_slips").insert({
+        slip_date: todayStr,
+        slip_category: options.slip_category || "CUSTOM_BOOKED_SLIP",
+        required_tier: options.required_tier || "FREE",
+        total_odds: actualOdds,
+        match_count: finalLegs.length,
+        sportybet_code: finalSportyCode,
+        bet9ja_code: null,
+        legs_json: finalLegs,
+        slip_result: "PENDING",
+      });
+    } catch (dbErr) {
+      console.warn("Could not cache booked ticket in Supabase:", dbErr);
+    }
   }
 
   return {
-    status: "success",
+    status: finalSportyCode ? "success" : "error",
     sportybet_code: finalSportyCode,
     sporty_url: finalSportyUrl,
     total_odds: actualOdds,
@@ -690,6 +746,9 @@ export async function bookVaultSlip(
     is_verified_live: isVerifiedLive,
     legs: finalLegs,
     legs_json: finalLegs,
+    error_message: finalSportyCode
+      ? undefined
+      : "SportyBet live order share is temporarily unreachable. Please retry.",
   };
 }
 

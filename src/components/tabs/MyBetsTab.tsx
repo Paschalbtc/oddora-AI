@@ -46,7 +46,7 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
   const [stakes, setStakes] = useState<Record<string, number>>({});
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  // Load tickets on mount & subscribe to storage events
+  // Load tickets on mount & subscribe to storage events & auth changes
   useEffect(() => {
     loadTickets();
 
@@ -62,15 +62,20 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
         window.removeEventListener("oddora:ticket-updated", handleTicketSaved);
       };
     }
-  }, []);
+  }, [user?.id, user?.email]);
 
   const loadTickets = async () => {
     // 1. Load from localStorage
     const local = getLocalSavedTickets();
 
-    // 2. Also try fetching from API if user is authenticated
+    // 2. Also fetch from API using authenticated user's uid & email
     try {
-      const res = await fetch("/api/user/saved-tickets");
+      const params = new URLSearchParams();
+      if (user?.id) params.set("user_id", user.id);
+      if (user?.email) params.set("email", user.email);
+
+      const url = `/api/user/saved-tickets${params.toString() ? `?${params.toString()}` : ""}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.status === "success" && Array.isArray(json.data) && json.data.length > 0) {
         // Merge without duplicates
@@ -78,6 +83,9 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
         [...json.data, ...local].forEach((t) => map.set(t.id || t.booking_code, t));
         const merged = Array.from(map.values());
         setTickets(merged);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(merged));
+        }
         return;
       }
     } catch {}

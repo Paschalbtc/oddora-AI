@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("user_id");
+    const userEmail = searchParams.get("email") || searchParams.get("user_email");
     const supabase = getSupabaseAdmin();
 
     try {
@@ -16,24 +17,37 @@ export async function GET(request: NextRequest) {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (userId) {
+      if (userId && userEmail) {
+        query = query.or(`user_id.eq.${userId},user_email.ilike.${userEmail}`);
+      } else if (userId) {
         query = query.eq("user_id", userId);
+      } else if (userEmail) {
+        query = query.ilike("user_email", userEmail);
       }
 
-      const { data, error } = await query.limit(50);
+      const { data, error } = await query.limit(100);
       if (!error && data) {
+        const normalized = data.map((t: any) => ({
+          ...t,
+          legs: Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [],
+        }));
         return NextResponse.json({
           status: "success",
           source: "supabase",
-          data,
+          data: normalized,
         });
       }
     } catch {}
 
     // Fallback to in-memory tickets
-    const filtered = userId
-      ? inMemoryTickets.filter((t) => t.user_id === userId)
-      : inMemoryTickets;
+    const filtered = inMemoryTickets.filter((t) => {
+      if (userId && userEmail) {
+        return t.user_id === userId || (t.user_email && t.user_email.toLowerCase() === userEmail.toLowerCase());
+      }
+      if (userId) return t.user_id === userId;
+      if (userEmail) return t.user_email && t.user_email.toLowerCase() === userEmail.toLowerCase();
+      return true;
+    });
 
     return NextResponse.json({
       status: "success",
@@ -53,7 +67,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const supabase = getSupabaseAdmin();
 
+    const ticketId = body.id || `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const ticketRecord = {
+      id: ticketId,
       user_id: body.user_id || null,
       user_email: body.user_email || null,
       booking_code: body.booking_code || "SPORTY-CODE",
@@ -61,8 +77,9 @@ export async function POST(request: NextRequest) {
       target_odds: body.target_odds ? Number(body.target_odds) : null,
       tier: body.tier || "FREE",
       title: body.title || "Oddora Accumulator Ticket",
-      legs_json: body.legs || [],
+      legs: body.legs || body.legs_json || [],
       status: body.status || "PENDING",
+      source: body.source || "ODDORA_PLATFORM",
       created_at: body.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -71,24 +88,28 @@ export async function POST(request: NextRequest) {
     try {
       const { data, error } = await supabase
         .from("user_saved_tickets")
-        .insert([ticketRecord])
+        .upsert([ticketRecord], { onConflict: "id" })
         .select();
 
       if (!error && data && data.length > 0) {
+        const item = data[0];
         return NextResponse.json({
           status: "success",
           source: "supabase",
-          data: data[0],
+          data: {
+            ...item,
+            legs: Array.isArray(item.legs) ? item.legs : Array.isArray(item.legs_json) ? item.legs_json : [],
+          },
         });
       }
     } catch {}
 
     // In-memory fallback
     const memoryTicket = {
-      id: body.id || `ticket_${Date.now()}`,
       ...ticketRecord,
-      legs: body.legs || [],
+      legs: body.legs || body.legs_json || [],
     };
+    inMemoryTickets = inMemoryTickets.filter((t) => t.id !== ticketId && t.booking_code !== ticketRecord.booking_code);
     inMemoryTickets.unshift(memoryTicket);
     inMemoryTickets = inMemoryTickets.slice(0, 200);
 

@@ -143,7 +143,9 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
   };
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#F8FAFC] dark:bg-[#070A0E] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black transition-colors duration-150">
+    <div className={`w-full max-w-[100vw] bg-[#F8FAFC] dark:bg-[#070A0E] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-black transition-colors duration-150 ${
+      activeTab === "copilot" ? "h-[100dvh] overflow-hidden" : "min-h-screen overflow-x-hidden"
+    }`}>
       {/* Top Navbar & Mobile Bottom Bar */}
       <Navbar
         activeTab={activeTab}
@@ -159,9 +161,13 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
       />
 
       {/* Main Content Workspace Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-24 md:pb-12">
+      <main className={`flex-1 w-full ${
+        activeTab === "copilot"
+          ? "h-[calc(100dvh-4rem)] p-0 m-0 max-w-none overflow-hidden"
+          : "max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-24 md:pb-12"
+      }`}>
         {/* Compulsory Sign-Up Banner for Unauthenticated Visitors */}
-        {!isAuthenticated && (
+        {!isAuthenticated && activeTab !== "copilot" && (
           <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-white dark:bg-gradient-to-r dark:from-emerald-950/40 dark:via-[#0D121C] dark:to-teal-950/40 border-2 border-[#00C896] dark:border-emerald-500/40 shadow-sm dark:shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -291,7 +297,7 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
       </main>
 
       {/* Complete Responsive Multi-Column Footer */}
-      <Footer onNavigateTab={handleTabChange} />
+      {activeTab !== "copilot" && <Footer onNavigateTab={handleTabChange} />}
 
       {/* Profile & Security Modal */}
       <ProfileModal

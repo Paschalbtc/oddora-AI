@@ -114,9 +114,9 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[520px] max-w-4xl mx-auto rounded-3xl bg-[#11161F] border border-white/10 shadow-2xl overflow-hidden animate-in fade-in duration-200">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-14 md:pb-0 w-full bg-[#11161F] overflow-hidden animate-in fade-in duration-200">
       {/* Copilot Header */}
-      <div className="px-5 py-4 bg-[#070A0E] border-b border-white/10 flex items-center justify-between">
+      <div className="px-5 py-3.5 bg-[#070A0E] border-b border-white/10 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <Bot className="w-5 h-5" />
@@ -291,7 +291,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
       </div>
 
       {/* Quick Prompts Bar */}
-      <div className="px-4 py-2 bg-[#070A0E]/60 border-t border-white/5 overflow-x-auto no-scrollbar flex items-center gap-2">
+      <div className="px-4 py-2 bg-[#070A0E]/60 border-t border-white/5 overflow-x-auto no-scrollbar flex items-center gap-2 shrink-0">
         <span className="text-[10px] font-mono text-slate-500 uppercase shrink-0">
           Suggestions:
         </span>
@@ -308,7 +308,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
       </div>
 
       {/* Input Box */}
-      <div className="p-3 sm:p-4 bg-[#070A0E] border-t border-white/10">
+      <div className="p-3 sm:p-4 bg-[#070A0E] border-t border-white/10 shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();

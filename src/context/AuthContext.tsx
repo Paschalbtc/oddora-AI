@@ -129,6 +129,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Sync user profile & tickets from Supabase by email / auth.uid()
+  const syncUserProfileAndTicketsFromSupabase = useCallback(
+    async (activeUser: User) => {
+      if (!activeUser || (!activeUser.id && !activeUser.email)) return;
+      const uid = activeUser.id;
+      const email = (activeUser.email || "").toLowerCase().trim();
+
+      try {
+        // 1. Query public.profiles by email or uid
+        let query = supabase.from("profiles").select("*");
+        if (uid && email) {
+          query = query.or(`id.eq.${uid},email.ilike.${email}`);
+        } else if (uid) {
+          query = query.eq("id", uid);
+        } else {
+          query = query.ilike("email", email);
+        }
+
+        const { data: dbProfile } = await query.maybeSingle();
+
+        if (dbProfile) {
+          const restoredTier: UserTier =
+            (dbProfile.tier as UserTier) ||
+            (dbProfile.plan_tier as UserTier) ||
+            "FREE";
+
+          const restoredProfile: UserProfile = {
+            id: dbProfile.id || uid,
+            email: dbProfile.email || email,
+            displayName:
+              dbProfile.display_name ||
+              dbProfile.full_name ||
+              activeUser.user_metadata?.full_name ||
+              email.split("@")[0] ||
+              "Oddora Punter",
+            avatar: dbProfile.avatar || "👑",
+            tier: restoredTier,
+            phone: dbProfile.phone || activeUser.user_metadata?.phone || "",
+            preferredBookmaker: "SportyBet",
+            favoriteSports: Array.isArray(dbProfile.favorite_sports)
+              ? dbProfile.favorite_sports
+              : ["FOOTBALL", "BASKETBALL"],
+            defaultStake: Number(dbProfile.default_stake) || 1000,
+          };
+
+          setProfile(restoredProfile);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("oddora_user_profile", JSON.stringify(restoredProfile));
+          }
+        } else if (email) {
+          // Upsert default profile into public.profiles
+          const newProf = {
+            id: uid,
+            email,
+            display_name: activeUser.user_metadata?.full_name || email.split("@")[0] || "Oddora Punter",
+            tier: "FREE",
+            plan_tier: "FREE",
+            phone: activeUser.user_metadata?.phone || "",
+            preferred_bookmaker: "SportyBet",
+            updated_at: new Date().toISOString(),
+          };
+          try {
+            await supabase.from("profiles").upsert(newProf);
+          } catch {}
+        }
+
+        // 2. Query public.user_saved_tickets by uid or email
+        let ticketQuery = supabase
+          .from("user_saved_tickets")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (uid && email) {
+          ticketQuery = ticketQuery.or(`user_id.eq.${uid},user_email.ilike.${email}`);
+        } else if (uid) {
+          ticketQuery = ticketQuery.eq("user_id", uid);
+        } else {
+          ticketQuery = ticketQuery.ilike("user_email", email);
+        }
+
+        const { data: dbTickets, error: ticketErr } = await ticketQuery;
+        if (!ticketErr && Array.isArray(dbTickets) && dbTickets.length > 0) {
+          const normalizedTickets = dbTickets.map((t: any) => ({
+            id: t.id,
+            user_id: t.user_id || uid,
+            user_email: t.user_email || email,
+            booking_code: t.booking_code,
+            total_odds: Number(t.total_odds) || 2.0,
+            target_odds: t.target_odds ? Number(t.target_odds) : undefined,
+            tier: t.tier || "FREE",
+            title: t.title || "Oddora Accumulator Ticket",
+            legs: Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [],
+            status: t.status || "PENDING",
+            source: t.source || "ODDORA_PLATFORM",
+            created_at: t.created_at,
+            updated_at: t.updated_at,
+          }));
+
+          if (typeof window !== "undefined") {
+            localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(normalizedTickets));
+            window.dispatchEvent(new CustomEvent("oddora:ticket-saved", { detail: normalizedTickets }));
+          }
+        }
+      } catch (syncErr) {
+        console.warn("Supabase profile & ticket restoration notice:", syncErr);
+      }
+    },
+    [supabase]
+  );
+
   // Listen to Supabase Auth state changes
   useEffect(() => {
     async function initAuth() {
@@ -156,6 +267,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
               return next;
             });
+
+            // Restore profile & tickets from Supabase
+            await syncUserProfileAndTicketsFromSupabase(u);
           }
         }
       } catch (e) {
@@ -189,6 +303,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return next;
         });
 
+        // Restore profile & tickets from Supabase
+        await syncUserProfileAndTicketsFromSupabase(u);
+
         if (pendingCallback) {
           pendingCallback();
           setPendingCallback(null);
@@ -200,7 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, pendingCallback]);
+  }, [supabase, pendingCallback, syncUserProfileAndTicketsFromSupabase]);
 
   const openAuthModal = useCallback((mode: "login" | "signup" = "signup", reason?: string) => {
     setAuthModalMode(mode);
@@ -546,6 +663,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof window !== "undefined") {
         localStorage.setItem("oddora_user_profile", JSON.stringify(next));
       }
+
+      // Persist to Supabase public.profiles
+      const targetId = user?.id || next.id;
+      const targetEmail = user?.email || next.email;
+      if (targetEmail && targetEmail !== "guest@oddora.ai") {
+        supabase
+          .from("profiles")
+          .upsert({
+            id: targetId,
+            email: targetEmail,
+            display_name: next.displayName,
+            tier: next.tier,
+            plan_tier: next.tier,
+            phone: next.phone || "",
+            preferred_bookmaker: next.preferredBookmaker || "SportyBet",
+            updated_at: new Date().toISOString(),
+          })
+          .then(() => {}, (err: any) => console.warn("Supabase profile update warning:", err));
+      }
+
       return next;
     });
   };

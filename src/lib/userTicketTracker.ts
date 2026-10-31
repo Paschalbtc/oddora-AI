@@ -25,12 +25,14 @@ export interface SavedTicket {
     selection: string;
     odd: number;
     win_probability?: number;
-    status?: "PENDING" | "WON" | "LOST";
+    sport?: string;
+    sport_type?: string;
+    status?: "PENDING" | "WON" | "LOST" | "VOID";
     home_score?: number | null;
     away_score?: number | null;
     eventId?: string;
   }>;
-  status: "PENDING" | "WON" | "LOST";
+  status: "PENDING" | "WON" | "LOST" | "VOID";
   source?: string;
   created_at: string;
   updated_at?: string;
@@ -50,10 +52,32 @@ export async function saveUserTicket(ticket: {
   user_id?: string;
   user_email?: string;
 }): Promise<SavedTicket> {
+  // Ensure every saved betslip is strictly tied to auth.users.id AND user_email
+  let resolvedUserId = ticket.user_id;
+  let resolvedUserEmail = ticket.user_email;
+
+  if (typeof window !== "undefined" && (!resolvedUserId || !resolvedUserEmail)) {
+    try {
+      const rawUser = localStorage.getItem("oddora_auth_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (!resolvedUserId) resolvedUserId = u.id;
+        if (!resolvedUserEmail) resolvedUserEmail = u.email;
+      }
+      if (!resolvedUserEmail) {
+        const rawProf = localStorage.getItem("oddora_user_profile");
+        if (rawProf) {
+          const p = JSON.parse(rawProf);
+          if (p.email && p.email !== "guest@oddora.ai") resolvedUserEmail = p.email;
+        }
+      }
+    } catch {}
+  }
+
   const newTicket: SavedTicket = {
     id: `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    user_id: ticket.user_id,
-    user_email: ticket.user_email,
+    user_id: resolvedUserId,
+    user_email: resolvedUserEmail,
     booking_code: ticket.booking_code || "SPORTY-CODE",
     total_odds: Number(ticket.total_odds) || 2.0,
     target_odds: ticket.target_odds ? Number(ticket.target_odds) : undefined,
@@ -68,6 +92,7 @@ export async function saveUserTicket(ticket: {
       selection: l.selection || "Selection",
       odd: Number(l.odd || 1.35),
       win_probability: Number(l.win_probability || 80),
+      sport: l.sport || l.sport_type || "FOOTBALL",
       status: l.status || "PENDING",
       eventId: l.eventId || l.match_id,
     })),

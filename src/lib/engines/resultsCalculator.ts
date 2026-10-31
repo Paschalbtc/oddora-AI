@@ -11,6 +11,7 @@
  */
 
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
+import { gradeMatchLeg, mapMatchStatus } from "../ticketGrader";
 
 export interface ResultsSummaryRecord {
   id?: string;
@@ -37,7 +38,7 @@ export async function calculateAndSaveResultsSummary(): Promise<ResultsSummaryRe
   // 1. Fetch recent graded matches
   const { data: allMatches } = await supabase
     .from("oddora_v2_matches")
-    .select("match_id, sport_type, is_free_preview, is_over25_candidate, status, outcome_result, best_outcome")
+    .select("match_id, sport_type, sport, home_team, away_team, home_score, away_score, is_free_preview, is_over25_candidate, status, outcome_result, best_outcome, market_name, selection_label")
     .limit(500);
 
   // 2. Fetch daily slips
@@ -55,7 +56,30 @@ export async function calculateAndSaveResultsSummary(): Promise<ResultsSummaryRe
   let wonFreeTips = 0;
 
   for (const m of matches) {
-    if (m.status === "FT" || m.status === "FINISHED" || m.outcome_result === "WON" || m.outcome_result === "LOST") {
+    const mapped = mapMatchStatus(m.status);
+    if (!m.outcome_result || m.outcome_result === "PENDING") {
+      if (mapped === "Void") {
+        m.outcome_result = "VOID";
+      } else if (mapped === "Finished" && m.home_score !== null && m.home_score !== undefined) {
+        const graded = gradeMatchLeg(
+          {
+            match: `${m.home_team || "Home"} vs ${m.away_team || "Away"}`,
+            home_team: m.home_team,
+            away_team: m.away_team,
+            market: m.market_name || "1X2",
+            selection: m.best_outcome || m.selection_label || "1",
+            odd: 1.45,
+            sport: m.sport_type || m.sport || "FOOTBALL",
+          },
+          m.home_score,
+          m.away_score,
+          m.status
+        );
+        m.outcome_result = graded.status;
+      }
+    }
+
+    if (m.outcome_result === "WON" || m.outcome_result === "LOST") {
       totalGradedMatches++;
       if (m.outcome_result === "WON") wonMatches++;
 

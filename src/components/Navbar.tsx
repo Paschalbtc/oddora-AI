@@ -29,7 +29,6 @@ import {
   ChevronRight,
   Mail,
   MessageSquare,
-  Search,
   KeyRound,
   Lock,
   Users,
@@ -323,36 +322,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* Center-Right: Responsive Search Bar (AfriOdds-inspired ergonomics) */}
-          <div className="flex-1 max-w-xs sm:max-w-sm hidden md:block">
-            <button
-              type="button"
-              onClick={() => setIsSearchModalOpen(true)}
-              className="w-full py-2 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.05] dark:hover:bg-white/[0.08] border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs font-medium flex items-center justify-between transition group shadow-inner"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <Search className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-500 transition-colors shrink-0" />
-                <span className="truncate">Search teams, leagues, fixtures...</span>
-              </div>
-              <span className="text-[10px] font-mono font-bold bg-white dark:bg-white/10 px-1.5 py-0.5 rounded border border-slate-200 dark:border-white/10 shrink-0 text-slate-400">
-                ⌘K
-              </span>
-            </button>
-          </div>
-
-          {/* Right Controls: Mobile Search + Notifications + Profile Dropdown + 3-Bar Drawer Toggle */}
+          {/* Right Controls: Notifications + Profile Dropdown + 3-Bar Drawer Toggle */}
           <div className="shrink-0 flex items-center gap-2">
-            {/* Mobile Search Icon Button */}
-            <button
-              type="button"
-              onClick={() => setIsSearchModalOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 transition active:scale-95 flex items-center justify-center min-w-[40px] min-h-[40px]"
-              title="Search Matches & Leagues"
-              aria-label="Search"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-
             {/* Notification Center */}
             <NotificationCenter onNavigateTab={handleSelectNav} />
 

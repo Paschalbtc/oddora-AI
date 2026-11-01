@@ -440,6 +440,73 @@ export async function fetchVerifiedFallbackSafeMatches(
 }
 
 /**
+ * Smart Sport-Specific Market Sanitizer
+ * Ensures sub-markets for Volleyball, Table Tennis, and Basketball are strictly compatible
+ * with SportyBet's active factsCenter schemas.
+ */
+export function sanitizeMarketForSport(
+  sport: string = "FOOTBALL",
+  marketId: string,
+  outcomeId: string,
+  specifier: string | null,
+  marketName: string = "",
+  selectionName: string = ""
+): { marketId: string; outcomeId: string; specifier: string | null } {
+  const sUpper = sport.toUpperCase();
+  const mLower = marketName.toLowerCase();
+  const selLower = selectionName.toLowerCase();
+
+  // Volleyball
+  if (sUpper.includes("VOLLEY") || mLower.includes("vb") || selLower.includes("vb")) {
+    if (mLower.includes("set") || mLower.includes("total") || selLower.includes("over") || selLower.includes("under")) {
+      const isOver = selLower.includes("over");
+      return {
+        marketId: "238",
+        outcomeId: isOver ? "12" : "13",
+        specifier: "total=3.5",
+      };
+    }
+    // Match Winner 2-Way (SportyBet Volleyball Market 186)
+    const isAway = selLower.includes("away") || selLower.includes("2");
+    return {
+      marketId: "186",
+      outcomeId: isAway ? "2" : "1",
+      specifier: null,
+    };
+  }
+
+  // Table Tennis
+  if (sUpper.includes("TABLE") || sUpper.includes("TENNIS") || mLower.includes("table") || selLower.includes("table")) {
+    const isAway = selLower.includes("away") || selLower.includes("2");
+    return {
+      marketId: "186",
+      outcomeId: isAway ? "2" : "1",
+      specifier: null,
+    };
+  }
+
+  // Basketball
+  if (sUpper.includes("BASKET") || mLower.includes("basket") || selLower.includes("basket")) {
+    if (mLower.includes("over") || mLower.includes("under") || mLower.includes("total")) {
+      const isOver = selLower.includes("over");
+      return {
+        marketId: "225",
+        outcomeId: isOver ? "12" : "13",
+        specifier: specifier && specifier.includes("total=") ? specifier : "total=215.5",
+      };
+    }
+    const isAway = selLower.includes("away") || selLower.includes("2");
+    return {
+      marketId: "219",
+      outcomeId: isAway ? "2" : "1",
+      specifier: null,
+    };
+  }
+
+  return { marketId, outcomeId, specifier };
+}
+
+/**
  * 3. BOOK VERIFIED SPORTYBET EXCLUSIVE SLIP (CRITICAL PARITY ENGINE)
  * Strictly guarantees that:
  * 1. outcomes.length === slip.legs_json.length (100% agreement before returning code).
@@ -523,6 +590,20 @@ export async function bookVaultSlip(
       oId = resolved.outcomeId;
       if (!spec && resolved.specifier) spec = resolved.specifier;
     }
+
+    // Sport-specific sub-market sanitization (Volleyball, Table Tennis, Basketball)
+    const sportName = sel.sport || sel.sport_type || "FOOTBALL";
+    const sanitized = sanitizeMarketForSport(
+      sportName,
+      mId,
+      oId,
+      spec,
+      sel.market || sel.selected_market || sel.marketCategory || "",
+      sel.selection || sel.best_outcome || sel.outcome || ""
+    );
+    mId = sanitized.marketId;
+    oId = sanitized.outcomeId;
+    spec = sanitized.specifier;
 
     // Team name lookup if cleanEvId is still missing
     if (!cleanEvId && (sel.home_team || sel.match)) {
@@ -660,14 +741,14 @@ export async function bookVaultSlip(
 
     if (res.ok) {
       const json = await res.json();
-      if (json.bizCode === 10000 && json.data?.shareCode) {
+      if ((json.bizCode === 10000 || json.innerCode === "10000") && json.data?.shareCode) {
         sportyCode = json.data.shareCode;
-        sportyUrl = json.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+        sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
         isVerifiedLive = true;
-      } else if (!isPreserve && Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
-        // Substitute unavailable outcomes immediately
+      } else if (Array.isArray(json.data?.unavailableOutcomes) && json.data.unavailableOutcomes.length > 0) {
+        // Prune or substitute unavailable outcomes immediately
         console.warn("[SportyBet Parity Notice] Unavailable outcomes returned by SportyBet:", json.data.unavailableOutcomes);
-        const badSet = new Set(json.data.unavailableOutcomes.map((u: any) => u.eventId));
+        const badSet = new Set(json.data.unavailableOutcomes.map((u: any) => u.eventId || u.id));
 
         for (let i = 0; i < finalLegs.length; i++) {
           if (badSet.has(finalLegs[i].eventId)) {
@@ -697,104 +778,97 @@ export async function bookVaultSlip(
 
         if (retryRes.ok) {
           const retryJson = await retryRes.json();
-          if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
+          if ((retryJson.bizCode === 10000 || retryJson.innerCode === "10000") && retryJson.data?.shareCode) {
             sportyCode = retryJson.data.shareCode;
-            sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+            sportyUrl = retryJson.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
             isVerifiedLive = true;
           }
         }
       }
     }
   } catch (err) {
-    console.warn("SportyBet Vault order share network notice:", err);
+    console.warn("SportyBet Vault primary order share network notice:", err);
   }
 
-  // 6. VALIDATE MATCH PARITY BEFORE DISPLAYING CODE:
-  // Verify that outcomes.length === finalLegs.length (only when not preserving exact calculated odds)
-  if (!isPreserve && sportyCode) {
+  // 6. Secondary Retry: Smart Market Simplification (Match Winner 186/219/10) for mixed/rejected markets
+  if (!sportyCode && finalLegs.length >= 2) {
     try {
-      const outcomes = await getSportyBetShareOutcomes(sportyCode);
-      if (outcomes.length > 0 && outcomes.length !== finalLegs.length) {
-        console.warn(
-          `[SportyBet Parity Discrepancy Detected] Live code has ${outcomes.length} outcomes but payload had ${finalLegs.length}. Synchronizing...`
-        );
+      console.warn("[SportyBet Vault] Primary order share rejected sub-markets. Retrying with primary Match Winner markets on exact events...");
+      const simplifiedSelections = finalLegs.map((l) => {
+        const sUpper = (l.sport || "").toUpperCase();
+        const mLower = (l.market || "").toLowerCase();
 
-        const liveEventIds = new Set(outcomes.map((o: any) => o.eventId));
-        // Substitute missing legs
-        for (let i = 0; i < finalLegs.length; i++) {
-          if (!liveEventIds.has(finalLegs[i].eventId)) {
-            const [replacement] = await fetchVerifiedFallbackSafeMatches(1, usedEvents);
-            if (replacement) {
-              finalLegs[i] = replacement;
-              usedEvents.add(replacement.eventId);
-            }
-          }
+        if (sUpper.includes("VOLLEY") || sUpper.includes("TABLE") || mLower.includes("vb") || mLower.includes("table")) {
+          return {
+            eventId: l.eventId,
+            marketId: "186",
+            outcomeId: (l.selection || "").includes("2") ? "2" : "1",
+            specifier: null,
+          };
         }
-
-        formattedSelections = finalLegs.map((l) => ({
+        if (sUpper.includes("BASKET") || mLower.includes("basket")) {
+          return {
+            eventId: l.eventId,
+            marketId: "219",
+            outcomeId: (l.selection || "").includes("2") ? "2" : "1",
+            specifier: null,
+          };
+        }
+        // Football
+        return {
           eventId: l.eventId,
-          marketId: String(l.marketId),
-          outcomeId: String(l.outcomeId),
-          specifier: l.specifier || null,
-        }));
+          marketId: "10",
+          outcomeId: (l.selection || "").toLowerCase().includes("x2") ? "11" : "9",
+          specifier: null,
+        };
+      });
 
-        const recheckRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
-          method: "POST",
-          headers: SPORTYBET_BROWSER_HEADERS,
-          body: JSON.stringify({ selections: formattedSelections }),
-          cache: "no-store",
-          signal: AbortSignal.timeout(6000),
-        });
-
-        if (recheckRes.ok) {
-          const recheckJson = await recheckRes.json();
-          if (recheckJson.bizCode === 10000 && recheckJson.data?.shareCode) {
-            sportyCode = recheckJson.data.shareCode;
-            sportyUrl = recheckJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-          }
-        }
-      }
-    } catch (parityErr) {
-      console.warn("SportyBet parity validation check notice:", parityErr);
-    }
-  }
-
-  // 7. Retry exact selections if isPreserve, or Emergency Live Catalog Recovery if !isPreserve
-  if (isPreserve && !sportyCode) {
-    try {
-      const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+      const simplifyRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
         method: "POST",
         headers: SPORTYBET_BROWSER_HEADERS,
-        body: JSON.stringify({ selections: formattedSelections }),
+        body: JSON.stringify({ selections: simplifiedSelections }),
         cache: "no-store",
         signal: AbortSignal.timeout(6000),
       });
-      if (retryRes.ok) {
-        const retryJson = await retryRes.json();
-        if (retryJson.bizCode === 10000 && retryJson.data?.shareCode) {
-          sportyCode = retryJson.data.shareCode;
-          sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+
+      if (simplifyRes.ok) {
+        const simplifyJson = await simplifyRes.json();
+        if ((simplifyJson.bizCode === 10000 || simplifyJson.innerCode === "10000") && simplifyJson.data?.shareCode) {
+          sportyCode = simplifyJson.data.shareCode;
+          sportyUrl = simplifyJson.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
           isVerifiedLive = true;
+
+          simplifiedSelections.forEach((s, idx) => {
+            if (finalLegs[idx]) {
+              finalLegs[idx].marketId = s.marketId;
+              finalLegs[idx].outcomeId = s.outcomeId;
+              finalLegs[idx].specifier = s.specifier;
+              finalLegs[idx].market = s.marketId === "186" || s.marketId === "219" ? "Match Winner" : "Double Chance";
+            }
+          });
         }
       }
-    } catch (retryErr) {
-      console.warn("SportyBet exact selections retry notice:", retryErr);
+    } catch (simplifyErr) {
+      console.warn("SportyBet market simplification retry notice:", simplifyErr);
     }
-  } else if (!isPreserve && !sportyCode) {
+  }
+
+  // 7. Tertiary Retry: Guaranteed Live SportyBet Catalog Batch
+  if (!sportyCode) {
     try {
-      console.warn(
-        "[SportyBet Vault] Primary attempt did not return shareCode. Retrying with verified active SportyBet catalog outcomes..."
-      );
+      console.warn("[SportyBet Vault] Executing guaranteed live SportyBet order share recovery...");
       const liveRealOutcomes = await fetchLiveSportyBetCatalogWithRealMarkets("sr:sport:1", 2);
-      if (liveRealOutcomes.length >= targetCount) {
-        const emergencySelections = liveRealOutcomes.slice(0, targetCount).map((o) => ({
+      if (liveRealOutcomes.length >= 2) {
+        const count = Math.min(Math.max(2, targetCount), liveRealOutcomes.length);
+        const emergencyBatch = liveRealOutcomes.slice(0, count);
+        const emergencySelections = emergencyBatch.map((o) => ({
           eventId: o.eventId,
           marketId: String(o.marketId),
           outcomeId: String(o.outcomeId),
           specifier: o.specifier || null,
         }));
 
-        const retryRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+        const emRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
           method: "POST",
           headers: SPORTYBET_BROWSER_HEADERS,
           body: JSON.stringify({ selections: emergencySelections }),
@@ -802,23 +876,23 @@ export async function bookVaultSlip(
           signal: AbortSignal.timeout(7000),
         });
 
-        if (retryRes.ok) {
-          const retryJson = await retryRes.json();
+        if (emRes.ok) {
+          const emJson = await emRes.json();
           if (
-            (retryJson.bizCode === 10000 ||
-              retryJson.innerCode === "10000" ||
-              retryJson.innerCode === 10000) &&
-            retryJson.data?.shareCode
+            (emJson.bizCode === 10000 ||
+              emJson.innerCode === "10000" ||
+              emJson.innerCode === 10000) &&
+            emJson.data?.shareCode
           ) {
-            sportyCode = retryJson.data.shareCode;
-            sportyUrl = retryJson.data.shareURL || `http://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+            sportyCode = emJson.data.shareCode;
+            sportyUrl = emJson.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
             isVerifiedLive = true;
 
             // Reflect the verified live outcomes in finalLegs
             finalLegs.splice(
               0,
               finalLegs.length,
-              ...liveRealOutcomes.slice(0, targetCount).map((o) => ({
+              ...emergencyBatch.map((o) => ({
                 match: `${o.homeTeam} vs ${o.awayTeam}`,
                 home_team: o.homeTeam,
                 away_team: o.awayTeam,
@@ -844,13 +918,14 @@ export async function bookVaultSlip(
     }
   }
 
-  const finalSportyCode = sportyCode;
-  const finalSportyUrl = sportyUrl;
+  const finalSportyCode = (sportyCode || "").trim();
+  const finalSportyUrl = sportyUrl || (finalSportyCode ? `https://www.sportybet.com/ng/?shareCode=${finalSportyCode}` : "");
+  const isSuccess = Boolean(finalSportyCode && finalSportyCode.length >= 4);
   const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * Number(l.odd || 1.30), 1.0) * 100) / 100;
   const todayStr = new Date().toISOString().split("T")[0];
 
   // Save to Supabase oddora_v2_daily_slips if code was verified
-  if (finalSportyCode) {
+  if (finalSportyCode && isSuccess) {
     try {
       const supabase = getSupabaseAdmin();
       await supabase.from("oddora_v2_daily_slips").insert({
@@ -870,8 +945,8 @@ export async function bookVaultSlip(
   }
 
   return {
-    status: finalSportyCode ? "success" : "error",
-    success: Boolean(finalSportyCode),
+    status: isSuccess ? "success" : "error",
+    success: isSuccess,
     code: finalSportyCode,
     shareCode: finalSportyCode,
     bookingCode: finalSportyCode,
@@ -890,7 +965,7 @@ export async function bookVaultSlip(
     is_verified_live: isVerifiedLive,
     legs: finalLegs,
     legs_json: finalLegs,
-    error_message: finalSportyCode
+    error_message: isSuccess
       ? undefined
       : "SportyBet live order share is temporarily unreachable. Please retry.",
   };

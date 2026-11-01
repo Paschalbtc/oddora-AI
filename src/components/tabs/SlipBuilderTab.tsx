@@ -808,16 +808,16 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
               </button>
 
               {/* SportyBet Code Button Header */}
-              {sportyCode && (
+              {sportyCode && sportyCode.trim().length >= 4 && (
                 <button
                   type="button"
                   onClick={() => handleCopy(sportyCode)}
-                  className="py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-600 dark:text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
                   title="Click to copy SportyBet booking code"
                 >
                   {copiedCode === sportyCode ? (
                     <>
-                      <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                      <Check className="w-4 h-4 text-emerald-500 stroke-[3]" />
                       <span>Code Copied!</span>
                     </>
                   ) : (
@@ -846,7 +846,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           </div>
 
           {/* Prominent Verified SportyBet Booking Banner */}
-          {sportyCode && (
+          {sportyCode && sportyCode.trim().length >= 4 && (
             <div className="mx-5 my-4 sm:mx-7 p-4 rounded-2xl bg-gradient-to-r from-red-500/15 via-red-500/10 to-transparent border border-red-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#E51D25] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
@@ -854,14 +854,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono uppercase text-red-400 font-bold tracking-wider">
+                    <span className="text-[11px] font-mono uppercase text-red-700 dark:text-red-400 font-bold tracking-wider">
                       Verified SportyBet Booking Code
                     </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/30">
                       LIVE READY
                     </span>
                   </div>
-                  <div className="font-mono font-black text-emerald-400 text-lg sm:text-2xl tracking-widest drop-shadow-sm">
+                  <div className="font-mono font-black text-slate-900 dark:text-emerald-400 text-lg sm:text-2xl tracking-widest drop-shadow-sm select-all">
                     {sportyCode}
                   </div>
                 </div>
@@ -987,11 +987,11 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 )}
               </button>
 
-              {sportyCode && (
+              {sportyCode && sportyCode.trim().length >= 4 && (
                 <button
                   type="button"
                   onClick={() => handleCopy(sportyCode)}
-                  className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+                  className="flex-1 sm:flex-none py-2.5 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-600 dark:text-red-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
                 >
                   {copiedCode === sportyCode ? (
                     <>

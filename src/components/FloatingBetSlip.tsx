@@ -252,57 +252,82 @@ export const FloatingBetSlip: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Booking Code Display (When Generated) */}
-                {bookedTicket && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 space-y-2.5 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-emerald-300 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>Verified SportyBet Code</span>
-                      </span>
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                        100% READY
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/60 border border-emerald-500/40">
-                      <span className="font-mono font-black text-emerald-400 text-lg tracking-widest drop-shadow-sm">
-                        {(bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || ""}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy((bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || "")}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
-                      >
-                        {copiedCode === ((bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || "") ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <a
-                      href={
-                        bookedTicket.shareUrl ||
-                        `https://www.sportybet.com/ng/?shareCode=${(bookedTicket as any)?.sportybet_code || (bookedTicket as any)?.sportybetCode || bookedTicket.bookingCode || bookedTicket.sportyCode || (bookedTicket as any)?.shareCode || (bookedTicket as any)?.code || ""}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 rounded-xl bg-[#E51D25] hover:bg-[#c91820] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98"
-                    >
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>⚡ Load Slip Directly on SportyBet</span>
-                      <ExternalLink className="w-3 h-3 ml-1" />
-                    </a>
+                {/* Booking In-Progress Indicator */}
+                {isBooking && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs animate-pulse">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Generating SportyBet booking code...</span>
                   </div>
                 )}
+
+                {/* Booking Code Display */}
+                {(() => {
+                  const rawCode =
+                    (bookedTicket as any)?.sportybet_code ||
+                    (bookedTicket as any)?.sportybetCode ||
+                    bookedTicket?.bookingCode ||
+                    bookedTicket?.sportyCode ||
+                    (bookedTicket as any)?.shareCode ||
+                    (bookedTicket as any)?.code ||
+                    "";
+                  const finalCode = typeof rawCode === "string" ? rawCode.trim() : "";
+
+                  if (!bookedTicket || !finalCode || finalCode.length < 4) {
+                    return null;
+                  }
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 space-y-3 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                          <span>Verified SportyBet Code</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                          100% READY
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 p-2 bg-slate-100 dark:bg-black/60 rounded-2xl border border-slate-200 dark:border-emerald-500/30">
+                        <span className="font-mono text-2xl sm:text-3xl font-black tracking-widest text-slate-900 dark:text-white bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border-2 border-emerald-500/40 select-all truncate block">
+                          {finalCode}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(finalCode)}
+                          className="px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md shrink-0"
+                          title="Copy SportyBet code"
+                        >
+                          {copiedCode === finalCode ? (
+                            <>
+                              <Check className="w-4 h-4 stroke-[3]" />
+                              <span>Copied: {finalCode}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <a
+                        href={
+                          bookedTicket.shareUrl ||
+                          `https://www.sportybet.com/ng/?shareCode=${finalCode}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 rounded-xl bg-[#E51D25] hover:bg-[#c91820] text-white font-black text-xs flex items-center justify-center gap-1.5 transition shadow-md active:scale-98 cursor-pointer"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>⚡ Load Slip Directly on SportyBet</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                      </a>
+                    </div>
+                  );
+                })()}
 
                 {bookingError && (
                   <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">

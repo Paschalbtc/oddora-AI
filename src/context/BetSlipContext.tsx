@@ -271,11 +271,11 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
 
       const data = await res.json();
-      if (!res.ok || data.status === "error") {
+      if (!res.ok || data.status === "error" || data.success === false) {
         throw new Error(data.message || "Failed to book slip on SportyBet");
       }
 
-      const code =
+      const rawCode =
         data?.sportybet_code ||
         data?.sportybetCode ||
         data?.bookingCode ||
@@ -285,12 +285,18 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         data?.booking_code ||
         data?.sportyCode ||
         "";
+      const code = typeof rawCode === "string" ? rawCode.trim() : "";
+
+      if (!code || code.length < 4) {
+        throw new Error("SportyBet returned no booking code. Please try again.");
+      }
+
       const url =
         data?.share_url ||
         data?.sporty_url ||
         data?.shareUrl ||
         data?.sportyUrl ||
-        (code ? `https://www.sportybet.com/ng/?shareCode=${code}` : "");
+        `https://www.sportybet.com/ng/?shareCode=${code}`;
 
       const result: BookedTicketResponse = {
         bookmaker: "SportyBet",

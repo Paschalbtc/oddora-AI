@@ -51,6 +51,18 @@ export async function POST(request: NextRequest) {
         booked.code ||
         booked.shareCode ||
         "";
+
+      if (!generatedCode || generatedCode.trim().length === 0) {
+        return NextResponse.json(
+          {
+            status: "error",
+            success: false,
+            message: booked.error_message || "SportyBet live order share is temporarily unreachable. Please retry.",
+          },
+          { status: 502 }
+        );
+      }
+
       const shareUrl =
         booked.sporty_url ||
         booked.share_url ||

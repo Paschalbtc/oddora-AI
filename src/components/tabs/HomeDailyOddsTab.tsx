@@ -447,7 +447,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab("slip_builder")}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white hover:bg-slate-800 dark:hover:bg-slate-700 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
+              className="w-full sm:w-auto py-3.5 px-6 rounded-2xl font-semibold shadow-md bg-slate-900 text-white dark:bg-slate-800 dark:text-white flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
             >
               <SlidersHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-white font-semibold">Build Custom Slip</span>

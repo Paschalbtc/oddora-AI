@@ -81,37 +81,6 @@ export interface VaultBookingResult {
   bet9ja_url?: string;
 }
 
-/**
- * In-memory fallback ticket registry (ensures instant zero-downtime retrieval)
- */
-export const VAULT_FALLBACK_CACHE = new Map<string, {
-  legs: VaultBookedLeg[];
-  actual_odds: number;
-  created_at: number;
-}>();
-
-/**
- * Generates a high-entropy SportyBet-compatible 6-character booking code (e.g. BC48DF, X7KM8N)
- */
-export function generateSportyBetFallbackCode(selections: any[]): string {
-  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-  let hash = 0;
-  const seed = (selections || [])
-    .map((s) => `${s.eventId || s.match || s.home_team || "M"}_${s.selection || s.marketId || "S"}`)
-    .join("|") + "_" + Date.now().toString(36);
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  let code = "";
-  let val = Math.abs(hash);
-  for (let i = 0; i < 6; i++) {
-    code += chars[(val + i * 13 + Math.floor(Math.random() * 5)) % chars.length];
-    val = Math.floor(val / chars.length) || (Date.now() % 997);
-  }
-  return code.toUpperCase();
-}
-
 export const SPORTYBET_BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -977,19 +946,8 @@ export async function bookVaultSlip(
         const outcomes = verifyJson?.data?.outcomes;
         if (Array.isArray(outcomes) && outcomes.length > 0) {
           acceptedEventIds = outcomes.map((o: any) => String(o.eventId || o.id || "")).filter(Boolean);
-          const acceptedSet = new Set(acceptedEventIds);
-
-          // ONLY accept live verification if SportyBet accepted ALL selections without dropping legs!
-          if (outcomes.length === candidateLegs.length && candidateLegs.every((l) => acceptedSet.has(l.eventId))) {
-            finalLegs = [...candidateLegs];
-            isVerifiedLive = true;
-          } else if (outcomes.length < candidateLegs.length) {
-            console.warn(`[SportyBet Vault] SportyBet shareCode ${sportyCode} loaded only ${outcomes.length}/${candidateLegs.length} legs. Preserving all ${candidateLegs.length} selections via reliable vault code.`);
-            sportyCode = generateSportyBetFallbackCode(candidateLegs);
-            sportyUrl = `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-            isVerifiedLive = false;
-            finalLegs = [...candidateLegs];
-          }
+          isVerifiedLive = true;
+          finalLegs = [...candidateLegs];
         }
       }
     } catch (verifyErr) {
@@ -997,13 +955,33 @@ export async function bookVaultSlip(
     }
   }
 
-  // 6. Robust Fallback Code Generator: If SportyBet external order share is unreachable,
-  // blocked by CORS/geoblock, or returned no code, generate an instant reliable booking code and link
+  // 6. Return error if SportyBet order share did not produce an authentic share code
   if (!sportyCode || sportyCode.trim().length < 4) {
-    sportyCode = generateSportyBetFallbackCode(candidateLegs);
-    sportyUrl = `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-    isVerifiedLive = false;
-    console.log(`[SportyBet Vault] Direct SportyBet endpoint unreachable. Generated reliable fallback booking code: ${sportyCode}`);
+    return {
+      status: "error",
+      success: false,
+      code: "",
+      shareCode: "",
+      bookingCode: "",
+      sportybet_code: "",
+      sportybetCode: "",
+      sporty_code: "",
+      sportyCode: "",
+      booking_code: "",
+      sporty_url: "",
+      sportyUrl: "",
+      share_url: "",
+      shareUrl: "",
+      total_odds: 1.0,
+      actual_odds: 1.0,
+      legs_count: 0,
+      is_verified_live: false,
+      legs: [],
+      legs_json: [],
+      accepted_event_ids: [],
+      acceptedEventIds: [],
+      error_message: "SportyBet rejected the selections or the booking service is temporarily unavailable. Please retry with active upcoming matches.",
+    };
   }
 
   const finalSportyCode = (sportyCode || "").trim();
@@ -1012,15 +990,6 @@ export async function bookVaultSlip(
   const isSuccess = Boolean(finalSportyCode && finalSportyCode.length >= 4);
   const actualOdds = Math.round(finalLegs.reduce((acc, l) => acc * Number(l.odd || 1.30), 1.0) * 100) / 100;
   const todayStr = new Date().toISOString().split("T")[0];
-
-  // Save to in-memory fallback cache for instant 0ms decode
-  if (finalSportyCode && finalLegs.length > 0) {
-    VAULT_FALLBACK_CACHE.set(finalSportyCode, {
-      legs: finalLegs,
-      actual_odds: actualOdds,
-      created_at: Date.now(),
-    });
-  }
 
   // Save to Supabase oddora_v2_daily_slips so ticket is permanently queryable
   if (finalSportyCode && isSuccess && finalLegs.length > 0) {
@@ -1097,20 +1066,6 @@ export async function decodeVaultBookingCode(
       legs: [],
       share_url: "",
       message: "Please enter a valid SportyBet booking code.",
-    };
-  }
-
-  // 0. Check in-memory fallback cache first (0ms latency)
-  const memCached = VAULT_FALLBACK_CACHE.get(cleanCode);
-  if (memCached && Array.isArray(memCached.legs) && memCached.legs.length > 0) {
-    return {
-      status: "success",
-      bookmaker: "SportyBet",
-      booking_code: cleanCode,
-      total_odds: memCached.actual_odds || 2.0,
-      legs_count: memCached.legs.length,
-      legs: memCached.legs,
-      share_url: `https://www.sportybet.com/ng/?shareCode=${cleanCode}`,
     };
   }
 

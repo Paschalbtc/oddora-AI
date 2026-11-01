@@ -419,24 +419,11 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setBookedTicket(result);
       return result;
     } catch (err: any) {
-      console.warn("BetSlipContext booking notice, using fallback generator:", err);
-      const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-      let fallbackCode = "";
-      for (let i = 0; i < 6; i++) {
-        fallbackCode += alphabet[Math.floor(Math.random() * alphabet.length)];
-      }
-      const url = `https://www.sportybet.com/ng/?shareCode=${fallbackCode}`;
-      const fallbackResult: BookedTicketResponse = {
-        bookmaker: "SportyBet",
-        bookingCode: fallbackCode,
-        sportyCode: fallbackCode,
-        shareUrl: url,
-        totalOdds: totalOdds || 2.0,
-        legsCount: legs.length,
-      };
-      setBookedTicket(fallbackResult);
-      setBookingError(null);
-      return fallbackResult;
+      console.error("BetSlipContext booking error:", err);
+      const msg = err?.message || "Failed to book slip on SportyBet. Some selections may be closed or suspended.";
+      setBookingError(msg);
+      setBookedTicket(null);
+      return null;
     } finally {
       setIsBooking(false);
     }

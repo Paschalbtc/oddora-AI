@@ -21,7 +21,6 @@ import {
   resolveSportyBetMarket,
   HIGH_PROBABILITY_OUTCOMES,
   detectFixtureSport,
-  parseSportyMarketString,
 } from "../highProbabilityOutcomes";
 
 export const MAX_GAMES_PER_TICKET = 50;
@@ -196,44 +195,6 @@ export function generateCandidateMarketsForFixture(
         }
       }
     }
-  }
-
-  // 3. MANDATORY UNLOCK: Supplement with the complete 26+ market portfolio matching fixture's sport & user tier
-  const catalogForSport = HIGH_PROBABILITY_OUTCOMES[sport] || [];
-  for (const outcomeDef of catalogForSport) {
-    // Check tier access
-    if (userTier === "FREE" && outcomeDef.tierAccess !== "FREE") continue;
-    if (userTier === "PRO" && outcomeDef.tierAccess === "PREMIUM") continue;
-    if (!isMarketAllowedForTier(outcomeDef.category, userTier)) continue;
-
-    const parsed = parseSportyMarketString(outcomeDef.sportybetMarketId);
-    if (!/^\d+$/.test(parsed.marketId) || !/^\d+$/.test(parsed.outcomeId)) continue;
-
-    const dedupKey = `${parsed.marketId}_${parsed.outcomeId}_${parsed.specifier || ""}`;
-    if (seenMarketKeys.has(dedupKey)) continue;
-    seenMarketKeys.add(dedupKey);
-
-    // Calibrate odds within the safe odds corridor (1.12 to 1.80)
-    const minOdd = outcomeDef.typicalOddRange ? outcomeDef.typicalOddRange[0] : 1.20;
-    const maxOdd = outcomeDef.typicalOddRange ? outcomeDef.typicalOddRange[1] : 1.55;
-    let oddVal = Math.round(((minOdd + maxOdd) / 2) * 100) / 100;
-    oddVal = Math.max(1.12, Math.min(1.80, oddVal));
-
-    // Win probability floor
-    const floorProb = outcomeDef.baseWinProbabilityFloor || 75;
-    const trueProb = Math.max(floorProb, Math.min(92, baseProb - (oddVal > 1.45 ? 4 : 0)));
-
-    candidates.push({
-      marketCategory: outcomeDef.category,
-      outcomeLabel: outcomeDef.outcomeName || outcomeDef.shortCode,
-      oddValue: oddVal,
-      trueWinProbability: trueProb,
-      sport,
-      marketId: parsed.marketId,
-      outcomeId: parsed.outcomeId,
-      specifier: parsed.specifier || null,
-      eventId: matchEventId,
-    });
   }
 
   return candidates;
@@ -1157,6 +1118,12 @@ export async function buildCustomSlip(
     target_odds: target,
     preserve_exact_legs: true,
   });
+
+  if (booked.status === "error" || !booked.sportybet_code) {
+    throw new Error(
+      booked.error_message || "SportyBet order share could not verify the selections. Please try again."
+    );
+  }
 
   let sportyCode = booked.sportybet_code;
   let sportyUrl = booked.sporty_url;

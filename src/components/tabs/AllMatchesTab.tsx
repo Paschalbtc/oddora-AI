@@ -599,11 +599,22 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                               const marketText = String(m.market_name || m.market_category || m.market || "Match Winner").trim();
                               const resolved = resolveSportyBetMarket(outcomeText, m, marketText);
 
+                              const sSel = m.sportybet_selection;
+                              let realMarketId = sSel?.marketId ? String(sSel.marketId).trim() : "";
+                              let realOutcomeId = sSel?.outcomeId ? String(sSel.outcomeId).trim() : "";
+                              let realSpecifier = sSel?.specifier ?? null;
+
+                              if (!/^\d+$/.test(realMarketId) || !/^\d+$/.test(realOutcomeId)) {
+                                realMarketId = resolved.sportybetSelection.marketId;
+                                realOutcomeId = resolved.sportybetSelection.outcomeId;
+                                realSpecifier = resolved.sportybetSelection.specifier || null;
+                              }
+
                               const sportySel = {
                                 eventId: cleanEvId,
-                                marketId: resolved.sportybetSelection.marketId,
-                                outcomeId: resolved.sportybetSelection.outcomeId,
-                                specifier: resolved.sportybetSelection.specifier || null,
+                                marketId: realMarketId,
+                                outcomeId: realOutcomeId,
+                                specifier: realSpecifier,
                               };
                               const inSlip = isInSlip(cleanEvId) || isInSlip(matchKey);
 

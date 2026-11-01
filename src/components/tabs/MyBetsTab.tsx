@@ -508,6 +508,22 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
                   {(ticket.legs || []).map((leg, idx) => {
                     const legWon = leg.status === "WON";
                     const legLost = leg.status === "LOST";
+                    const actualScore =
+                      leg.actual_score ||
+                      (leg.home_score !== null &&
+                      leg.home_score !== undefined &&
+                      leg.away_score !== null &&
+                      leg.away_score !== undefined &&
+                      !isNaN(leg.home_score) &&
+                      !isNaN(leg.away_score)
+                        ? `${leg.home_score} - ${leg.away_score}`
+                        : "");
+                    const isFinished =
+                      leg.status === "WON" ||
+                      leg.status === "LOST" ||
+                      leg.status === "VOID" ||
+                      leg.match_status === "FT" ||
+                      leg.match_status === "FINISHED";
 
                     return (
                       <div
@@ -515,16 +531,21 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
                         className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                       >
                         <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-slate-400 text-[10px]">#{idx + 1}</span>
                             <span className="font-bold text-slate-900 dark:text-white">
                               {leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`}
                             </span>
-                            {leg.home_score !== null && leg.away_score !== null && (
-                              <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300">
-                                {leg.home_score} - {leg.away_score} FT
+                            {/* Prominent Scoreline Rendering */}
+                            {actualScore ? (
+                              <span className="font-mono text-[11px] font-black px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                {actualScore} {isFinished ? "(FT)" : "(LIVE)"}
                               </span>
-                            )}
+                            ) : isFinished ? (
+                              <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400">
+                                FT
+                              </span>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                             <span className="font-medium text-emerald-600 dark:text-emerald-400">

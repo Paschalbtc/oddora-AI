@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Clock,
   Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
@@ -366,38 +367,101 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* =========================================================================
-          BEGINNER QUICK-START ONBOARDING BANNER (Streamlined Hero)
+          HERO ONBOARDING CARD — MULTI-SPORT PREDICTIONS & HIGH-CONVERSION CTA
          ========================================================================= */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-gradient-to-r dark:from-emerald-500/15 dark:via-[#11161F] dark:to-[#11161F] border-2 border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm dark:shadow-xl">
-        <div className="flex items-start gap-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30 shadow-inner">
-            <Sparkles className="w-5 h-5" />
-          </div>
+      <div className="relative overflow-hidden p-5 sm:p-7 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-[#11161F] dark:via-[#0c1017] dark:to-[#11161F] border-2 border-emerald-500/30 shadow-lg dark:shadow-2xl">
+        {/* Glow ambient background accents */}
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-8 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col gap-5">
+          {/* Top Tag & Title */}
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 mb-1">
-              <span>HOW TO PLAY & WIN TODAY</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] font-mono font-black text-emerald-700 dark:text-emerald-400 mb-2.5 uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+              <span>AI-POWERED ACCUMULATORS & ANALYTICS</span>
             </div>
-            <h3 className="font-black text-slate-900 dark:text-white text-base sm:text-lg">
-              Pre-Made Daily Accumulators (2x to 200x)
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed max-w-2xl">
-              1. Choose an odds category below — our <strong className="text-emerald-600 dark:text-emerald-400">2 Odds Daily Banker</strong> is 100% free daily.
-              <br />
-              2. Tap <strong className="text-red-600 dark:text-red-400">"Copy SportyBet Code"</strong> to load in seconds, or view the <strong className="text-cyan-600 dark:text-cyan-400">Manual Booking List</strong> to review every match.
+            <h2 className="font-black text-slate-900 dark:text-white text-xl sm:text-2xl md:text-3xl tracking-tight leading-tight">
+              MULTI-SPORT PREDICTIONS, <span className="text-emerald-600 dark:text-emerald-400">BUILT FOR SMART PUNTERS</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed max-w-3xl">
+              Independent probability modeling, target odds accumulators, a custom ticket builder, and verified booking codes for licensed bookmakers like SportyBet — graded after full time.
             </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
-          <button
-            type="button"
-            onClick={() => onNavigateTab("guide")}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs flex items-center justify-center gap-2 transition shadow-md cursor-pointer active:scale-95"
-          >
-            <BookOpen className="w-4 h-4 text-black" />
-            <span>Platform Guide</span>
-            <ArrowRight className="w-4 h-4 text-black" />
-          </button>
+          {/* 3-Column Stats Grid */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 py-1">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-center">
+              <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                Today
+              </span>
+              <span className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono mt-0.5 block">
+                120+ Active
+              </span>
+              <span className="text-[9.5px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                Live Fixtures
+              </span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-center">
+              <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                Predicted
+              </span>
+              <span className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono mt-0.5 block">
+                8 Preset Tiers
+              </span>
+              <span className="text-[9.5px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                2x to 200x Odds
+              </span>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-center">
+              <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                Leagues
+              </span>
+              <span className="text-base sm:text-xl font-black text-slate-900 dark:text-white font-mono mt-0.5 block">
+                38+ Leagues
+              </span>
+              <span className="text-[9.5px] text-amber-600 dark:text-amber-400 font-semibold">
+                Multi-Sport
+              </span>
+            </div>
+          </div>
+
+          {/* 2-Button Action Stack */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("daily-slips-section");
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer"
+            >
+              <Zap className="w-4 h-4 fill-black text-black" />
+              <span>⚡ Explore Daily Bankers</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab("slip_builder")}
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white/10 dark:hover:bg-white/15 dark:text-white border border-slate-700 dark:border-white/20 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
+              <span>⚙️ Build Custom Slip</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Quick-Tip Pill Bar */}
+          <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-2 text-[11px] sm:text-xs font-medium text-emerald-900 dark:text-emerald-300">
+            <span className="shrink-0 text-base">💡</span>
+            <span>
+              <strong>Quick Start:</strong> Pick odds tier ➔ Tap &ldquo;Copy Code&rdquo; ➔ Paste on SportyBet. 100% Free Analytics.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -463,7 +527,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
       {/* =========================================================================
           STICKY HORIZONTAL PILL / TAB SELECTOR (7 Target Odds Categories)
          ========================================================================= */}
-      <div className="sticky top-16 z-20 py-2.5 bg-slate-50/95 dark:bg-[#070A0E]/95 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-3 px-3 sm:-mx-4 sm:px-4">
+      <div id="daily-slips-section" className="sticky top-16 z-20 py-2.5 bg-slate-50/95 dark:bg-[#070A0E]/95 backdrop-blur-md border-b border-slate-200 dark:border-white/10 -mx-3 px-3 sm:-mx-4 sm:px-4">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           <button
             type="button"

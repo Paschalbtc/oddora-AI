@@ -32,6 +32,9 @@ export interface SavedTicket {
     status?: "PENDING" | "WON" | "LOST" | "VOID";
     home_score?: number | null;
     away_score?: number | null;
+    actual_score?: string;
+    match_status?: string;
+    leg_result?: "WON" | "LOST" | "PENDING" | "VOID";
     eventId?: string;
   }>;
   status: "PENDING" | "WON" | "LOST" | "VOID";

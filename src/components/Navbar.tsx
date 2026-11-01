@@ -37,6 +37,7 @@ import { OddoraLogo } from "./OddoraLogo";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import { SupportModal } from "./SupportModal";
 import { NotificationCenter } from "./NotificationCenter";
 
 export type WorkspaceTab =
@@ -258,6 +259,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleDrawerItemClick = (item: (typeof drawerNavItems)[number]) => {
+    setIsMenuOpen(false); // Immediately close menu drawer to avoid background blocking
     if (item.isSupport) {
       setIsSupportModalOpen(true);
       return;
@@ -719,92 +721,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           onNavigateTab={handleSelectNav}
         />
 
-        {/* Dedicated 24/7 Support Modal */}
-        {isSupportModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="w-full max-w-md bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 rounded-3xl p-5 shadow-2xl space-y-4 text-slate-900 dark:text-white">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                    <Headphones className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                      Oddora AI Support Desk
-                    </h3>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      24/7 VIP Customer & Technical Assistance
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSupportModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <a
-                  href="mailto:support@oddora.ai"
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between hover:border-emerald-500/40 transition group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900 dark:text-white block">Email Support</span>
-                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">support@oddora.ai</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">Send Email →</span>
-                </a>
-
-                <a
-                  href="https://t.me/OddoraAI"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between hover:border-cyan-500/40 transition group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
-                      <MessageSquare className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900 dark:text-white block">Telegram VIP Channel</span>
-                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">@OddoraAI</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 font-mono">Join Telegram →</span>
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSupportModalOpen(false);
-                    setIsMenuOpen(false);
-                    handleSelectNav("copilot");
-                  }}
-                  className="w-full p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-between text-emerald-700 dark:text-emerald-400 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                      <Bot className="w-4 h-4" />
-                    </div>
-                    <div className="text-left">
-                      <span className="font-bold block">Live AI Betting Copilot</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400">Ask algorithmic questions & generate tickets</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold font-mono">Launch →</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Dedicated 24/7 Support Desk Modal */}
+        <SupportModal
+          isOpen={isSupportModalOpen}
+          onClose={() => setIsSupportModalOpen(false)}
+        />
 
       {/* =========================================================================
           STICKY MOBILE BOTTOM NAVIGATION BAR

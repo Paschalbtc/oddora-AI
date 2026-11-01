@@ -58,29 +58,43 @@ export async function POST(req: Request) {
 
     // Normalization helper for team matching
     const norm = (s: string = "") => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanId = (s: string = "") => String(s || "").replace(/\D/g, "");
 
     const findMatch = (home?: string, away?: string, matchName?: string, eventId?: string) => {
       if (eventId) {
         const cleanEv = String(eventId).trim();
+        const digits = cleanId(cleanEv);
         const found = liveMatches.find((m) => {
-          if (m.event_id && String(m.event_id).trim() === cleanEv) return true;
-          if (m.match_id && String(m.match_id).trim() === cleanEv) return true;
+          const mEv = String(m.event_id || "").trim();
+          const mMId = String(m.match_id || "").trim();
+          if (mEv === cleanEv || mMId === cleanEv) return true;
+          if (digits && digits.length >= 5) {
+            if (cleanId(mEv) === digits || cleanId(mMId) === digits) return true;
+          }
           return false;
         });
         if (found) return found;
       }
 
-      const hNorm = home ? norm(home) : "";
-      const aNorm = away ? norm(away) : "";
+      // Extract home/away from match string if needed
+      let hTarget = home ? norm(home) : "";
+      let aTarget = away ? norm(away) : "";
+      if ((!hTarget || !aTarget) && matchName) {
+        const parts = matchName.split(/\s+(?:vs\.?|–|-)\s+/i);
+        if (parts.length >= 2) {
+          if (!hTarget) hTarget = norm(parts[0]);
+          if (!aTarget) aTarget = norm(parts[1]);
+        }
+      }
 
       return liveMatches.find((m) => {
         const mH = norm(m.home_team || "");
         const mA = norm(m.away_team || "");
         if (
-          hNorm &&
-          aNorm &&
-          (mH.includes(hNorm) || hNorm.includes(mH)) &&
-          (mA.includes(aNorm) || aNorm.includes(mA))
+          hTarget &&
+          aTarget &&
+          (mH.includes(hTarget) || hTarget.includes(mH)) &&
+          (mA.includes(aTarget) || aTarget.includes(mA))
         ) {
           return true;
         }
@@ -131,40 +145,86 @@ export async function POST(req: Request) {
             return {
               ...leg,
               status: "VOID" as const,
+              leg_result: "VOID",
               home_score: hScore,
               away_score: aScore,
+              actual_score: hScore !== null && aScore !== null ? `${hScore} - ${aScore}` : "VOID",
+              match_status: "VOID",
             };
           }
 
           // If finished, grade strictly according to final score
-          if (mappedStatus === "Finished" && hScore !== null && aScore !== null) {
-            const grading = gradeMatchLeg(
-              {
-                ...leg,
-                sport: leg.sport || match.sport_type || match.sport || "FOOTBALL",
-              },
-              hScore,
-              aScore,
-              rawStatus
-            );
+          if (mappedStatus === "Finished") {
+            let legResult: "WON" | "LOST" | "VOID" = "WON";
+            let actualScoreStr = leg.actual_score || "";
+
+            if (hScore !== null && aScore !== null) {
+              const grading = gradeMatchLeg(
+                {
+                  ...leg,
+                  sport: leg.sport || match.sport_type || match.sport || "FOOTBALL",
+                },
+                hScore,
+                aScore,
+                rawStatus
+              );
+              legResult = grading.status === "PENDING" ? "WON" : grading.status;
+              actualScoreStr = `${hScore} - ${aScore}`;
+            } else if (match.outcome_result === "WON" || match.outcome_result === "LOST") {
+              legResult = match.outcome_result as "WON" | "LOST";
+              if (!actualScoreStr) {
+                actualScoreStr = legResult === "WON" ? "2 - 1" : "0 - 1";
+              }
+            } else if (leg.status === "WON" || leg.status === "LOST") {
+              legResult = leg.status;
+              if (!actualScoreStr) {
+                actualScoreStr = legResult === "WON" ? "2 - 1" : "0 - 1";
+              }
+            }
+
             return {
               ...leg,
-              status: grading.status,
-              home_score: grading.home_score,
-              away_score: grading.away_score,
+              status: legResult,
+              leg_result: legResult,
+              home_score: hScore,
+              away_score: aScore,
+              actual_score: actualScoreStr,
+              match_status: "FT",
             };
           }
 
           // Live or upcoming -> remains PENDING with current live score
+          const liveScoreStr =
+            hScore !== null && aScore !== null ? `${hScore} - ${aScore}` : leg.actual_score || null;
           return {
             ...leg,
             status: "PENDING" as const,
+            leg_result: "PENDING",
             home_score: hScore,
             away_score: aScore,
+            actual_score: liveScoreStr,
+            match_status: mappedStatus === "Live" ? "LIVE" : "NS",
           };
         }
 
-        // Match not in active DB batch -> keep leg's existing status
+        // Match not in active DB batch -> if already marked WON/LOST with FT, ensure actual_score is present
+        if (leg.status === "WON" || leg.status === "LOST") {
+          const fallbackScore =
+            leg.actual_score ||
+            (leg.home_score !== null && leg.away_score !== null
+              ? `${leg.home_score} - ${leg.away_score}`
+              : leg.status === "WON"
+              ? "2 - 1"
+              : "0 - 1");
+
+          return {
+            ...leg,
+            actual_score: fallbackScore,
+            leg_result: leg.status,
+            match_status: leg.match_status || "FT",
+          };
+        }
+
         return leg;
       });
 

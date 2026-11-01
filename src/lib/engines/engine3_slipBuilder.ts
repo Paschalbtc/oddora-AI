@@ -534,9 +534,9 @@ function solveHighWinRatePortfolio(
   // Cap per sport: Max ~40% when All Sports is active
   const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(1, Math.ceil(N * 0.40)) : 999;
 
-  // Strict Target Corridor Tolerance (0.95x <= actualOdds <= 1.08x, tight bounds)
-  const minTolerance = targetOdds * 0.95;
-  const maxTolerance = targetOdds * 1.08;
+  // Strict Target Corridor Tolerance (Tight +/-10% Window: 0.90x <= actualOdds <= 1.10x)
+  const minTolerance = targetOdds * 0.90;
+  const maxTolerance = targetOdds * 1.10;
 
   const picked: Array<{
     matchKey: string;
@@ -551,6 +551,9 @@ function solveHighWinRatePortfolio(
   const usedEventIds = new Set<string>();
   const marketCounts: Record<string, number> = {};
   const sportCounts: Record<string, number> = {};
+
+  const computeCurrentProduct = () =>
+    picked.reduce((acc, l) => acc * (Number(l.leg.odd) > 1.0 ? Number(l.leg.odd) : 1.0), 1.0);
 
   const isItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
     const mId = item.matchRow?.match_id || item.matchRow?.id;
@@ -592,7 +595,7 @@ function solveHighWinRatePortfolio(
     // =========================================================================
     for (let i = 0; i < N; i++) {
       const remainingSlots = N - picked.length;
-      const currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+      const currentProduct = computeCurrentProduct();
       const neededMultiplier = targetOdds / currentProduct;
       const targetOddForRemaining = Math.max(1.05, Math.pow(neededMultiplier, 1 / remainingSlots));
 
@@ -644,12 +647,14 @@ function solveHighWinRatePortfolio(
     }
   } else {
     // =========================================================================
-    // AUTO MATCH COUNT MODE
+    // AUTO MATCH COUNT MODE: Precise Odds-Clamping Loop within +/-10% Window
     // =========================================================================
     let sportRotationIdx = 0;
 
     for (let step = 0; step < 50; step++) {
-      const currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+      const currentProduct = computeCurrentProduct();
+
+      // Stop immediately if we already have >= 2 legs and combined odds land inside [0.90x, 1.10x]
       if (picked.length >= 2 && currentProduct >= minTolerance && currentProduct <= maxTolerance) {
         break;
       }
@@ -657,15 +662,24 @@ function solveHighWinRatePortfolio(
         break;
       }
 
-      // Single-leg finisher check: If we have >= 2 legs, see if an available leg lands directly inside [minTolerance, maxTolerance]
+      // 1. Single-leg Finisher Check: Look for an available leg that lands directly inside [minTolerance, maxTolerance]
       let perfectFinisher: (typeof validPool)[0] | null = null;
-      if (picked.length >= 2) {
+      let bestFinisherDist = Infinity;
+      if (picked.length >= 1) {
         for (const item of validPool) {
           if (isItemUsed(item)) continue;
+          const mCat = item.option.marketCategory;
+          const mSport = item.option.sport;
+          if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && validPool.length > 20) continue;
+          if (isAllSports && (sportCounts[mSport] || 0) >= maxPerSport && validPool.length > 20) continue;
+
           const testProd = currentProduct * item.option.oddValue;
           if (testProd >= minTolerance && testProd <= maxTolerance) {
-            perfectFinisher = item;
-            break;
+            const dist = Math.abs(testProd - targetOdds);
+            if (dist < bestFinisherDist) {
+              bestFinisherDist = dist;
+              perfectFinisher = item;
+            }
           }
         }
       }
@@ -682,6 +696,13 @@ function solveHighWinRatePortfolio(
         markItemUsed(perfectFinisher);
         marketCounts[perfectFinisher.option.marketCategory] = (marketCounts[perfectFinisher.option.marketCategory] || 0) + 1;
         sportCounts[perfectFinisher.option.sport] = (sportCounts[perfectFinisher.option.sport] || 0) + 1;
+        // Target corridor hit cleanly! Break immediately
+        break;
+      }
+
+      // 2. Clamping Guard: If we have >= 2 legs and any addition would overshoot maxTolerance,
+      // determine if stopping now is closer than adding another leg
+      if (picked.length >= 2 && currentProduct >= minTolerance) {
         break;
       }
 
@@ -711,7 +732,7 @@ function solveHighWinRatePortfolio(
         if (isAllMarkets && (marketCounts[mCat] || 0) >= maxPerMarket && validPool.length > 20) continue;
         if (isAllSports && (sportCounts[mSport] || 0) >= maxPerSport && validPool.length > 20) continue;
 
-        // Prevent overshooting maxTolerance if we already have >= 2 legs
+        // Prevent adding a leg that overshoots maxTolerance if we already have >= 2 legs
         if (picked.length >= 2 && currentProduct * item.option.oddValue > maxTolerance) continue;
 
         const diff = Math.abs(Math.log(item.option.oddValue) - Math.log(targetOddForRemaining));
@@ -724,7 +745,7 @@ function solveHighWinRatePortfolio(
       }
 
       if (!bestCand) {
-        // Fallback: search all candidates
+        // Fallback: search all candidates without market cap
         for (const item of validPool) {
           if (isItemUsed(item)) continue;
           if (picked.length >= 2 && currentProduct * item.option.oddValue > maxTolerance) continue;
@@ -735,6 +756,24 @@ function solveHighWinRatePortfolio(
             bestCand = item;
           }
         }
+      }
+
+      // If every remaining candidate would overshoot maxTolerance and we already have >= 2 legs, stop
+      if (!bestCand) {
+        if (picked.length >= 2) {
+          break;
+        }
+        // If < 2 legs, pick the smallest available odd to reach minimum 2 legs
+        let smallestCand: (typeof validPool)[0] | null = null;
+        let minOdd = Infinity;
+        for (const item of validPool) {
+          if (isItemUsed(item)) continue;
+          if (item.option.oddValue < minOdd) {
+            minOdd = item.option.oddValue;
+            smallestCand = item;
+          }
+        }
+        bestCand = smallestCand;
       }
 
       if (!bestCand) break;
@@ -750,26 +789,32 @@ function solveHighWinRatePortfolio(
       markItemUsed(bestCand);
       marketCounts[bestCand.option.marketCategory] = (marketCounts[bestCand.option.marketCategory] || 0) + 1;
       sportCounts[bestCand.option.sport] = (sportCounts[bestCand.option.sport] || 0) + 1;
+
+      // Check if newly added leg completed the corridor
+      const updatedProduct = computeCurrentProduct();
+      if (picked.length >= 2 && updatedProduct >= minTolerance && updatedProduct <= maxTolerance) {
+        break;
+      }
     }
   }
 
   // =========================================================================
-  // TARGETED LOCAL SWAPPING OPTIMIZATION (Up to 25 passes)
-  // Ensures combined odds strictly land within [0.95 * targetOdds, 1.08 * targetOdds]
+  // TARGETED LOCAL SWAPPING OPTIMIZATION (Up to 30 passes)
+  // Ensures cumulative product TotalOdds strictly lands within [0.90x, 1.10x]
   // =========================================================================
-  let currentProduct = picked.reduce((acc, l) => acc * l.leg.odd, 1.0);
+  let currentProduct = computeCurrentProduct();
   let bestDiff = Math.abs(currentProduct - targetOdds);
 
-  for (let pass = 0; pass < 25; pass++) {
-    if (currentProduct >= minTolerance && currentProduct <= maxTolerance) {
+  for (let pass = 0; pass < 30; pass++) {
+    // If within 2% of requested target odds, perfect convergence reached
+    if (Math.abs(currentProduct - targetOdds) / targetOdds <= 0.02) {
       break;
     }
 
     let improved = false;
     for (let j = 0; j < picked.length; j++) {
       const oldItem = picked[j];
-      const prodWithoutJ = currentProduct / oldItem.leg.odd;
-      const idealOdd = targetOdds / prodWithoutJ;
+      const prodWithoutJ = currentProduct / (Number(oldItem.leg.odd) || 1.0);
 
       let bestReplacement: (typeof validPool)[0] | null = null;
       let bestReplDiff = bestDiff;
@@ -821,6 +866,22 @@ function solveHighWinRatePortfolio(
     }
 
     if (!improved) break;
+  }
+
+  // Clamping Post-Check: In AUTO mode, if overshooting maxTolerance and picked.length > 2, prune excess leg
+  if (exactCount === 0 && currentProduct > maxTolerance && picked.length > 2) {
+    for (let k = picked.length - 1; k >= 0; k--) {
+      const legOdd = Number(picked[k].leg.odd) || 1.0;
+      const prunedProd = currentProduct / legOdd;
+      if (prunedProd >= minTolerance && prunedProd <= maxTolerance) {
+        const removed = picked.splice(k, 1)[0];
+        unmarkItemUsed(removed);
+        marketCounts[removed.option.marketCategory] = (marketCounts[removed.option.marketCategory] || 1) - 1;
+        sportCounts[removed.option.sport] = (sportCounts[removed.option.sport] || 1) - 1;
+        currentProduct = prunedProd;
+        break;
+      }
+    }
   }
 
   // Graceful Add: If AUTO mode is still below minTolerance, add the closest safe leg rather than overshooting
@@ -1102,24 +1163,38 @@ export async function buildCustomSlip(
 
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
-  const rawVerified = (booked.legs_json && booked.legs_json.length > 0 ? booked.legs_json : booked.legs) || selectedLegs;
-  const verifiedLegs: CustomBuilderLeg[] = rawVerified.map((l: any) => ({
-    match: l.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
-    home_team: l.home_team || "Home",
-    away_team: l.away_team || "Away",
-    league: l.league || "Premier Division",
-    market: l.market || "Match Winner",
-    selection: l.selection || "Selection",
-    odd: Number(l.odd) || 1.35,
-    win_probability: Number(l.win_probability) || 82,
-    eventId: l.eventId,
-    marketId: String(l.marketId || "1"),
-    outcomeId: String(l.outcomeId || "1"),
-    specifier: l.specifier || null,
-    sport: l.sport || "FOOTBALL",
-    marketCategory: l.marketCategory || l.market || "Match Winner",
-    edgeScore: l.edgeScore,
+  
+  // Guarantee that verifiedLegs retains ALL selected legs and matches array length
+  const rawVerified =
+    booked.legs && booked.legs.length === selectedLegs.length
+      ? booked.legs
+      : (booked.legs_json && booked.legs_json.length === selectedLegs.length
+          ? booked.legs_json
+          : selectedLegs);
+
+  const verifiedLegs: CustomBuilderLeg[] = rawVerified.map((l: any, i: number) => ({
+    match: l.match || selectedLegs[i]?.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
+    home_team: l.home_team || selectedLegs[i]?.home_team || "Home",
+    away_team: l.away_team || selectedLegs[i]?.away_team || "Away",
+    league: l.league || selectedLegs[i]?.league || "Premier Division",
+    market: l.market || selectedLegs[i]?.market || "Match Winner",
+    selection: l.selection || selectedLegs[i]?.selection || "Selection",
+    odd: Number(l.odd || selectedLegs[i]?.odd) || 1.35,
+    win_probability: Number(l.win_probability || selectedLegs[i]?.win_probability) || 82,
+    eventId: l.eventId || selectedLegs[i]?.eventId,
+    marketId: String(l.marketId || selectedLegs[i]?.marketId || "1"),
+    outcomeId: String(l.outcomeId || selectedLegs[i]?.outcomeId || "1"),
+    specifier: l.specifier ?? selectedLegs[i]?.specifier ?? null,
+    sport: l.sport || selectedLegs[i]?.sport || "FOOTBALL",
+    marketCategory: l.marketCategory || selectedLegs[i]?.marketCategory || l.market || "Match Winner",
+    edgeScore: l.edgeScore ?? selectedLegs[i]?.edgeScore,
   }));
+
+  // Strict cumulative odds multiplication: TotalOdds = product of all verified leg odds
+  const finalCalculatedOdds = Math.round(
+    verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) > 1.0 ? Number(l.odd) : 1.0), 1.0) * 100
+  ) / 100;
+  const finalAccuracy = Math.round((finalCalculatedOdds / target) * 1000) / 10;
 
   return {
     bookmaker: "SPORTYBET",
@@ -1128,8 +1203,8 @@ export async function buildCustomSlip(
     share_url: shareUrl,
     sporty_url: sportyUrl,
     target_odds_requested: target,
-    actual_combined_odds: booked.actual_odds || actualCombinedOdds,
-    odds_accuracy_ratio: `${accuracy}%`,
+    actual_combined_odds: finalCalculatedOdds,
+    odds_accuracy_ratio: `${finalAccuracy}%`,
     match_count_mode: countMode,
     legs_count: verifiedLegs.length,
     safety_grade: safetyGrade,

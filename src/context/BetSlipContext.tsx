@@ -308,7 +308,21 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const resolved = resolveSportyBetMarket(leg.selection, leg, leg.market);
         const marketId = leg.sportybetSelection?.marketId || resolved.sportybetSelection.marketId;
         const outcomeId = leg.sportybetSelection?.outcomeId || resolved.sportybetSelection.outcomeId;
-        const specifier = leg.sportybetSelection?.specifier ?? resolved.sportybetSelection.specifier ?? null;
+        let specifier = leg.sportybetSelection?.specifier ?? resolved.sportybetSelection.specifier ?? null;
+
+        const selLower = String(leg.selection || "").toLowerCase();
+        if (marketId === "18" || selLower.includes("over") || selLower.includes("under")) {
+          let line = "1.5";
+          if (selLower.includes("0.5")) line = "0.5";
+          else if (selLower.includes("2.5")) line = "2.5";
+          else if (selLower.includes("3.5")) line = "3.5";
+          else if (selLower.includes("4.5")) line = "4.5";
+          else if (specifier && specifier.includes("total=")) {
+            const m = specifier.match(/total=([0-9.]+)/);
+            if (m) line = m[1];
+          }
+          specifier = `total=${line}`;
+        }
 
         return {
           eventId: cleanEvId,
@@ -356,17 +370,33 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         throw new Error("SportyBet returned no booking code. Please try again.");
       }
 
-      // Sync legs in BetSlipContext to strictly reflect the exact accepted games in SportyBet ticket
+      // Sync legs in BetSlipContext without dropping user selections
       if (Array.isArray(data.legs) && data.legs.length > 0) {
-        const acceptedEventIds = new Set(
-          (data.accepted_event_ids || data.legs.map((l: any) => l.eventId)).map((id: any) => String(id).trim())
-        );
         setLegs((prev) => {
-          const synced = prev.filter((leg) => {
-            const evId = String(leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id || "").trim();
-            return acceptedEventIds.has(evId);
-          });
-          return synced.length > 0 ? synced : prev;
+          if (data.legs.length >= prev.length) {
+            return data.legs.map((l: any, i: number) => ({
+              id: prev[i]?.id || l.eventId || `leg_${i}`,
+              matchId: l.match_id || prev[i]?.matchId,
+              eventId: l.eventId || prev[i]?.eventId,
+              homeTeam: l.home_team || prev[i]?.homeTeam || "Home",
+              awayTeam: l.away_team || prev[i]?.awayTeam || "Away",
+              league: l.league || prev[i]?.league,
+              sport: l.sport || prev[i]?.sport,
+              market: l.market || prev[i]?.market,
+              marketCategory: l.marketCategory || prev[i]?.marketCategory,
+              selection: l.selection || prev[i]?.selection,
+              odd: Number(l.odd) || prev[i]?.odd || 1.35,
+              odds: Number(l.odd) || prev[i]?.odds || 1.35,
+              winProbability: Number(l.win_probability) || prev[i]?.winProbability || 80,
+              sportybetSelection: {
+                eventId: l.eventId,
+                marketId: l.marketId,
+                outcomeId: l.outcomeId,
+                specifier: l.specifier || null,
+              },
+            }));
+          }
+          return prev;
         });
       }
 

@@ -21,7 +21,7 @@ import { bookUniversalSlip, fetchLiveSportyBetCatalog } from "./bookingEngine";
 import { isMatchValidForSportyBetBooking } from "../coreBookingVault";
 import { getFixtureDeepStats, scoreLegDanger } from "../apiFootballStatsBrain";
 import { isMatchEnded } from "../multiSportScheduleFeed";
-import { resolveSportyBetMarket } from "../highProbabilityOutcomes";
+import { resolveSportyBetMarket, detectFixtureSport } from "../highProbabilityOutcomes";
 
 function normalizeTeamKey(team: string = ""): string {
   return team
@@ -109,10 +109,11 @@ export function buildCandidateMarketsForMatch(
   m: any,
   cleanEvId: string
 ): DailyCandidateMarketOption[] {
-  const sport = (m.sport_type || m.sport || "football").toLowerCase();
+  const sport = detectFixtureSport(m);
   const options: DailyCandidateMarketOption[] = [];
 
-  if (sport === "football") {
+  if (sport === "FOOTBALL") {
+    // --- Free Tier Markets ---
     // 1. Double Chance 1X
     options.push({
       marketCategory: "DOUBLE_CHANCE",
@@ -137,19 +138,7 @@ export function buildCandidateMarketsForMatch(
       specifier: "total=1.5",
     });
 
-    // 3. Under 3.5 Goals
-    options.push({
-      marketCategory: "OVER_UNDER",
-      marketName: "Over/Under Goals",
-      selectionLabel: "Under 3.5",
-      odd: 1.34,
-      winProbability: 83,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=3.5",
-    });
-
-    // 4. Double Chance X2
+    // 3. Double Chance X2
     options.push({
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
@@ -161,31 +150,7 @@ export function buildCandidateMarketsForMatch(
       specifier: null,
     });
 
-    // 5. Draw No Bet (Home DNB)
-    options.push({
-      marketCategory: "DRAW_NO_BET",
-      marketName: "Draw No Bet",
-      selectionLabel: "Home DNB",
-      odd: 1.35,
-      winProbability: 82,
-      marketId: "11",
-      outcomeId: "4",
-      specifier: null,
-    });
-
-    // 6. Draw No Bet (Away DNB)
-    options.push({
-      marketCategory: "DRAW_NO_BET",
-      marketName: "Draw No Bet",
-      selectionLabel: "Away DNB",
-      odd: 1.38,
-      winProbability: 80,
-      marketId: "11",
-      outcomeId: "5",
-      specifier: null,
-    });
-
-    // 7. Double Chance 12
+    // 4. Double Chance 12
     options.push({
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
@@ -197,31 +162,7 @@ export function buildCandidateMarketsForMatch(
       specifier: null,
     });
 
-    // 8. Under 4.5 Goals
-    options.push({
-      marketCategory: "OVER_UNDER",
-      marketName: "Over/Under Goals",
-      selectionLabel: "Under 4.5",
-      odd: 1.18,
-      winProbability: 88,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=4.5",
-    });
-
-    // 9. Both Teams To Score (GG)
-    options.push({
-      marketCategory: "BTTS",
-      marketName: "Both Teams To Score",
-      selectionLabel: "GG (Both Teams Score)",
-      odd: 1.60,
-      winProbability: 76,
-      marketId: "29",
-      outcomeId: "74",
-      specifier: null,
-    });
-
-    // 10. 1X2 Home Win
+    // 5. 1X2 Home Win
     options.push({
       marketCategory: "1X2",
       marketName: "1X2 (Match Winner)",
@@ -233,7 +174,7 @@ export function buildCandidateMarketsForMatch(
       specifier: null,
     });
 
-    // 11. 1X2 Away Win
+    // 6. 1X2 Away Win
     options.push({
       marketCategory: "1X2",
       marketName: "1X2 (Match Winner)",
@@ -245,7 +186,92 @@ export function buildCandidateMarketsForMatch(
       specifier: null,
     });
 
-    // 12. Home Team Over 0.5
+    // --- PRO Tier Markets ---
+    // 7. Over 2.5 Goals
+    options.push({
+      marketCategory: "OVER_UNDER",
+      marketName: "Over/Under Goals",
+      selectionLabel: "Over 2.5",
+      odd: 1.62,
+      winProbability: 76,
+      marketId: "18",
+      outcomeId: "12",
+      specifier: "total=2.5",
+    });
+
+    // 8. Under 3.5 Goals
+    options.push({
+      marketCategory: "OVER_UNDER",
+      marketName: "Over/Under Goals",
+      selectionLabel: "Under 3.5",
+      odd: 1.34,
+      winProbability: 83,
+      marketId: "18",
+      outcomeId: "13",
+      specifier: "total=3.5",
+    });
+
+    // 9. Under 4.5 Goals
+    options.push({
+      marketCategory: "OVER_UNDER",
+      marketName: "Over/Under Goals",
+      selectionLabel: "Under 4.5",
+      odd: 1.18,
+      winProbability: 88,
+      marketId: "18",
+      outcomeId: "13",
+      specifier: "total=4.5",
+    });
+
+    // 10. Home DNB
+    options.push({
+      marketCategory: "DRAW_NO_BET",
+      marketName: "Draw No Bet",
+      selectionLabel: "Home DNB",
+      odd: 1.35,
+      winProbability: 82,
+      marketId: "11",
+      outcomeId: "4",
+      specifier: null,
+    });
+
+    // 11. Away DNB
+    options.push({
+      marketCategory: "DRAW_NO_BET",
+      marketName: "Draw No Bet",
+      selectionLabel: "Away DNB",
+      odd: 1.38,
+      winProbability: 80,
+      marketId: "11",
+      outcomeId: "5",
+      specifier: null,
+    });
+
+    // 12. Both Teams To Score (GG)
+    options.push({
+      marketCategory: "BTTS",
+      marketName: "Both Teams To Score",
+      selectionLabel: "GG (Both Teams Score)",
+      odd: 1.60,
+      winProbability: 76,
+      marketId: "29",
+      outcomeId: "74",
+      specifier: null,
+    });
+
+    // 13. Both Teams To Score - No (NG)
+    options.push({
+      marketCategory: "BTTS",
+      marketName: "Both Teams To Score",
+      selectionLabel: "NG (Both Teams Score: No)",
+      odd: 1.58,
+      winProbability: 76,
+      marketId: "29",
+      outcomeId: "76",
+      specifier: null,
+    });
+
+    // 14. Home Team Over 0.5
     options.push({
       marketCategory: "TEAM_GOALS",
       marketName: "Team Goals",
@@ -256,7 +282,128 @@ export function buildCandidateMarketsForMatch(
       outcomeId: "12",
       specifier: "total=0.5",
     });
-  } else if (sport.includes("basket")) {
+
+    // 15. Handicap +1.5
+    options.push({
+      marketCategory: "HANDICAP",
+      marketName: "Handicap",
+      selectionLabel: "Handicap +1.5",
+      odd: 1.30,
+      winProbability: 84,
+      marketId: "16",
+      outcomeId: "1714",
+      specifier: "hcp=1.5",
+    });
+
+    // --- VIP / PREMIUM Tier Markets ---
+    // 16. Over 8.5 Corners
+    options.push({
+      marketCategory: "CORNERS",
+      marketName: "Corners",
+      selectionLabel: "Over 8.5 Corners",
+      odd: 1.42,
+      winProbability: 82,
+      marketId: "166",
+      outcomeId: "12",
+      specifier: "total=8.5",
+    });
+
+    // 17. Over 9.5 Corners
+    options.push({
+      marketCategory: "CORNERS",
+      marketName: "Corners",
+      selectionLabel: "Over 9.5 Corners",
+      odd: 1.58,
+      winProbability: 78,
+      marketId: "166",
+      outcomeId: "12",
+      specifier: "total=9.5",
+    });
+
+    // 18. Over 3.5 Cards
+    options.push({
+      marketCategory: "CARDS",
+      marketName: "Cards / Bookings",
+      selectionLabel: "Over 3.5 Cards",
+      odd: 1.45,
+      winProbability: 80,
+      marketId: "139",
+      outcomeId: "12",
+      specifier: "total=3.5",
+    });
+
+    // 19. Under 5.5 Cards
+    options.push({
+      marketCategory: "CARDS",
+      marketName: "Cards / Bookings",
+      selectionLabel: "Under 5.5 Cards",
+      odd: 1.32,
+      winProbability: 85,
+      marketId: "139",
+      outcomeId: "13",
+      specifier: "total=5.5",
+    });
+
+    // 20. 1st Half Over 0.5
+    options.push({
+      marketCategory: "FIRST_HALF_GOALS",
+      marketName: "1st Half Goals",
+      selectionLabel: "1st Half Over 0.5",
+      odd: 1.34,
+      winProbability: 82,
+      marketId: "68",
+      outcomeId: "12",
+      specifier: "total=0.5",
+    });
+
+    // 21. 1st Half Under 1.5
+    options.push({
+      marketCategory: "FIRST_HALF_GOALS",
+      marketName: "1st Half Goals",
+      selectionLabel: "1st Half Under 1.5",
+      odd: 1.32,
+      winProbability: 84,
+      marketId: "68",
+      outcomeId: "13",
+      specifier: "total=1.5",
+    });
+
+    // 22. Home Clean Sheet
+    options.push({
+      marketCategory: "CLEAN_SHEET",
+      marketName: "Clean Sheet",
+      selectionLabel: "Home Clean Sheet - Yes",
+      odd: 1.75,
+      winProbability: 74,
+      marketId: "31",
+      outcomeId: "74",
+      specifier: null,
+    });
+
+    // 23. Win Either Half
+    options.push({
+      marketCategory: "WIN_EITHER_HALF",
+      marketName: "Win Either Half",
+      selectionLabel: "Win Either Half",
+      odd: 1.32,
+      winProbability: 84,
+      marketId: "47",
+      outcomeId: "74",
+      specifier: null,
+    });
+
+    // 24. Asian Handicap +0.5
+    options.push({
+      marketCategory: "ASIAN_HANDICAP",
+      marketName: "Asian Handicap",
+      selectionLabel: "Asian Handicap +0.5",
+      odd: 1.28,
+      winProbability: 85,
+      marketId: "16",
+      outcomeId: "1714",
+      specifier: "hcp=0.5",
+    });
+  } else if (sport === "BASKETBALL") {
     options.push(
       {
         marketCategory: "MONEYLINE",
@@ -287,29 +434,152 @@ export function buildCandidateMarketsForMatch(
         marketId: "223",
         outcomeId: "1",
         specifier: "hcp=8.5",
+      },
+      {
+        marketCategory: "BK_TOTALS",
+        marketName: "Total Points",
+        selectionLabel: "Over 208.5 Points",
+        odd: 1.32,
+        winProbability: 86,
+        marketId: "225",
+        outcomeId: "12",
+        specifier: "total=208.5",
+      },
+      {
+        marketCategory: "BK_TOTALS",
+        marketName: "Total Points",
+        selectionLabel: "Under 235.5 Points",
+        odd: 1.34,
+        winProbability: 87,
+        marketId: "225",
+        outcomeId: "13",
+        specifier: "total=235.5",
+      },
+      {
+        marketCategory: "BK_HALF",
+        marketName: "1st Half Moneyline",
+        selectionLabel: "1st Half Winner",
+        odd: 1.38,
+        winProbability: 82,
+        marketId: "60",
+        outcomeId: "1",
+        specifier: null,
       }
     );
-  } else if (sport.includes("volley") || sport.includes("table")) {
+  } else if (sport === "TABLE_TENNIS") {
     options.push(
       {
-        marketCategory: "MONEYLINE",
+        marketCategory: "TT_WINNER",
         marketName: "Match Winner",
-        selectionLabel: "Home Win",
-        odd: 1.32,
-        winProbability: 80,
+        selectionLabel: "Player 1 Win",
+        odd: 1.30,
+        winProbability: 83,
         marketId: "186",
-        outcomeId: "1",
+        outcomeId: "4",
         specifier: null,
       },
       {
-        marketCategory: "MONEYLINE",
+        marketCategory: "TT_WINNER",
         marketName: "Match Winner",
-        selectionLabel: "Away Win",
-        odd: 1.36,
-        winProbability: 78,
+        selectionLabel: "Player 2 Win",
+        odd: 1.34,
+        winProbability: 80,
         marketId: "186",
-        outcomeId: "2",
+        outcomeId: "5",
         specifier: null,
+      },
+      {
+        marketCategory: "TT_SETS",
+        marketName: "Total Sets",
+        selectionLabel: "Over 3.5 Sets",
+        odd: 1.32,
+        winProbability: 84,
+        marketId: "199",
+        outcomeId: "12",
+        specifier: "total=3.5",
+      },
+      {
+        marketCategory: "TT_HANDICAP",
+        marketName: "Set Handicap",
+        selectionLabel: "Set Handicap +1.5",
+        odd: 1.30,
+        winProbability: 83,
+        marketId: "187",
+        outcomeId: "1714",
+        specifier: "hcp=1.5",
+      },
+      {
+        marketCategory: "TT_HANDICAP",
+        marketName: "Set Handicap",
+        selectionLabel: "Set Handicap +2.5",
+        odd: 1.18,
+        winProbability: 89,
+        marketId: "187",
+        outcomeId: "1714",
+        specifier: "hcp=2.5",
+      },
+      {
+        marketCategory: "TT_POINTS",
+        marketName: "Total Points",
+        selectionLabel: "Over 73.5 Points",
+        odd: 1.38,
+        winProbability: 82,
+        marketId: "201",
+        outcomeId: "12",
+        specifier: "total=73.5",
+      }
+    );
+  } else if (sport === "VOLLEYBALL") {
+    options.push(
+      {
+        marketCategory: "VB_WINNER",
+        marketName: "Match Winner",
+        selectionLabel: "Team 1 Win",
+        odd: 1.28,
+        winProbability: 84,
+        marketId: "186",
+        outcomeId: "4",
+        specifier: null,
+      },
+      {
+        marketCategory: "VB_WINNER",
+        marketName: "Match Winner",
+        selectionLabel: "Team 2 Win",
+        odd: 1.32,
+        winProbability: 80,
+        marketId: "186",
+        outcomeId: "5",
+        specifier: null,
+      },
+      {
+        marketCategory: "VB_SETS",
+        marketName: "Set Handicap",
+        selectionLabel: "Set Handicap +2.5",
+        odd: 1.20,
+        winProbability: 89,
+        marketId: "313",
+        outcomeId: "1714",
+        specifier: "hcp=2.5",
+      },
+      {
+        marketCategory: "VB_POINTS",
+        marketName: "Total Points",
+        selectionLabel: "Over 175.5 Points",
+        odd: 1.40,
+        winProbability: 83,
+        marketId: "238",
+        outcomeId: "12",
+        specifier: "total=175.5",
+      },
+      {
+        marketCategory: "VB_POINTS",
+        marketName: "1st Set Points",
+        selectionLabel: "1st Set Over 44.5",
+        odd: 1.42,
+        winProbability: 82,
+        marketId: "315",
+        outcomeId: "12",
+        specifier: "total=44.5",
       }
     );
   } else {

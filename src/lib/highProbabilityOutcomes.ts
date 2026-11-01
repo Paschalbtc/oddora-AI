@@ -565,14 +565,27 @@ export function isMarketAllowedForTier(
     "TT_HANDICAP",
     "VB_SETS",
   ];
-  if (tier === "PRO" || tier === "PREMIUM") {
+  if (tier === "PRO" || tier === "PREMIUM" || tier === "VIP") {
     if (proCategories.includes(cat)) return true;
   }
 
-  // Premium Tier unlocks everything
-  if (tier === "PREMIUM") return true;
+  // Premium / VIP Tier unlocks everything
+  if (tier === "PREMIUM" || tier === "VIP") return true;
 
   return false;
+}
+
+/**
+ * Strict sport detector from match metadata
+ */
+export function detectFixtureSport(match: any): "FOOTBALL" | "BASKETBALL" | "TABLE_TENNIS" | "VOLLEYBALL" {
+  const s = String(match?.sport_type || match?.sport || match?.sportId || "").toLowerCase();
+  const league = String(match?.league_name || match?.league || "").toLowerCase();
+
+  if (s.includes("sr:sport:23") || s.includes("volley") || league.includes("volleyball")) return "VOLLEYBALL";
+  if (s.includes("sr:sport:20") || s.includes("table") || s.includes("ping") || league.includes("table tennis")) return "TABLE_TENNIS";
+  if (s.includes("sr:sport:2") || s.includes("basket") || s.includes("nba") || league.includes("nba") || league.includes("basketball")) return "BASKETBALL";
+  return "FOOTBALL";
 }
 
 /**

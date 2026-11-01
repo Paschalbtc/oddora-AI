@@ -324,209 +324,212 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* Right Controls: Notifications + Profile Dropdown + 3-Bar Drawer Toggle */}
+          {/* Right Controls: Notifications + Profile (Logged In) OR Register Button (Logged Out) + 3-Bar Drawer Toggle */}
           <div className="shrink-0 flex items-center gap-2">
-            {/* Notification Center */}
-            <NotificationCenter onNavigateTab={handleSelectNav} />
-
-            {/* Profile Dropdown Trigger (Authenticated) OR Sign In Button */}
+            {/* Authenticated State: Notification Center + Profile Dropdown */}
             {isAuthenticated ? (
-              <div className="relative" ref={profileDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
-                  title="Open Account Details & Settings"
-                  aria-expanded={isProfileDropdownOpen}
-                  className={`inline-flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer min-w-[40px] min-h-[40px] ${
-                    isProfileDropdownOpen
-                      ? "bg-slate-200 text-slate-900 dark:bg-white/[0.12] dark:text-white border-emerald-500/50"
-                      : "bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border-slate-200 dark:border-white/10 text-slate-800 dark:text-white"
-                  } border`}
-                >
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold shrink-0">
-                    <User className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-black text-xs hidden sm:inline truncate max-w-[85px] ml-1.5">
-                    {authProfile?.displayName?.split(" ")[0] || "Profile"}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 hidden sm:inline ml-0.5 transition-transform duration-200 ${
-                      isProfileDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
+              <>
+                {/* Notification Center (Live unread badge counter) */}
+                <NotificationCenter onNavigateTab={handleSelectNav} />
 
-                {/* Structured Overhauled Profile Dropdown Menu */}
-                {isProfileDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-[calc(100vw-24px)] sm:w-80 max-w-[340px] rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
-                    {/* 1. User Identity Header (No Avatar Picker) */}
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm shrink-0">
-                        <User className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="font-black text-xs text-slate-900 dark:text-white truncate">
-                            {authProfile?.displayName || user?.email?.split("@")[0] || "Oddora User"}
+                {/* Profile Dropdown Trigger (Authenticated) */}
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
+                    title="Open Account Details & Settings"
+                    aria-expanded={isProfileDropdownOpen}
+                    className={`inline-flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer min-w-[40px] min-h-[40px] ${
+                      isProfileDropdownOpen
+                        ? "bg-slate-200 text-slate-900 dark:bg-white/[0.12] dark:text-white border-emerald-500/50"
+                        : "bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] border-slate-200 dark:border-white/10 text-slate-800 dark:text-white"
+                    } border`}
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold shrink-0">
+                      <User className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-black text-xs hidden sm:inline truncate max-w-[85px] ml-1.5">
+                      {authProfile?.displayName?.split(" ")[0] || "Profile"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 hidden sm:inline ml-0.5 transition-transform duration-200 ${
+                        isProfileDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Structured Overhauled Profile Dropdown Menu */}
+                  {isProfileDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-[calc(100vw-24px)] sm:w-80 max-w-[340px] rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-white/15 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
+                      {/* 1. User Identity Header (No Avatar Picker) */}
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm shrink-0">
+                          <User className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-black text-xs text-slate-900 dark:text-white truncate">
+                              {authProfile?.displayName || user?.email?.split("@")[0] || "Oddora User"}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono font-black px-1.5 py-0.2 rounded-full border shrink-0 ${
+                                currentTier === "PREMIUM"
+                                  ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                                  : currentTier === "PRO"
+                                  ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                                  : "bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-white/20"
+                              }`}
+                            >
+                              {currentTier} PLAN
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate block font-mono">
+                            {authProfile?.email || user?.email || "punter@oddora.ai"}
                           </span>
-                          <span
-                            className={`text-[9px] font-mono font-black px-1.5 py-0.2 rounded-full border shrink-0 ${
-                              currentTier === "PREMIUM"
-                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
-                                : currentTier === "PRO"
-                                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
-                                : "bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-white/20"
+                        </div>
+                      </div>
+
+                      {/* My Bets Tracker Link */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          handleSelectNav("my_bets");
+                        }}
+                        className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/10 dark:hover:bg-amber-500/15 border border-amber-500/30 transition flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <Trophy className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              My Bets Tracker
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              Track saved slips & live match grading
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </button>
+
+                      {/* 2. My Profile / Account Details Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          if (onOpenAccountModal) onOpenAccountModal("profile");
+                        }}
+                        className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/10 transition flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <User className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              My Profile / Account Details
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              View & edit display name, phone, default stake
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </button>
+
+                      {/* 3. Security & Change Password Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          if (onOpenAccountModal) onOpenAccountModal("security");
+                        }}
+                        className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/10 transition flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                              Security & Change Password
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              Update password & account recovery
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </button>
+
+                      {/* 4. Theme Toggle Switcher */}
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          {theme === "light" ? (
+                            <Sun className="w-3.5 h-3.5 text-amber-500" />
+                          ) : (
+                            <Moon className="w-3.5 h-3.5 text-cyan-400" />
+                          )}
+                          <span>Appearance</span>
+                        </span>
+                        <div className="flex items-center bg-white dark:bg-black/50 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={() => setTheme("light")}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              theme === "light"
+                                ? "bg-emerald-500 text-white font-black shadow-xs"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                             }`}
                           >
-                            {currentTier} PLAN
-                          </span>
+                            <Sun className="w-3 h-3" />
+                            <span>Light</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTheme("dark")}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              theme === "dark"
+                                ? "bg-[#11161F] text-emerald-400 font-black border border-emerald-500/30 shadow-xs"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                            }`}
+                          >
+                            <Moon className="w-3 h-3" />
+                            <span>Dark</span>
+                          </button>
                         </div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate block font-mono">
-                          {authProfile?.email || user?.email || "punter@oddora.ai"}
-                        </span>
                       </div>
+
+                      {/* Divider */}
+                      <div className="border-t border-slate-200 dark:border-white/10 pt-1" />
+
+                      {/* 5. Logout Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          signOut();
+                        }}
+                        className="w-full text-left p-2.5 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 transition flex items-center gap-2.5 font-bold text-xs cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                        <span>Log Out of Oddora AI</span>
+                      </button>
                     </div>
-
-                    {/* My Bets Tracker Link */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        handleSelectNav("my_bets");
-                      }}
-                      className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/10 dark:hover:bg-amber-500/15 border border-amber-500/30 transition flex items-center justify-between group cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                          <Trophy className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            My Bets Tracker
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                            Track saved slips & live match grading
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    </button>
-
-                    {/* 2. My Profile / Account Details Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        if (onOpenAccountModal) onOpenAccountModal("profile");
-                      }}
-                      className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/10 transition flex items-center justify-between group cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                          <User className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                            My Profile / Account Details
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                            View & edit display name, phone, default stake
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    </button>
-
-                    {/* 3. Security & Change Password Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        if (onOpenAccountModal) onOpenAccountModal("security");
-                      }}
-                      className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/10 transition flex items-center justify-between group cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
-                          <Lock className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                            Security & Change Password
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                            Update password & account recovery
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    </button>
-
-                    {/* 4. Theme Toggle Switcher */}
-                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        {theme === "light" ? (
-                          <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        ) : (
-                          <Moon className="w-3.5 h-3.5 text-cyan-400" />
-                        )}
-                        <span>Appearance</span>
-                      </span>
-                      <div className="flex items-center bg-white dark:bg-black/50 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shadow-xs">
-                        <button
-                          type="button"
-                          onClick={() => setTheme("light")}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
-                            theme === "light"
-                              ? "bg-emerald-500 text-white font-black shadow-xs"
-                              : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                          }`}
-                        >
-                          <Sun className="w-3 h-3" />
-                          <span>Light</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTheme("dark")}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
-                            theme === "dark"
-                              ? "bg-[#11161F] text-emerald-400 font-black border border-emerald-500/30 shadow-xs"
-                              : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                          }`}
-                        >
-                          <Moon className="w-3 h-3" />
-                          <span>Dark</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="border-t border-slate-200 dark:border-white/10 pt-1" />
-
-                    {/* 5. Logout Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        signOut();
-                      }}
-                      className="w-full text-left p-2.5 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 transition flex items-center gap-2.5 font-bold text-xs cursor-pointer"
-                    >
-                      <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
-                      <span>Log Out of Oddora AI</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </>
             ) : (
+              /* Guest / Logged Out: Prominent Clean Register / Sign In Button */
               <button
                 type="button"
                 onClick={() => openAuthModal("signup", "Create your free account to unlock full platform features")}
-                className="inline-flex items-center justify-center p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-md transition active:scale-95 cursor-pointer min-w-[40px] min-h-[40px]"
-                title="Sign In or Register"
+                className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-bold px-3.5 py-2 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer whitespace-nowrap shrink-0"
+                title="Register or Sign In"
               >
-                <User className="w-3.5 h-3.5 text-black stroke-[3]" />
-                <span className="hidden sm:inline ml-1.5">Sign In</span>
+                Register / Sign In
               </button>
             )}
 

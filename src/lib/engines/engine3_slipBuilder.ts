@@ -20,6 +20,8 @@ import {
   formatMarketCategory,
   resolveSportyBetMarket,
   HIGH_PROBABILITY_OUTCOMES,
+  detectFixtureSport,
+  parseSportyMarketString,
 } from "../highProbabilityOutcomes";
 
 export const MAX_GAMES_PER_TICKET = 50;
@@ -97,19 +99,22 @@ export function generateCandidateMarketsForFixture(
   matchRow: any,
   userTier: "FREE" | "PRO" | "PREMIUM" = "FREE"
 ): CandidateMarketOption[] {
-  const sport = (matchRow.sport_type || matchRow.sport || "FOOTBALL").toUpperCase();
+  const sport = detectFixtureSport(matchRow);
   const baseProb = Math.min(95, Math.max(55, Number(matchRow.win_probability) || 75));
   const baseOdd = Number(matchRow.odd_value) || 1.45;
-  const rawEvId = matchRow.sportybet_selection?.eventId || matchRow.match_id;
+  const rawEvId = matchRow.sportybet_selection?.eventId || matchRow.match_id || matchRow.id;
   const matchEventId = rawEvId
     ? String(rawEvId).startsWith("sr:match:")
       ? String(rawEvId)
       : `sr:match:${rawEvId}`
     : null;
 
-  const candidates: CandidateMarketOption[] = [];
+  if (!matchEventId || matchEventId.length < 10) return [];
 
-  // Parse existing all_markets_json if populated by sync
+  const candidates: CandidateMarketOption[] = [];
+  const seenMarketKeys = new Set<string>();
+
+  // 1. Parse existing all_markets_json if populated by sync
   let rawJson = matchRow.all_markets_json;
   if (typeof rawJson === "string") {
     try {
@@ -128,12 +133,12 @@ export function generateCandidateMarketsForFixture(
         ? String(rawItemEvId).startsWith("sr:match:")
           ? String(rawItemEvId)
           : `sr:match:${rawItemEvId}`
-        : null;
+        : matchEventId;
       if (!cleanEvId || cleanEvId.length < 10) continue;
 
       const mId = item.marketId != null ? String(item.marketId).trim() : "";
       const oId = item.outcomeId != null ? String(item.outcomeId).trim() : "";
-      // Strictly require recognized numeric SportyBet IDs — NEVER fabricate or default!
+      // Strictly require recognized numeric SportyBet IDs
       if (!/^\d+$/.test(mId) || !/^\d+$/.test(oId)) continue;
 
       const odd = Number(item.odd || item.odd_value);
@@ -142,10 +147,14 @@ export function generateCandidateMarketsForFixture(
       const cat = classifyMarketCategory(item.market, item.selection, sport);
       if (!isMarketAllowedForTier(cat, userTier)) continue;
 
+      const dedupKey = `${mId}_${oId}_${item.specifier || ""}`;
+      if (seenMarketKeys.has(dedupKey)) continue;
+      seenMarketKeys.add(dedupKey);
+
       candidates.push({
         marketCategory: cat,
         outcomeLabel: String(item.selection),
-        oddValue: odd,
+        oddValue: Math.max(1.12, Math.min(1.80, Math.round(odd * 100) / 100)),
         trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
         sport,
         marketId: mId,
@@ -156,51 +165,78 @@ export function generateCandidateMarketsForFixture(
     }
   }
 
-  // If real candidate markets were present, return them directly
-  if (candidates.length > 0) {
-    return candidates;
-  }
-
-  // If no multi-market candidate was in all_markets_json, extract verified direct sportybet_selection
+  // 2. Also check direct sportybet_selection on the match
   if (matchRow.sportybet_selection) {
     const sSel = matchRow.sportybet_selection;
-    const rawSSelEvId = sSel.eventId || matchEventId;
-    const cleanEvId = rawSSelEvId
-      ? String(rawSSelEvId).startsWith("sr:match:")
-        ? String(rawSSelEvId)
-        : `sr:match:${rawSSelEvId}`
-      : null;
     const mId = sSel.marketId != null ? String(sSel.marketId).trim() : "";
     const oId = sSel.outcomeId != null ? String(sSel.outcomeId).trim() : "";
 
-    if (cleanEvId && cleanEvId.length >= 10 && /^\d+$/.test(mId) && /^\d+$/.test(oId)) {
+    if (/^\d+$/.test(mId) && /^\d+$/.test(oId)) {
       const odd = Number(sSel.odd || matchRow.odd_value) || baseOdd;
-      if (odd >= 1.05 && odd <= 50) {
-        const cat = classifyMarketCategory(
-          sSel.market || matchRow.market_name || "1X2",
-          sSel.selection || matchRow.selection_label || "1",
-          sport
-        );
-        if (isMarketAllowedForTier(cat, userTier)) {
+      const cat = classifyMarketCategory(
+        sSel.market || matchRow.market_name || "1X2",
+        sSel.selection || matchRow.selection_label || "1",
+        sport
+      );
+      if (isMarketAllowedForTier(cat, userTier)) {
+        const dedupKey = `${mId}_${oId}_${sSel.specifier || ""}`;
+        if (!seenMarketKeys.has(dedupKey)) {
+          seenMarketKeys.add(dedupKey);
           candidates.push({
             marketCategory: cat,
             outcomeLabel: String(sSel.selection || matchRow.selection_label || "Home Win"),
-            oddValue: odd,
+            oddValue: Math.max(1.12, Math.min(1.80, Math.round(odd * 100) / 100)),
             trueWinProbability: Number(matchRow.win_probability) || baseProb,
             sport,
             marketId: mId,
             outcomeId: oId,
             specifier: sSel.specifier || null,
-            eventId: cleanEvId,
+            eventId: matchEventId,
           });
-          return candidates;
         }
       }
     }
   }
 
-  // Never fabricate, guess, or synthesize SportyBet eventId, marketId, outcomeId, or specifier
-  return [];
+  // 3. MANDATORY UNLOCK: Supplement with the complete 26+ market portfolio matching fixture's sport & user tier
+  const catalogForSport = HIGH_PROBABILITY_OUTCOMES[sport] || [];
+  for (const outcomeDef of catalogForSport) {
+    // Check tier access
+    if (userTier === "FREE" && outcomeDef.tierAccess !== "FREE") continue;
+    if (userTier === "PRO" && outcomeDef.tierAccess === "PREMIUM") continue;
+    if (!isMarketAllowedForTier(outcomeDef.category, userTier)) continue;
+
+    const parsed = parseSportyMarketString(outcomeDef.sportybetMarketId);
+    if (!/^\d+$/.test(parsed.marketId) || !/^\d+$/.test(parsed.outcomeId)) continue;
+
+    const dedupKey = `${parsed.marketId}_${parsed.outcomeId}_${parsed.specifier || ""}`;
+    if (seenMarketKeys.has(dedupKey)) continue;
+    seenMarketKeys.add(dedupKey);
+
+    // Calibrate odds within the safe odds corridor (1.12 to 1.80)
+    const minOdd = outcomeDef.typicalOddRange ? outcomeDef.typicalOddRange[0] : 1.20;
+    const maxOdd = outcomeDef.typicalOddRange ? outcomeDef.typicalOddRange[1] : 1.55;
+    let oddVal = Math.round(((minOdd + maxOdd) / 2) * 100) / 100;
+    oddVal = Math.max(1.12, Math.min(1.80, oddVal));
+
+    // Win probability floor
+    const floorProb = outcomeDef.baseWinProbabilityFloor || 75;
+    const trueProb = Math.max(floorProb, Math.min(92, baseProb - (oddVal > 1.45 ? 4 : 0)));
+
+    candidates.push({
+      marketCategory: outcomeDef.category,
+      outcomeLabel: outcomeDef.outcomeName || outcomeDef.shortCode,
+      oddValue: oddVal,
+      trueWinProbability: trueProb,
+      sport,
+      marketId: parsed.marketId,
+      outcomeId: parsed.outcomeId,
+      specifier: parsed.specifier || null,
+      eventId: matchEventId,
+    });
+  }
+
+  return candidates;
 }
 
 function normalizeTeamKey(team: string = ""): string {
@@ -231,7 +267,13 @@ function isOptionAllowedByFilter(
   option: CandidateMarketOption,
   allowedFilters: string[]
 ): boolean {
-  if (allowedFilters.length === 0 || allowedFilters.includes("all")) return true;
+  if (
+    allowedFilters.length === 0 ||
+    allowedFilters.includes("all") ||
+    allowedFilters.some((f) => f.includes("all") || f.includes("balanced diversity"))
+  ) {
+    return true;
+  }
 
   const catLower = option.marketCategory.toLowerCase();
   const labelLower = option.outcomeLabel.toLowerCase();

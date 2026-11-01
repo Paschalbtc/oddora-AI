@@ -167,36 +167,6 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
           ? "h-[calc(100dvh-4rem)] p-0 m-0 max-w-none overflow-hidden"
           : "max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-24 md:pb-12"
       }`}>
-        {/* Compulsory Sign-Up Banner for Unauthenticated Visitors */}
-        {!isAuthenticated && activeTab !== "copilot" && (
-          <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-white dark:bg-gradient-to-r dark:from-emerald-950/40 dark:via-[#0D121C] dark:to-teal-950/40 border-2 border-[#00C896] dark:border-emerald-500/40 shadow-sm dark:shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 mb-0.5">
-                  <span>FREE SIGN-UP REQUIRED</span>
-                </div>
-                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                  Create Your Free Account to Unlock All Predictions & 1-Click Booking
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Instant access to verified SportyBet codes, Slip Builder solver, and daily high-win rate odds.
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => openAuthModal("signup", "Create your free account to unlock all features")}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 active:scale-95"
-              >
-                <span>Create Free Account / Sign In</span>
-              </button>
-            </div>
-          </div>
-        )}
         {activeTab === "home" && (
           <HomeDailyOddsTab
             currentTier={currentTier}

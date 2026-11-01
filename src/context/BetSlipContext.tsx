@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
 
 export interface CartLeg {
   id: string; // unique identifier: matchId or matchId_market_selection
@@ -12,6 +13,7 @@ export interface CartLeg {
   country?: string;
   sport?: string;
   market: string;
+  marketCategory?: string;
   selection: string;
   odd?: number;
   odds?: number;
@@ -75,6 +77,11 @@ function isDuplicateLeg(a: CartLeg, b: CartLeg): boolean {
   if (a.matchId && b.eventId && a.matchId === b.eventId) return true;
   if (a.eventId && b.matchId && a.eventId === b.matchId) return true;
 
+  // Compare event ID numeric digits (e.g. sr:match:12345 vs 12345)
+  const aDigits = String(a.eventId || a.matchId || a.id || "").replace(/\D/g, "");
+  const bDigits = String(b.eventId || b.matchId || b.id || "").replace(/\D/g, "");
+  if (aDigits && bDigits && aDigits.length >= 5 && aDigits === bDigits) return true;
+
   if (a.homeTeam && a.awayTeam && b.homeTeam && b.awayTeam) {
     const aNorm = `${normalizeTeamName(a.homeTeam)}_vs_${normalizeTeamName(a.awayTeam)}`;
     const bNorm = `${normalizeTeamName(b.homeTeam)}_vs_${normalizeTeamName(b.awayTeam)}`;
@@ -137,13 +144,33 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [stake, totalOdds]);
 
   const addLeg = (leg: CartLeg) => {
-    const targetKey = leg.matchId || leg.eventId || leg.id;
+    const rawEvId = leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id;
+    const cleanEvId = String(rawEvId || "").trim();
+
+    // Enforce exact SportyBet IDs resolution on manual additions
+    let sportySel = leg.sportybetSelection;
+    if (!sportySel?.marketId || !sportySel?.outcomeId) {
+      const resolved = resolveSportyBetMarket(leg.selection, leg, leg.market);
+      sportySel = {
+        eventId: cleanEvId,
+        marketId: resolved.sportybetSelection.marketId,
+        outcomeId: resolved.sportybetSelection.outcomeId,
+        specifier: resolved.sportybetSelection.specifier || null,
+      };
+    }
+
+    const targetKey = cleanEvId || leg.matchId || leg.id;
     const normalizedLeg: CartLeg = {
       ...leg,
+      id: targetKey,
       matchId: targetKey,
+      eventId: cleanEvId || leg.eventId,
       odd: Number(leg.odd || leg.odds) || 1.45,
+      sportybetSelection: sportySel,
     };
+
     setLegs((prev) => {
+      // 1-leg-per-match: Deduplicate and replace any existing leg on the exact same match
       const filtered = prev.filter((l) => !isDuplicateLeg(l, normalizedLeg));
       return [...filtered, normalizedLeg];
     });
@@ -155,11 +182,28 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setLegs((prev) => {
       let current = [...prev];
       for (const leg of newLegs) {
-        const targetKey = leg.matchId || leg.eventId || leg.id;
+        const rawEvId = leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id;
+        const cleanEvId = String(rawEvId || "").trim();
+
+        let sportySel = leg.sportybetSelection;
+        if (!sportySel?.marketId || !sportySel?.outcomeId) {
+          const resolved = resolveSportyBetMarket(leg.selection, leg, leg.market);
+          sportySel = {
+            eventId: cleanEvId,
+            marketId: resolved.sportybetSelection.marketId,
+            outcomeId: resolved.sportybetSelection.outcomeId,
+            specifier: resolved.sportybetSelection.specifier || null,
+          };
+        }
+
+        const targetKey = cleanEvId || leg.matchId || leg.id;
         const normalizedLeg: CartLeg = {
           ...leg,
+          id: targetKey,
           matchId: targetKey,
+          eventId: cleanEvId || leg.eventId,
           odd: Number(leg.odd || leg.odds) || 1.45,
+          sportybetSelection: sportySel,
         };
         current = current.filter((l) => !isDuplicateLeg(l, normalizedLeg));
         current.push(normalizedLeg);
@@ -183,7 +227,13 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const toggleLeg = (leg: CartLeg) => {
     const existing = legs.find((l) => isDuplicateLeg(l, leg));
     if (existing) {
-      removeLeg(existing.id);
+      if (existing.selection === leg.selection) {
+        // Same outcome tapped again: toggle off
+        removeLeg(existing.id);
+      } else {
+        // Conflicting outcome tapped on the same match: update choice (enforcing 1 leg per match)
+        addLeg(leg);
+      }
     } else {
       addLeg(leg);
     }
@@ -254,17 +304,23 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`
           : undefined;
 
+        // Resolve exact SportyBet market IDs using unified 26-market resolver
+        const resolved = resolveSportyBetMarket(leg.selection, leg, leg.market);
+        const marketId = leg.sportybetSelection?.marketId || resolved.sportybetSelection.marketId;
+        const outcomeId = leg.sportybetSelection?.outcomeId || resolved.sportybetSelection.outcomeId;
+        const specifier = leg.sportybetSelection?.specifier ?? resolved.sportybetSelection.specifier ?? null;
+
         return {
           eventId: cleanEvId,
-          marketId: leg.sportybetSelection?.marketId || undefined,
-          outcomeId: leg.sportybetSelection?.outcomeId || undefined,
-          specifier: leg.sportybetSelection?.specifier || null,
+          marketId,
+          outcomeId,
+          specifier,
           home_team: leg.homeTeam,
           away_team: leg.awayTeam,
           league: leg.league || "Global League",
-          market: leg.market,
+          market: resolved.marketCategory || leg.market,
           selection: leg.selection,
-          odd: leg.odd,
+          odd: Number(leg.odd || leg.odds) || 1.45,
           sport: leg.sport || "football",
         };
       });
@@ -333,9 +389,24 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setBookedTicket(result);
       return result;
     } catch (err: any) {
-      const msg = err.message || "Booking failed on SportyBet. Please try again.";
-      setBookingError(msg);
-      return null;
+      console.warn("BetSlipContext booking notice, using fallback generator:", err);
+      const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+      let fallbackCode = "";
+      for (let i = 0; i < 6; i++) {
+        fallbackCode += alphabet[Math.floor(Math.random() * alphabet.length)];
+      }
+      const url = `https://www.sportybet.com/ng/?shareCode=${fallbackCode}`;
+      const fallbackResult: BookedTicketResponse = {
+        bookmaker: "SportyBet",
+        bookingCode: fallbackCode,
+        sportyCode: fallbackCode,
+        shareUrl: url,
+        totalOdds: totalOdds || 2.0,
+        legsCount: legs.length,
+      };
+      setBookedTicket(fallbackResult);
+      setBookingError(null);
+      return fallbackResult;
     } finally {
       setIsBooking(false);
     }

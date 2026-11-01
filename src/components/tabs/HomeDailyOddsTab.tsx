@@ -447,7 +447,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab("slip_builder")}
-              className="w-full sm:w-auto py-3.5 px-6 rounded-2xl font-semibold shadow-md bg-slate-900 text-white dark:bg-slate-800 dark:text-white flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+              className="w-full py-3.5 px-6 rounded-2xl font-semibold shadow-md bg-slate-900 text-white dark:bg-slate-800 dark:text-white flex items-center justify-center gap-2 transition-all sm:w-auto cursor-pointer active:scale-95"
             >
               <SlidersHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-white font-semibold">Build Custom Slip</span>
@@ -534,8 +534,8 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
             onClick={() => setSelectedOddsCategory("all")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer ${
               selectedOddsCategory === "all"
-                ? "bg-slate-900 text-white dark:bg-white dark:text-black shadow-xs font-black"
-                : "bg-white dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.1] border border-slate-200 dark:border-white/10"
+                ? "bg-emerald-500 text-white border-emerald-500 shadow-emerald-500/20 shadow-lg"
+                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-transparent"
             }`}
           >
             All 7 Tiers
@@ -550,13 +550,15 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 onClick={() => setSelectedOddsCategory(tier.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   isSelected
-                    ? "bg-emerald-500 text-black font-black shadow-xs"
-                    : "bg-white dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.1] border border-slate-200 dark:border-white/10"
+                    ? "bg-emerald-500 text-white border-emerald-500 shadow-emerald-500/20 shadow-lg"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-transparent"
                 }`}
               >
                 <span>{tier.pillLabel}</span>
                 {tier.id === "2_odds" && (
-                  <span className="text-[9px] px-1 py-0.2 rounded font-black bg-emerald-700 text-white dark:bg-black/30 dark:text-emerald-300">
+                  <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                    isSelected ? "bg-black/20 text-white" : "bg-emerald-700 text-white dark:bg-black/30 dark:text-emerald-300"
+                  }`}>
                     FREE
                   </span>
                 )}

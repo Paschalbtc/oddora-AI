@@ -13,8 +13,8 @@ export interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Default to "light" mode as strictly requested
-  const [theme, setThemeState] = useState<Theme>("light");
+  // Default to "dark" mode on first load
+  const [theme, setThemeState] = useState<Theme>("dark");
   const [isMounted, setIsMounted] = useState(false);
 
   const applyThemeToDOM = (t: Theme) => {
@@ -35,17 +35,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     setIsMounted(true);
     try {
-      const stored = localStorage.getItem("oddora_theme");
-      if (stored === "dark" || stored === "light") {
-        setThemeState(stored);
-        applyThemeToDOM(stored);
-      } else {
-        // Default is Light Mode
+      const stored = localStorage.getItem("theme") || localStorage.getItem("oddora_theme");
+      if (stored === "light") {
         setThemeState("light");
         applyThemeToDOM("light");
+      } else {
+        // Default is Dark Mode
+        setThemeState("dark");
+        applyThemeToDOM("dark");
+        try {
+          if (!stored) {
+            localStorage.setItem("theme", "dark");
+            localStorage.setItem("oddora_theme", "dark");
+          }
+        } catch {}
       }
     } catch {
-      applyThemeToDOM("light");
+      applyThemeToDOM("dark");
     }
   }, []);
 
@@ -53,6 +59,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeState(newTheme);
     applyThemeToDOM(newTheme);
     try {
+      localStorage.setItem("theme", newTheme);
       localStorage.setItem("oddora_theme", newTheme);
     } catch {}
   };
@@ -73,7 +80,7 @@ export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {
     return {
-      theme: "light",
+      theme: "dark",
       toggleTheme: () => {},
       setTheme: () => {},
     };

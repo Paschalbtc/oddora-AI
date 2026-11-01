@@ -22,6 +22,7 @@ import {
 import { UserTier } from "../Navbar";
 import { useBetSlip } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import { resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
 
 export interface AllMatchesTabProps {
   currentTier: UserTier;
@@ -593,12 +594,17 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                               const matchKey = m.id || m.match_id || m.external_fixture_id;
                               const rawEvId = m.sportybet_selection?.eventId || m.match_id || (String(m.id).startsWith("sr:match:") ? String(m.id) : m.match_metadata?.eventId) || matchKey;
                               const cleanEvId = rawEvId ? (String(rawEvId).startsWith("sr:match:") ? String(rawEvId) : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`) : matchKey;
-                              const sportySel = m.sportybet_selection || m.match_metadata?.sportybet_selection || (Array.isArray(m.all_markets_json) && m.all_markets_json[0] ? {
+
+                              const outcomeText = String(m.selection_label || m.best_outcome || m.prediction || "1X").trim();
+                              const marketText = String(m.market_name || m.market_category || m.market || "Match Winner").trim();
+                              const resolved = resolveSportyBetMarket(outcomeText, m, marketText);
+
+                              const sportySel = {
                                 eventId: cleanEvId,
-                                marketId: String(m.all_markets_json[0].marketId),
-                                outcomeId: String(m.all_markets_json[0].outcomeId),
-                                specifier: m.all_markets_json[0].specifier || null,
-                              } : undefined);
+                                marketId: resolved.sportybetSelection.marketId,
+                                outcomeId: resolved.sportybetSelection.outcomeId,
+                                specifier: resolved.sportybetSelection.specifier || null,
+                              };
                               const inSlip = isInSlip(cleanEvId) || isInSlip(matchKey);
 
                               return (
@@ -612,14 +618,15 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                                       id: cleanEvId,
                                       matchId: cleanEvId,
                                       eventId: cleanEvId,
-                                      sport: (m.sport || m.sport_type || selectedSport || "football").toUpperCase(),
+                                      sport: (m.sport || m.sport_type || selectedSport || "FOOTBALL").toUpperCase(),
                                       league: m.league || m.league_name || "League",
                                       homeTeam: m.home_team,
                                       awayTeam: m.away_team,
-                                      selection: m.selection_label || m.best_outcome || "High Probability Pick",
-                                      market: m.market_name || m.market_category || "Match Winner",
-                                      odds: Number(m.odd_value) || 1.45,
-                                      kickoffTime: m.kickoff_time,
+                                      selection: outcomeText,
+                                      market: resolved.marketCategory,
+                                      marketCategory: resolved.marketCategory,
+                                      odds: Number(m.odd_value || m.odds || m.odd) || 1.45,
+                                      kickoffTime: m.kickoff_time || m.start_time,
                                       sportybetSelection: sportySel,
                                     });
                                     if (onAddToSlip) onAddToSlip(m);

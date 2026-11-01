@@ -235,7 +235,55 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Contextual Intelligence & Reasoning: "Why did you pick this?" / Match Breakdown
+    // 3. Official Platform Policies & Knowledge Base (Withdrawal, Support, Modeling, Feature Navigation)
+    else if (
+      lower.includes("withdraw") ||
+      lower.includes("cashout") ||
+      lower.includes("cash out") ||
+      lower.includes("wallet") ||
+      lower.includes("deposit") ||
+      lower.includes("payout") ||
+      lower.includes("my balance") ||
+      lower.includes("my money")
+    ) {
+      botReplyText =
+        "No. Oddora AI is an independent sports statistics, probability modeling, and ticket-splitting software platform (SaaS), NOT a bookmaker or betting operator. We do not accept bets, hold customer wallets/deposits, or process withdrawals. All generated booking codes are strictly analytical tools for use on licensed third-party platforms like SportyBet or Bet9ja, where you manage your funds and withdrawals directly.";
+    } else if (
+      lower.includes("customer service") ||
+      lower.includes("customer support") ||
+      lower.includes("contact support") ||
+      lower.includes("support email") ||
+      lower.includes("contact") ||
+      lower.includes("helpdesk") ||
+      lower.includes("help desk") ||
+      lower.includes("complaint")
+    ) {
+      botReplyText =
+        "You can reach Oddora AI Customer Support directly via our official support emails: support@oddora-ai.vercel.app or support@paschalattah.xyz. You can also connect with our broadcast and community channels or 24/7 VIP desk through your Account Profile menu for immediate assistance with subscriptions or technical issues.";
+    } else if (
+      lower.includes("how are match outcomes") ||
+      lower.includes("how are predictions chosen") ||
+      lower.includes("how are outcomes calculated") ||
+      lower.includes("how predictions are chosen") ||
+      lower.includes("how do you pick") ||
+      lower.includes("prediction model") ||
+      lower.includes("how it predicts") ||
+      lower.includes("model work")
+    ) {
+      botReplyText =
+        "Match outcomes and predictions on Oddora AI are calculated using multi-source quantitative models:\n• **Multi-Source Probability Modeling**: Evaluating rolling head-to-head records, recent team form, and Elo rating differentials.\n• **Safe Odds Corridor Enforcement**: Restricting picks to the 1.12x to 1.65x safe banker corridor to eliminate high-variance trap bets.\n• **Statistical Market Weighting**: Prioritizing high-floor markets like Double Chance (1X/X2/12), Over/Under 1.5/3.5/4.5, and Draw No Bet.\n• **Multi-Market Diversity Caps**: Enforcing non-monochromatic accumulators to avoid single-market cascade failures across tickets.";
+    } else if (
+      lower.includes("how do i access") ||
+      lower.includes("access platform features") ||
+      lower.includes("features guide") ||
+      lower.includes("where can i find") ||
+      lower.includes("feature access")
+    ) {
+      botReplyText =
+        "Here is how to access each platform feature on Oddora AI:\n• **Slip Builder:** Tap the **Builder** tab on the bottom navigation bar to customize target odds, match counts, and risk profiles.\n• **Edit Slip:** Tap the **Edit Slip** tab on the bottom bar to prune lowest probability games, split tickets, or remove random legs.\n• **Daily Bankers:** View the 2x to 200x pre-made accumulators directly on the **Home** tab.\n• **My Bets / Tracker:** Access your profile to audit saved tickets and view retroactive match grading.\n• **Copilot:** Tap the floating Meta AI orb on the bottom-left anytime for instant code generation and platform support.";
+    }
+
+    // 4. Contextual Intelligence & Reasoning: "Why did you pick this?" / Match Breakdown
     else if (
       lower.includes("why") ||
       lower.includes("reason") ||

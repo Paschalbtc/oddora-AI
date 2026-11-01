@@ -92,10 +92,11 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({
 
   const quickPrompts = [
     "Build me 5 odds slip with 4 matches",
-    "Explain Over 2.5 Goals market",
-    "Give me 10 odds Football slip",
+    "Can I withdraw money on Oddora?",
+    "How do I contact customer support?",
+    "How are predictions calculated?",
+    "How do I access platform features?",
     "Why did you pick this?",
-    "How do I edit my booking code?",
   ];
 
   const handleSend = async (textToSend?: string) => {

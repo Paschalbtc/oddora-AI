@@ -438,20 +438,20 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                   el.scrollIntoView({ behavior: "smooth" });
                 }
               }}
-              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
             >
-              <Zap className="w-4 h-4 fill-black text-black" />
-              <span>⚡ Explore Daily Bankers</span>
+              <Zap className="w-4 h-4 fill-white text-white" />
+              <span className="text-white font-bold">Explore Daily Bankers</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigateTab("slip_builder")}
-              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white/10 dark:hover:bg-white/15 dark:text-white border border-slate-700 dark:border-white/20 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white hover:bg-slate-800 dark:hover:bg-slate-700 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
             >
-              <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
-              <span>⚙️ Build Custom Slip</span>
-              <ArrowRight className="w-4 h-4" />
+              <SlidersHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-white font-semibold">Build Custom Slip</span>
+              <ArrowRight className="w-4 h-4 text-white shrink-0" />
             </button>
           </div>
 

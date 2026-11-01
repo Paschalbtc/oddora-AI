@@ -47,7 +47,7 @@ export const FloatingCopilotWidget: React.FC<FloatingCopilotWidgetProps> = ({
 
   // Dynamic vertical offset: shift up when Compact Bet Slip Bar is visible
   const bottomPosition =
-    legs.length > 0 ? "bottom-32 md:bottom-20" : "bottom-20 md:bottom-6";
+    legs.length > 0 ? "bottom-36 md:bottom-20" : "bottom-24 md:bottom-6";
 
   return (
     <>
@@ -56,7 +56,7 @@ export const FloatingCopilotWidget: React.FC<FloatingCopilotWidgetProps> = ({
          ========================================================================= */}
       {!isOpen && (
         <div
-          className={`fixed left-4 sm:left-6 ${bottomPosition} z-40 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2`}
+          className={`fixed left-4 ${bottomPosition} z-40 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2`}
         >
           <button
             type="button"

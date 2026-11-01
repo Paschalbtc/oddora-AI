@@ -612,12 +612,18 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                       ) : (
                         legs.slice(0, isExpanded ? legs.length : 3).map((leg: any, idx: number) => {
                           const legLocked = isLocked && idx > 0;
-                          const legId =
-                            leg.match_id ||
-                            `daily_${tierConfig.id}_${idx}_${(leg.match || "").replace(/\s+/g, "_")}`;
-                          const inSlip = isInSlip(legId);
+                          const rawEvId = leg.eventId || leg.sportybetSelection?.eventId || leg.match_id;
+                          const cleanEvId = rawEvId ? (String(rawEvId).startsWith("sr:match:") ? String(rawEvId) : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`) : undefined;
+                          const legId = cleanEvId || leg.match_id || `daily_${tierConfig.id}_${idx}_${(leg.match || "").replace(/\s+/g, "_")}`;
+                          const inSlip = isInSlip(legId) || (cleanEvId ? isInSlip(cleanEvId) : false);
                           const matchTitle =
                             leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`;
+                          const sportySel = leg.sportybetSelection || (cleanEvId && leg.marketId && leg.outcomeId ? {
+                            eventId: cleanEvId,
+                            marketId: String(leg.marketId),
+                            outcomeId: String(leg.outcomeId),
+                            specifier: leg.specifier || null,
+                          } : undefined);
 
                           return (
                             <div
@@ -665,7 +671,8 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                                       const teams = matchTitle.split(" vs ");
                                       toggleLeg({
                                         id: legId,
-                                        eventId: leg.eventId || legId,
+                                        matchId: cleanEvId || legId,
+                                        eventId: cleanEvId || legId,
                                         sport: (leg.sport || "FOOTBALL").toUpperCase(),
                                         league: leg.league || "Premier Division",
                                         homeTeam: teams[0] || leg.home_team || "Home",
@@ -674,7 +681,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                                         market: leg.market || "Match Winner",
                                         odds: Number(leg.odd) || 1.45,
                                         kickoffTime: leg.kickoffTime,
-                                        sportybetSelection: leg.sportybetSelection,
+                                        sportybetSelection: sportySel,
                                       });
                                     }}
                                     title={inSlip ? "Remove from Bet Slip" : "Add to Bet Slip"}

@@ -590,8 +590,17 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
 
                             {/* Quick Add to Slip Button (Electric Emerald #10B981) */}
                             {(() => {
-                              const matchKey = m.id || m.external_fixture_id;
-                              const inSlip = isInSlip(matchKey);
+                              const matchKey = m.id || m.match_id || m.external_fixture_id;
+                              const rawEvId = m.sportybet_selection?.eventId || m.match_id || (String(m.id).startsWith("sr:match:") ? String(m.id) : m.match_metadata?.eventId) || matchKey;
+                              const cleanEvId = rawEvId ? (String(rawEvId).startsWith("sr:match:") ? String(rawEvId) : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`) : matchKey;
+                              const sportySel = m.sportybet_selection || m.match_metadata?.sportybet_selection || (Array.isArray(m.all_markets_json) && m.all_markets_json[0] ? {
+                                eventId: cleanEvId,
+                                marketId: String(m.all_markets_json[0].marketId),
+                                outcomeId: String(m.all_markets_json[0].outcomeId),
+                                specifier: m.all_markets_json[0].specifier || null,
+                              } : undefined);
+                              const inSlip = isInSlip(cleanEvId) || isInSlip(matchKey);
+
                               return (
                                 <button
                                   type="button"
@@ -600,8 +609,9 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                                       return;
                                     }
                                     toggleLeg({
-                                      id: matchKey,
-                                      eventId: m.match_metadata?.eventId || matchKey,
+                                      id: cleanEvId,
+                                      matchId: cleanEvId,
+                                      eventId: cleanEvId,
                                       sport: (m.sport || m.sport_type || selectedSport || "football").toUpperCase(),
                                       league: m.league || m.league_name || "League",
                                       homeTeam: m.home_team,
@@ -610,7 +620,7 @@ export const AllMatchesTab: React.FC<AllMatchesTabProps> = ({
                                       market: m.market_name || m.market_category || "Match Winner",
                                       odds: Number(m.odd_value) || 1.45,
                                       kickoffTime: m.kickoff_time,
-                                      sportybetSelection: m.match_metadata?.sportybet_selection || undefined,
+                                      sportybetSelection: sportySel,
                                     });
                                     if (onAddToSlip) onAddToSlip(m);
                                   }}

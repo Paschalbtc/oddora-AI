@@ -246,19 +246,28 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       // Format selections for /api/bookmaker
-      const selectionsPayload = uniqueLegs.map((leg) => ({
-        eventId: leg.sportybetSelection?.eventId || leg.matchId || leg.eventId,
-        marketId: leg.sportybetSelection?.marketId || undefined,
-        outcomeId: leg.sportybetSelection?.outcomeId || undefined,
-        specifier: leg.sportybetSelection?.specifier || null,
-        home_team: leg.homeTeam,
-        away_team: leg.awayTeam,
-        league: leg.league || "Global League",
-        market: leg.market,
-        selection: leg.selection,
-        odd: leg.odd,
-        sport: leg.sport || "football",
-      }));
+      const selectionsPayload = uniqueLegs.map((leg) => {
+        const rawEvId = leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id;
+        const cleanEvId = rawEvId
+          ? String(rawEvId).startsWith("sr:match:")
+            ? String(rawEvId)
+            : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`
+          : undefined;
+
+        return {
+          eventId: cleanEvId,
+          marketId: leg.sportybetSelection?.marketId || undefined,
+          outcomeId: leg.sportybetSelection?.outcomeId || undefined,
+          specifier: leg.sportybetSelection?.specifier || null,
+          home_team: leg.homeTeam,
+          away_team: leg.awayTeam,
+          league: leg.league || "Global League",
+          market: leg.market,
+          selection: leg.selection,
+          odd: leg.odd,
+          sport: leg.sport || "football",
+        };
+      });
 
       const res = await fetch("/api/bookmaker", {
         method: "POST",
@@ -289,6 +298,20 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (!code || code.length < 4) {
         throw new Error("SportyBet returned no booking code. Please try again.");
+      }
+
+      // Sync legs in BetSlipContext to strictly reflect the exact accepted games in SportyBet ticket
+      if (Array.isArray(data.legs) && data.legs.length > 0) {
+        const acceptedEventIds = new Set(
+          (data.accepted_event_ids || data.legs.map((l: any) => l.eventId)).map((id: any) => String(id).trim())
+        );
+        setLegs((prev) => {
+          const synced = prev.filter((leg) => {
+            const evId = String(leg.sportybetSelection?.eventId || leg.eventId || leg.matchId || leg.id || "").trim();
+            return acceptedEventIds.has(evId);
+          });
+          return synced.length > 0 ? synced : prev;
+        });
       }
 
       const url =

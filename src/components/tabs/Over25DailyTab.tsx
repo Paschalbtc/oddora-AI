@@ -284,8 +284,17 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                         </div>
 
                         {(() => {
-                          const legId = leg.match_id || `over25_leg_${idx}_${(leg.match || `${leg.home_team}_${leg.away_team}`).replace(/\s+/g, '_')}`;
-                          const inSlip = isInSlip(legId);
+                          const rawEvId = leg.eventId || leg.sportybetSelection?.eventId || leg.match_id;
+                          const cleanEvId = rawEvId ? (String(rawEvId).startsWith("sr:match:") ? String(rawEvId) : `sr:match:${String(rawEvId).replace(/\D/g, "") || rawEvId}`) : undefined;
+                          const legId = cleanEvId || leg.match_id || `over25_leg_${idx}_${(leg.match || `${leg.home_team}_${leg.away_team}`).replace(/\s+/g, '_')}`;
+                          const inSlip = isInSlip(legId) || (cleanEvId ? isInSlip(cleanEvId) : false);
+                          const sportySel = leg.sportybetSelection || (cleanEvId && leg.marketId && leg.outcomeId ? {
+                            eventId: cleanEvId,
+                            marketId: String(leg.marketId),
+                            outcomeId: String(leg.outcomeId),
+                            specifier: leg.specifier || "total=2.5",
+                          } : undefined);
+
                           return (
                             <button
                               type="button"
@@ -296,7 +305,8 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                                 const teams = (leg.match || `${leg.home_team || "Home"} vs ${leg.away_team || "Away"}`).split(" vs ");
                                 toggleLeg({
                                   id: legId,
-                                  eventId: leg.eventId || legId,
+                                  matchId: cleanEvId || legId,
+                                  eventId: cleanEvId || legId,
                                   sport: "FOOTBALL",
                                   league: leg.league || "Premier League",
                                   homeTeam: teams[0] || leg.home_team || "Home",
@@ -305,7 +315,7 @@ export const Over25DailyTab: React.FC<Over25DailyTabProps> = ({
                                   market: "Over/Under 2.5",
                                   odds: Number(leg.odd) || 1.75,
                                   kickoffTime: leg.kickoffTime,
-                                  sportybetSelection: leg.sportybetSelection,
+                                  sportybetSelection: sportySel,
                                 });
                               }}
                               title={inSlip ? "Remove from Bet Slip" : "Add to Bet Slip"}

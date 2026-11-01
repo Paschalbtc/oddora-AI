@@ -284,7 +284,7 @@ export const FloatingBetSlip: React.FC = () => {
                           <span>Verified SportyBet Code</span>
                         </span>
                         <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                          100% READY
+                          1-TO-1 MATCH PARITY
                         </span>
                       </div>
 
@@ -310,6 +310,11 @@ export const FloatingBetSlip: React.FC = () => {
                             </>
                           )}
                         </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/30">
+                        <span>Synced Slip: {legs.length} Matches</span>
+                        <span className="font-bold">100% Match Parity</span>
                       </div>
 
                       <a

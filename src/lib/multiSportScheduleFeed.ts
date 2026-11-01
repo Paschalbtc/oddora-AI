@@ -106,7 +106,7 @@ let _lastSyncTimestamp = 0;
 async function fetchSportyBetMultiPageCatalog(
   sportId: string,
   sportName: MultiSportRawFixture["sport"],
-  maxPages = 2
+  maxPages = 5
 ): Promise<MultiSportRawFixture[]> {
   const fixtures: MultiSportRawFixture[] = [];
   const nowMs = Date.now();
@@ -162,7 +162,13 @@ async function fetchSportyBetMultiPageCatalog(
     }
 
     for (const ev of rawEvents) {
-      if (!ev || !ev.eventId || seenEventIds.has(ev.eventId)) continue;
+      if (!ev || !ev.eventId) continue;
+      const rawIdStr = String(ev.eventId).trim();
+      const cleanEventId = rawIdStr.startsWith("sr:match:")
+        ? rawIdStr
+        : `sr:match:${rawIdStr.replace(/\D/g, "") || rawIdStr}`;
+
+      if (seenEventIds.has(cleanEventId)) continue;
 
       const startTime = Number(ev.estimateStartTime);
       // Strictly upcoming games (exclude already kicked-off matches)
@@ -172,7 +178,7 @@ async function fetchSportyBetMultiPageCatalog(
       const away = (ev.awayTeamName || "").trim();
       if (!home || !away) continue;
 
-      seenEventIds.add(ev.eventId);
+      seenEventIds.add(cleanEventId);
 
       // Parse standard odds from raw markets
       const oddsMap: Record<string, number> = {};
@@ -220,7 +226,7 @@ async function fetchSportyBetMultiPageCatalog(
         "International";
 
       fixtures.push({
-        id: String(ev.eventId),
+        id: cleanEventId,
         sport: sportName,
         home_team: home,
         away_team: away,
@@ -450,42 +456,33 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
     };
   }
 
-  // 1. Parallel multi-sport pull from SportyBet (Pages 1..4 per sport)
+  // 1. Parallel multi-sport pull directly from SportyBet (Pages 1..5 per sport)
   const [sportyFootball, sportyBasketball, sportyTableTennis, sportyVolleyball] =
     await Promise.all([
-      fetchSportyBetMultiPageCatalog("sr:sport:1", "FOOTBALL", 4),
-      fetchSportyBetMultiPageCatalog("sr:sport:2", "BASKETBALL", 3),
-      fetchSportyBetMultiPageCatalog("sr:sport:20", "TABLE_TENNIS", 3),
-      fetchSportyBetMultiPageCatalog("sr:sport:23", "VOLLEYBALL", 3),
+      fetchSportyBetMultiPageCatalog("sr:sport:1", "FOOTBALL", 5),
+      fetchSportyBetMultiPageCatalog("sr:sport:2", "BASKETBALL", 5),
+      fetchSportyBetMultiPageCatalog("sr:sport:20", "TABLE_TENNIS", 5),
+      fetchSportyBetMultiPageCatalog("sr:sport:23", "VOLLEYBALL", 5),
     ]);
 
-  // 2. Fetch secondary enrichments for Football & Basketball
-  const [espnSoccer, tsdbSoccer, espnBasketball] = await Promise.all([
-    fetchEspnSoccerFeed(),
-    fetchTheSportsDbFeed(),
-    fetchEspnBasketballFeed(),
-  ]);
-
-  // 3. Deduplicate and merge by match signature (home_team + away_team)
+  // 2. Sole Source of Truth: SportyBet Verified Live Feed Only (No mock/ESPN feeds)
   const matchMap = new Map<string, MultiSportRawFixture>();
 
   const addFixture = (f: MultiSportRawFixture) => {
-    const key = `${f.sport}_${f.home_team.toLowerCase()}_${f.away_team.toLowerCase()}`;
-    if (!matchMap.has(key)) {
-      matchMap.set(key, f);
+    if (!f.id || !f.id.startsWith("sr:match:")) return;
+    if (!matchMap.has(f.id)) {
+      matchMap.set(f.id, f);
     }
   };
 
-  // Add primary SportyBet fixtures first (has real eventId for instant booking)
+  // Add SportyBet fixtures with authentic eventId for instant booking
   sportyFootball.forEach(addFixture);
   sportyBasketball.forEach(addFixture);
   sportyTableTennis.forEach(addFixture);
   sportyVolleyball.forEach(addFixture);
 
   // Strictly only ingested matches from SportyBet with verified event IDs
-  const allRawFixtures = Array.from(matchMap.values()).filter(
-    (f) => f.id && (f.id.startsWith("sr:match:") || !isNaN(Number(f.id)))
-  );
+  const allRawFixtures = Array.from(matchMap.values());
 
   // 4. Run Analytical Sport Brains & Extract Authentic SportyBet Markets on Every Fixture
   const newRecords: any[] = [];
@@ -555,6 +552,8 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
       outcomeId: string;
       specifier: string | null;
       eventId: string;
+      marketName?: string;
+      outcomeName?: string;
     }> = [];
 
     for (const m of rawMarkets) {
@@ -603,14 +602,16 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
         }
 
         candidateMarkets.push({
-          market: mDesc,
-          selection: selLabel,
-          odd: Number(odd.toFixed(2)),
-          win_probability: estProb,
+          eventId: eventId,
           marketId: mId,
           outcomeId: String(o.id),
-          specifier: spec,
-          eventId: eventId,
+          specifier: spec || "",
+          odd: parseFloat(Number(odd).toFixed(2)),
+          marketName: mDesc,
+          outcomeName: selLabel,
+          market: mDesc,
+          selection: selLabel,
+          win_probability: estProb,
         });
       }
     }
@@ -625,15 +626,20 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
       win_probability: analysis?.win_probability || 84,
       marketId: "1",
       outcomeId: "1",
-      specifier: null,
+      specifier: "",
       eventId: eventId,
+      marketName: "Match Winner",
+      outcomeName: "Home Win",
     };
 
     const sportybetSelection = {
       eventId: bestCand.eventId,
-      marketId: bestCand.marketId,
-      outcomeId: bestCand.outcomeId,
+      marketId: String(bestCand.marketId),
+      outcomeId: String(bestCand.outcomeId),
       specifier: bestCand.specifier || null,
+      odd: bestCand.odd,
+      market: bestCand.market,
+      selection: bestCand.selection,
     };
 
     // Designate first 3 matches per sport as free preview
@@ -668,13 +674,13 @@ export async function sync5xDailySchedule(forceRefresh = false): Promise<{
     });
   }
 
-  // 5. Purge any legacy non-SportyBet mock/ESPN fixtures & Upsert to Supabase
+  // 5. Purge any legacy non-SportyBet mock fixtures & Upsert to Supabase
   if (newRecords.length > 0) {
     try {
       await supabase
         .from("oddora_v2_matches")
         .delete()
-        .or("match_id.like.sr:match:espn_%,match_id.like.ft_%,match_id.like.bb_%,match_id.like.vb_%,match_id.like.tt_%");
+        .not("match_id", "like", "sr:match:%");
 
       const { error: upsertError } = await supabase
         .from("oddora_v2_matches")

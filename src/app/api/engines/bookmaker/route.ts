@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
         legs_count: booked.legs_count,
         legs: booked.legs || booked.legs_json || [],
         legs_json: booked.legs_json || booked.legs || [],
+        accepted_event_ids: (booked as any).accepted_event_ids || (booked.legs || []).map((l: any) => l.eventId),
+        acceptedEventIds: (booked as any).acceptedEventIds || (booked.legs || []).map((l: any) => l.eventId),
         is_verified_live: booked.is_verified_live,
       });
     }

@@ -2,19 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generateAndBookDailySlips,
   getDailySlipsForUI,
+  hasDuplicateLegsInSlip,
 } from "@/lib/engines/engine2_dailyOddsAndBankers";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tier = (searchParams.get("tier") || "FREE") as "FREE" | "PRO" | "PREMIUM";
+    const force = searchParams.get("force") === "true";
 
     let slips = await getDailySlipsForUI(tier);
 
-    // If slips are not yet generated for today, or if any existing slip has legacy bloat (> 25 legs), auto-generate clean real-match slips
-    const hasBloatedSlip = slips && slips.some((s) => (s.legs?.length || 0) > 25);
-    if (!slips || slips.length === 0 || hasBloatedSlip) {
+    // If force is requested, or slips missing (< 8), bloated (> 25 legs), or duplicate matches exist, auto-generate clean slips
+    const hasBloatedSlip = Boolean(slips && slips.some((s) => (s.legs?.length || 0) > 25));
+    const hasDuplicateMatches = Boolean(slips && slips.some(hasDuplicateLegsInSlip));
+    const isMissingSlips = !slips || slips.length < 8;
+
+    if (force || isMissingSlips || hasBloatedSlip || hasDuplicateMatches) {
       try {
+        console.log(
+          `[Daily Slips API] Regenerating slips (force: ${force}, missing: ${isMissingSlips}, bloated: ${hasBloatedSlip}, duplicates: ${hasDuplicateMatches})...`
+        );
         await generateAndBookDailySlips();
         slips = await getDailySlipsForUI(tier);
       } catch (genErr) {

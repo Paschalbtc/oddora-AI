@@ -369,7 +369,7 @@ export function sanitizeMarketForSport(
     const isAway = selLower.includes("away") || selLower.includes("2");
     return {
       marketId: "219",
-      outcomeId: isAway ? "2" : "1",
+      outcomeId: isAway ? "5" : "4",
       specifier: null,
     };
   }
@@ -678,10 +678,11 @@ export async function bookVaultSlip(
           };
         }
         if (sUpper.includes("BASKET")) {
+          const isAway = (l.selection || "").includes("2") || (l.selection || "").toLowerCase().includes("away");
           return {
             eventId: l.eventId,
             marketId: "219",
-            outcomeId: (l.selection || "").includes("2") ? "2" : "1",
+            outcomeId: isAway ? "5" : "4",
             specifier: null,
           };
         }

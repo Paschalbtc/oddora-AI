@@ -32,6 +32,31 @@ async function handleSync(request: NextRequest) {
     const result = await sync5xDailySchedule(true);
     last2hrSyncTimestamp = Date.now();
 
+    // Verify daily slips for today: regenerate if missing or containing duplicate matches
+    try {
+      const { hasDuplicateLegsInSlip, generateAndBookDailySlips } = await import(
+        "@/lib/engines/engine2_dailyOddsAndBankers"
+      );
+      const supabase = (await import("@/lib/supabase")).getSupabaseClient();
+      const todayStr = new Date().toISOString().split("T")[0];
+      const { data: dbSlips } = await supabase
+        .from("oddora_v2_daily_slips")
+        .select("*")
+        .eq("slip_date", todayStr);
+
+      const needsRegen =
+        !dbSlips ||
+        dbSlips.length < 8 ||
+        dbSlips.some((s: any) => Number(s.match_count) > 25 || hasDuplicateLegsInSlip(s));
+
+      if (needsRegen) {
+        console.log("[2hr Sync] Triggering daily slips regeneration to maintain 1-to-1 match parity...");
+        await generateAndBookDailySlips();
+      }
+    } catch (slipErr) {
+      console.warn("[2hr Sync] Notice while verifying daily slips:", slipErr);
+    }
+
     const slotMeta = get5xDailySyncSlot(new Date());
 
     return NextResponse.json({

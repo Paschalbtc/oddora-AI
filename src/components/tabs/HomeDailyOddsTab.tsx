@@ -504,10 +504,22 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 (tierConfig.tierLock === "PRO" && currentTier === "FREE") ||
                 (tierConfig.tierLock === "PREMIUM" && currentTier !== "PREMIUM");
 
-              // Strict Payload-to-Display Binding: Render strictly from slip.legs_json
-              const legs = Array.isArray(matchedSlip?.legs_json) && matchedSlip.legs_json.length > 0
+              // Strict Payload-to-Display Binding: Render strictly from slip.legs_json with defensive 1-to-1 match deduplication
+              const rawLegs = Array.isArray(matchedSlip?.legs_json) && matchedSlip.legs_json.length > 0
                 ? matchedSlip.legs_json
                 : (Array.isArray(matchedSlip?.legs) ? matchedSlip.legs : []);
+
+              const seenMatchKeys = new Set<string>();
+              const legs: any[] = [];
+              for (const leg of rawLegs) {
+                const home = (leg.home_team || (leg.match ? leg.match.split(" vs ")[0] : "")).toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+                const away = (leg.away_team || (leg.match ? leg.match.split(" vs ")[1] : "")).toLowerCase().trim().replace(/[^a-z0-9]/g, "");
+                const evId = leg.eventId || leg.sportybetSelection?.eventId;
+                const matchKey = home && away ? `${home}_vs_${away}` : (evId || leg.match);
+                if (matchKey && seenMatchKeys.has(matchKey)) continue;
+                if (matchKey) seenMatchKeys.add(matchKey);
+                legs.push(leg);
+              }
               const actualOdds = matchedSlip?.actual_odds || tierConfig.targetOdds;
               const targetOdds = matchedSlip?.target_odds || tierConfig.targetOdds;
               const sportyCode =
@@ -637,7 +649,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                  <span className="truncate">{leg.league || "Premier Division"}</span>
+                                  <span className="truncate">
+                                    {leg.market ? `${leg.market} • ` : ""}{leg.league || "Premier Division"}
+                                  </span>
                                   <span>•</span>
                                   <span className="flex items-center gap-1 shrink-0 font-mono">
                                     <Clock className="w-3 h-3" />

@@ -20,6 +20,7 @@ import { FloatingBetSlip } from "./FloatingBetSlip";
 import { ProfileModal } from "./ProfileModal";
 import { AuthModal } from "./AuthModal";
 import { MyBetsTab } from "./tabs/MyBetsTab";
+import { FloatingCopilotWidget } from "./FloatingCopilotWidget";
 
 interface OddoraWorkspaceProps {
   initialTab?: WorkspaceTab;
@@ -317,6 +318,14 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
 
       {/* Interactive Global Floating Bet Slip */}
       <FloatingBetSlip />
+
+      {/* Floating Meta-AI Copilot Widget */}
+      {activeTab !== "copilot" && (
+        <FloatingCopilotWidget
+          currentTier={currentTier}
+          onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
+        />
+      )}
 
       {/* Floating Toast Notification */}
       {toastMessage && (

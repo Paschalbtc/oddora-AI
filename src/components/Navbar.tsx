@@ -131,15 +131,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "copilot" as WorkspaceTab, label: "AI Copilot", icon: Bot, badge: "STUDIO" },
   ];
 
-  // Mobile Bottom Bar: Exactly 4 Clean Core Tabs
+  // Mobile Bottom Bar: Exactly 4 Clean Core Tabs (Home, Matches, Builder, Edit Slip)
   const mobileCoreTabs = [
     { id: "home" as WorkspaceTab, label: "Home", icon: Compass },
     { id: "all_matches" as WorkspaceTab, label: "Matches", icon: Layers },
     { id: "slip_builder" as WorkspaceTab, label: "Builder", icon: Sparkles },
-    { id: "copilot" as WorkspaceTab, label: "Copilot", icon: Bot },
+    { id: "edit_game" as WorkspaceTab, label: "Edit Slip", icon: SlidersHorizontal },
   ];
 
-  // 9 Working Navigation Links for the Right 3-Bar Menu (Secondary Platform Features)
+  // Working Navigation Links for the Right 3-Bar Menu (Secondary Platform Features)
   const drawerNavItems: Array<{
     id: string;
     targetTab: WorkspaceTab | null;
@@ -160,13 +160,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       tagColor: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30",
     },
     {
-      id: "edit_game",
-      targetTab: "edit_game",
-      label: "Edit Games",
-      desc: "Slip Pruner / Solver & Splitter",
-      icon: SlidersHorizontal,
-      tag: "4 MODES",
-      tagColor: "text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+      id: "copilot",
+      targetTab: "copilot",
+      label: "AI Copilot Studio",
+      desc: "Conversational betting assistant & instant slips",
+      icon: Bot,
+      tag: "AI",
+      tagColor: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
     },
     {
       id: "over_25",
@@ -808,7 +808,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* =========================================================================
           STICKY MOBILE BOTTOM NAVIGATION BAR
-          Strictly 4 Clean Bottom Tabs: Home, Matches, Builder, Copilot
+          Strictly 4 Clean Bottom Tabs: Home, Matches, Builder, Edit Slip
          ========================================================================= */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 dark:bg-[#070A0E]/98 backdrop-blur-2xl border-t border-slate-200 dark:border-white/10 px-2 py-1.5 grid grid-cols-4 items-center justify-around shadow-lg dark:shadow-2xl">
         {mobileCoreTabs.map((tab) => {

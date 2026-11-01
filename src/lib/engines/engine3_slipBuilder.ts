@@ -14,7 +14,13 @@ import { bookVaultSlip, isMatchValidForSportyBetBooking } from "../coreBookingVa
 import { bookUniversalSlip } from "./bookingEngine";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { isMatchEnded } from "../multiSportScheduleFeed";
-import { isMarketAllowedForTier } from "../highProbabilityOutcomes";
+import {
+  isMarketAllowedForTier,
+  classifyMarketCategory,
+  formatMarketCategory,
+  resolveSportyBetMarket,
+  HIGH_PROBABILITY_OUTCOMES,
+} from "../highProbabilityOutcomes";
 
 export const MAX_GAMES_PER_TICKET = 50;
 export const MIN_GAMES_PER_TICKET = 2;
@@ -197,51 +203,26 @@ export function generateCandidateMarketsForFixture(
   return [];
 }
 
-/**
- * Classifies an outcome into a standardized market category bucket
- */
-export function classifyMarketCategory(market: string, selection: string, sport: string): string {
-  const m = (market || "").toLowerCase();
-  const s = (selection || "").toLowerCase();
-
-  if (sport === "BASKETBALL") {
-    if (m.includes("spread") || s.includes("+") || s.includes("-")) return "BK_SPREAD";
-    if (m.includes("point") || m.includes("total") || s.includes("over") || s.includes("under")) return "BK_TOTALS";
-    if (m.includes("half") || m.includes("quarter")) return "BK_HALF";
-    return "BK_MONEYLINE";
-  }
-
-  if (sport === "TABLE_TENNIS") {
-    if (m.includes("handicap") || s.includes("+") || s.includes("-")) return "TT_HANDICAP";
-    if (m.includes("set") || s.includes("set")) return "TT_SETS";
-    if (m.includes("point") || s.includes("point")) return "TT_POINTS";
-    return "TT_WINNER";
-  }
-
-  if (sport === "VOLLEYBALL") {
-    if (m.includes("handicap") || s.includes("+") || s.includes("-")) return "VB_HANDICAP";
-    if (m.includes("set") || s.includes("set")) return "VB_SETS";
-    if (m.includes("point") || s.includes("point")) return "VB_POINTS";
-    return "VB_WINNER";
-  }
-
-  // Football Buckets
-  if (s.includes("1x") || s.includes("x2") || s.includes("12") || m.includes("double")) return "DOUBLE_CHANCE";
-  if (m.includes("corner") || s.includes("corner")) return "CORNERS";
-  if (m.includes("card") || s.includes("card") || m.includes("booking") || s.includes("booking")) return "CARDS";
-  if (m.includes("clean sheet") || s.includes("clean sheet")) return "CLEAN_SHEET";
-  if (m.includes("correct score") || s.includes("correct score") || s.includes("cs ")) return "CORRECT_SCORE";
-  if (m.includes("asian") || s.includes("ah ") || s.includes("asian")) return "ASIAN_HANDICAP";
-  if (s.includes("weh") || m.includes("either half") || s.includes("either half")) return "WIN_EITHER_HALF";
-  if (m.includes("1st half") || s.includes("1st half") || s.includes("ht ")) return "FIRST_HALF_GOALS";
-  if (s.includes("team over") || m.includes("team goals") || s.includes("to score")) return "TEAM_GOALS";
-  if (s.includes("dnb") || m.includes("draw no bet") || m.includes("dnb")) return "DRAW_NO_BET";
-  if (s.includes("btts") || s.includes("gg") || s.includes("ng") || m.includes("both")) return "BTTS";
-  if (m.includes("handicap") || m.includes("spread") || s.includes("+") || s.includes("-")) return "HANDICAP";
-  if (s.includes("over 1.5") || s.includes("under 3.5") || s.includes("over 2.5") || m.includes("over") || m.includes("under")) return "OVER_UNDER";
-  if (s.includes("win") || s.includes("(1)") || s.includes("(2)")) return "1X2";
-  return "1X2";
+function normalizeTeamKey(team: string = ""): string {
+  return team
+    .toLowerCase()
+    .replace(/\b(fc|cf|afc|sc|ac|club|de|united|city|town|wanderers|athletic|hotspur|saint|st)\b/gi, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
 }
+
+function getMatchKey(home: string = "", away: string = ""): string {
+  const h = normalizeTeamKey(home);
+  const a = normalizeTeamKey(away);
+  return h && a ? `${h}_vs_${a}` : `${home}_vs_${away}`.toLowerCase().replace(/[^a-z0-9_]/g, "");
+}
+
+const ALL_CATALOG_OUTCOMES = [
+  ...HIGH_PROBABILITY_OUTCOMES.FOOTBALL,
+  ...HIGH_PROBABILITY_OUTCOMES.BASKETBALL,
+  ...HIGH_PROBABILITY_OUTCOMES.TABLE_TENNIS,
+  ...HIGH_PROBABILITY_OUTCOMES.VOLLEYBALL,
+];
 
 /**
  * Checks if a candidate market category or label matches the user's selected market filters
@@ -260,6 +241,16 @@ function isOptionAllowedByFilter(
     if (!f) continue;
 
     if (catLower === f || labelLower.includes(f)) return true;
+
+    // Check catalog market item IDs (e.g. fb_over_1_5, fb_corners_over_8_5)
+    const knownOutcome = ALL_CATALOG_OUTCOMES.find(
+      (o) => o.id.toLowerCase() === f || o.shortCode.toLowerCase() === f
+    );
+    if (knownOutcome) {
+      if (catLower === knownOutcome.category.toLowerCase()) return true;
+      if (labelLower.includes(knownOutcome.shortCode.toLowerCase())) return true;
+      if (labelLower.includes(knownOutcome.outcomeName.toLowerCase())) return true;
+    }
 
     // Common abbreviations
     if (f === "double chance" || f === "dc" || f === "1x") {
@@ -338,33 +329,40 @@ function buildCustomLeg(item: {
   option: CandidateMarketOption;
   edgeScore: number;
 }): CustomBuilderLeg {
+  const resolved = resolveSportyBetMarket(
+    item.option.outcomeLabel,
+    item.matchRow,
+    item.option.marketCategory
+  );
+
   return {
     match: `${item.matchRow.home_team} vs ${item.matchRow.away_team}`,
     home_team: item.matchRow.home_team,
     away_team: item.matchRow.away_team,
     league: item.matchRow.league_name || "Premier Division",
-    market: item.option.marketCategory.replace(/_/g, " "),
-    selection: item.option.outcomeLabel,
+    market: resolved.marketCategory,
+    selection: item.option.outcomeLabel || resolved.selectionName,
     odd: item.option.oddValue,
     win_probability: item.option.trueWinProbability,
     eventId:
       item.option.eventId ||
+      resolved.sportybetSelection.eventId ||
       item.matchRow.sportybet_selection?.eventId ||
       item.matchRow.match_id,
     marketId:
       item.option.marketId ||
-      item.matchRow.sportybet_selection?.marketId ||
+      resolved.sportybetSelection.marketId ||
       "1",
     outcomeId:
       item.option.outcomeId ||
-      item.matchRow.sportybet_selection?.outcomeId ||
+      resolved.sportybetSelection.outcomeId ||
       "1",
     specifier:
       item.option.specifier ??
-      item.matchRow.sportybet_selection?.specifier ??
+      resolved.sportybetSelection.specifier ??
       null,
     sport: item.option.sport,
-    marketCategory: item.option.marketCategory,
+    marketCategory: resolved.marketCategory,
     edgeScore: item.edgeScore,
   };
 }
@@ -417,7 +415,7 @@ function solveHighWinRatePortfolio(
     const kTime = matchRow.kickoff_time || matchRow.kickoffTime;
     if (kTime && new Date(kTime).getTime() <= nowMs + minLeadTimeMs) continue;
 
-    const matchKey = `${matchRow.home_team}_vs_${matchRow.away_team}`.toLowerCase();
+    const matchKey = getMatchKey(matchRow.home_team, matchRow.away_team);
 
     for (const opt of options) {
       // Stage 2 Trap Elimination: Probability floor (85% for Banker, 70% for Sweet-Spot)
@@ -514,27 +512,36 @@ function solveHighWinRatePortfolio(
 
   const isItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
     const mId = item.matchRow?.match_id || item.matchRow?.id;
-    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
-    if (item.matchKey && usedMatchKeys.has(item.matchKey)) return true;
+    const rawEvId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    const evId = rawEvId ? String(rawEvId).trim() : null;
+    const mKey = item.matchKey || getMatchKey(item.matchRow?.home_team, item.matchRow?.away_team);
+
+    if (mKey && usedMatchKeys.has(mKey)) return true;
     if (mId && usedMatchIds.has(String(mId))) return true;
-    if (evId && usedEventIds.has(String(evId))) return true;
+    if (evId && usedEventIds.has(evId)) return true;
     return false;
   };
 
   const markItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
     const mId = item.matchRow?.match_id || item.matchRow?.id;
-    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
-    if (item.matchKey) usedMatchKeys.add(item.matchKey);
+    const rawEvId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    const evId = rawEvId ? String(rawEvId).trim() : null;
+    const mKey = item.matchKey || getMatchKey(item.matchRow?.home_team, item.matchRow?.away_team);
+
+    if (mKey) usedMatchKeys.add(mKey);
     if (mId) usedMatchIds.add(String(mId));
-    if (evId) usedEventIds.add(String(evId));
+    if (evId) usedEventIds.add(evId);
   };
 
   const unmarkItemUsed = (item: { matchKey: string; matchRow: any; option: CandidateMarketOption }) => {
     const mId = item.matchRow?.match_id || item.matchRow?.id;
-    const evId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
-    if (item.matchKey) usedMatchKeys.delete(item.matchKey);
+    const rawEvId = item.option?.eventId || item.matchRow?.sportybet_selection?.eventId;
+    const evId = rawEvId ? String(rawEvId).trim() : null;
+    const mKey = item.matchKey || getMatchKey(item.matchRow?.home_team, item.matchRow?.away_team);
+
+    if (mKey) usedMatchKeys.delete(mKey);
     if (mId) usedMatchIds.delete(String(mId));
-    if (evId) usedEventIds.delete(String(evId));
+    if (evId) usedEventIds.delete(evId);
   };
 
   if (exactCount > 0) {
@@ -815,9 +822,7 @@ function solveHighWinRatePortfolio(
 
   for (const leg of rawBestLegs) {
     const evId = leg.eventId ? String(leg.eventId).trim() : "";
-    const mKey = (leg.home_team && leg.away_team)
-      ? `${leg.home_team.trim().toLowerCase()}_vs_${leg.away_team.trim().toLowerCase()}`
-      : (leg.match || "").trim().toLowerCase();
+    const mKey = getMatchKey(leg.home_team, leg.away_team);
 
     if (evId && finalSeenEvents.has(evId)) continue;
     if (mKey && finalSeenMatches.has(mKey)) continue;
@@ -826,11 +831,6 @@ function solveHighWinRatePortfolio(
     if (mKey) finalSeenMatches.add(mKey);
     bestLegs.push(leg);
   }
-
-  // Final sort: highest win_probability first
-  bestLegs.sort((a, b) => b.win_probability - a.win_probability);
-
-  return bestLegs;
 
   // Final sort: highest win_probability first
   bestLegs.sort((a, b) => b.win_probability - a.win_probability);
@@ -987,7 +987,7 @@ export async function buildCustomSlip(
       if (isNaN(kMs) || kMs <= nowMs + minLeadTimeMs) continue;
     }
 
-    const key = `${m.home_team}_vs_${m.away_team}`.toLowerCase();
+    const key = getMatchKey(m.home_team, m.away_team);
     if (seenMatches.has(key)) continue;
 
     const options = generateCandidateMarketsForFixture(m, userTier as any);

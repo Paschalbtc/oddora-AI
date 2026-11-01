@@ -20,7 +20,7 @@ import {
   Award,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
-import { getOutcomesForSport } from "@/lib/highProbabilityOutcomes";
+import { getOutcomesForSport, formatMarketCategory, resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
 import { useBetSlip, CartLeg } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
 import { saveUserTicket } from "@/lib/userTicketTracker";
@@ -929,7 +929,9 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                       <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
                         <span>{leg.league || "Premier League"}</span>
                         <span>•</span>
-                        <span className="font-mono text-slate-300">{leg.market}</span>
+                        <span className="font-mono text-slate-300">
+                          {formatMarketCategory(leg.marketCategory || leg.market || resolveSportyBetMarket(leg.selection, leg, leg.market).marketCategory)}
+                        </span>
                         {kickoff && (
                           <>
                             <span>•</span>

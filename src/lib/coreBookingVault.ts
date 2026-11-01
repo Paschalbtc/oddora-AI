@@ -17,6 +17,7 @@ import {
   fetchLiveSportyBetCatalog,
 } from "./engines/bookingEngine";
 import { mapMarketToSportyBetIds } from "./sportybetBridge";
+import { resolveSportyBetMarket, formatMarketCategory } from "./highProbabilityOutcomes";
 
 export interface SportyBetRealOutcome {
   eventId: string;
@@ -474,15 +475,19 @@ export async function bookVaultSlip(
       sel.specifier ??
       null;
 
-    // Automatic fallback mapping for missing marketId or outcomeId
+    // Automatic mapping using the comprehensive 26-market resolver
+    const resolved = resolveSportyBetMarket(
+      sel.selection || sel.best_outcome || sel.outcome || "",
+      sel,
+      sel.market || sel.selected_market || sel.marketCategory || ""
+    );
+
     if (!/^\d+$/.test(mId) || !/^\d+$/.test(oId)) {
-      const resolved = mapMarketToSportyBetIds(
-        sel.market || sel.selected_market || sel.marketCategory || "",
-        sel.selection || sel.best_outcome || sel.outcome || ""
-      );
-      mId = resolved.marketId;
-      oId = resolved.outcomeId;
-      if (!spec && resolved.specifier) spec = resolved.specifier;
+      mId = resolved.sportybetSelection.marketId;
+      oId = resolved.sportybetSelection.outcomeId;
+      if (!spec && resolved.sportybetSelection.specifier) {
+        spec = resolved.sportybetSelection.specifier;
+      }
     }
 
     // Sport-specific sub-market sanitization
@@ -492,7 +497,7 @@ export async function bookVaultSlip(
       mId,
       oId,
       spec,
-      sel.market || sel.selected_market || sel.marketCategory || "",
+      resolved.marketCategory || sel.market || "",
       sel.selection || sel.best_outcome || sel.outcome || ""
     );
     mId = sanitized.marketId;
@@ -552,14 +557,14 @@ export async function bookVaultSlip(
       home_team: homeName || "Home",
       away_team: awayName || "Away",
       league: sel.league || "Premier Division",
-      market: sel.market || "Match Winner",
-      selection: sel.selection || "Selection",
+      market: resolved.marketCategory,
+      selection: sel.selection || resolved.selectionName || "Selection",
       odd: oddVal,
       win_probability: Number(sel.win_probability) || 82,
       eventId: finalEvId,
-      marketId: hasNumericIds ? mId : "1",
-      outcomeId: hasNumericIds ? oId : "1",
-      specifier: spec,
+      marketId: hasNumericIds ? mId : resolved.sportybetSelection.marketId,
+      outcomeId: hasNumericIds ? oId : resolved.sportybetSelection.outcomeId,
+      specifier: spec ?? resolved.sportybetSelection.specifier,
       sport: sportName,
       kickoffTime: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),
       kickoff_time: sel.kickoffTime || sel.kickoff_time || new Date(Date.now() + 7200000).toISOString(),

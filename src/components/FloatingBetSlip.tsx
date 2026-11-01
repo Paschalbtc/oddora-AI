@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useBetSlip } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
 import { saveUserTicket } from "@/lib/userTicketTracker";
+import { resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
 import {
   Ticket,
   X,
@@ -176,7 +177,7 @@ export const FloatingBetSlip: React.FC = () => {
                           {leg.selection}
                         </span>
                         <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
-                          • {leg.market}
+                          • {resolveSportyBetMarket(leg.selection, leg, leg.market).marketCategory}
                         </span>
                       </div>
                       {leg.league && (

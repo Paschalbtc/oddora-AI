@@ -342,6 +342,7 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const res = await fetch("/api/bookmaker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           action: "generate",
           bookmaker: "SportyBet",

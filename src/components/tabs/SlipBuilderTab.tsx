@@ -127,6 +127,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
       const res = await fetch("/api/engines/builder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           sport_type: sportType,
           strategy_mode: strategyMode,

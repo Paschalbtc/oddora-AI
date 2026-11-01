@@ -5,6 +5,9 @@ import {
 } from "@/lib/engines/bookingEngine";
 import { executeEditSlip } from "@/lib/engines/engine4_editSlip";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(request: NextRequest) {
   let requestSelections: any[] = [];
   try {
@@ -42,6 +45,13 @@ export async function POST(request: NextRequest) {
         deduplicatedSelections.push(sel);
       }
 
+      console.log(`[/api/bookmaker] Dispatching ${deduplicatedSelections.length} selections:`, JSON.stringify(deduplicatedSelections.map(s => ({
+        eventId: s.eventId || s.match_id,
+        match: s.match || `${s.home_team} vs ${s.away_team}`,
+        market: s.market,
+        selection: s.selection
+      }))));
+
       const booked = await bookUniversalSlip(deduplicatedSelections, {
         preserve_exact_legs: true,
       });
@@ -53,6 +63,8 @@ export async function POST(request: NextRequest) {
         booked.code ||
         booked.shareCode ||
         "";
+
+      console.log(`[/api/bookmaker] SportyBet shareCode returned: "${generatedCode}" | Verified legs count: ${booked.legs?.length || 0}`);
 
       // SportyBet live order share validation
       if (!generatedCode || generatedCode.trim().length === 0 || booked.status === "error") {

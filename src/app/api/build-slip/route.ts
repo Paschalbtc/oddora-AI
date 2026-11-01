@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildCustomSlip } from "@/lib/engines/engine3_slipBuilder";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -1131,11 +1131,11 @@ export async function buildCustomSlip(
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
   
-  // Guarantee that verifiedLegs retains ALL selected legs and matches array length
+  // Guarantee that verifiedLegs retains strictly the legs booked by SportyBet
   const rawVerified =
-    booked.legs && booked.legs.length === selectedLegs.length
+    booked.legs && booked.legs.length > 0
       ? booked.legs
-      : (booked.legs_json && booked.legs_json.length === selectedLegs.length
+      : (booked.legs_json && booked.legs_json.length > 0
           ? booked.legs_json
           : selectedLegs);
 

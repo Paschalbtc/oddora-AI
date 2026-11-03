@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export const FloatingBetSlip: React.FC = () => {
-  const { requireAuth } = useAuth();
+  const { user, requireAuth } = useAuth();
   const {
     legs,
     totalOdds,
@@ -56,6 +56,7 @@ export const FloatingBetSlip: React.FC = () => {
     // Auto-save user ticket
     saveUserTicket({
       booking_code: code,
+      share_code: code,
       total_odds: Number(totalOdds) || 2.0,
       title: `Custom Bet Slip (${legs.length} Games)`,
       legs: legs.map((l) => ({
@@ -70,6 +71,8 @@ export const FloatingBetSlip: React.FC = () => {
         eventId: l.eventId,
       })),
       source: "FLOATING_SLIP",
+      user_id: user?.id,
+      user_email: user?.email,
     });
   };
 

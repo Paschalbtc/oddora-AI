@@ -25,6 +25,7 @@ import {
   SavedTicket,
   getLocalSavedTickets,
   updateLocalTicketStatus,
+  syncGuestTicketsToUserAccount,
 } from "@/lib/userTicketTracker";
 
 interface MyBetsTabProps {
@@ -65,33 +66,25 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
   }, [user?.id, user?.email]);
 
   const loadTickets = async () => {
-    // 1. Load from localStorage
+    // 1. Load from localStorage first for immediate rendering
     const local = getLocalSavedTickets();
     let currentTickets = local;
+    setTickets(local);
 
-    // 2. Also fetch from API using authenticated user's uid & email
-    try {
-      const params = new URLSearchParams();
-      if (user?.id) params.set("user_id", user.id);
-      if (user?.email) params.set("email", user.email);
-
-      const url = `/api/user/saved-tickets${params.toString() ? `?${params.toString()}` : ""}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.status === "success" && Array.isArray(json.data) && json.data.length > 0) {
-        // Merge without duplicates
-        const map = new Map<string, SavedTicket>();
-        [...json.data, ...local].forEach((t) => map.set(t.id || t.booking_code, t));
-        currentTickets = Array.from(map.values());
-        setTickets(currentTickets);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(currentTickets));
+    // 2. If user is authenticated, execute cloud-first sync via Supabase
+    if (user?.id || user?.email) {
+      try {
+        const synced = await syncGuestTicketsToUserAccount(
+          user?.id || "",
+          user?.email || ""
+        );
+        if (Array.isArray(synced) && synced.length > 0) {
+          currentTickets = synced;
+          setTickets(synced);
         }
-      } else {
-        setTickets(local);
+      } catch (syncErr) {
+        console.warn("MyBets cloud sync notice:", syncErr);
       }
-    } catch {
-      setTickets(local);
     }
 
     // Auto-sync on mount to audit live results immediately
@@ -135,10 +128,19 @@ export const MyBetsTab: React.FC<MyBetsTabProps> = ({
     setIsSyncing(true);
     setSyncMessage("Auditing and re-grading all tickets against verified match results...");
     try {
+      let activeTickets = tickets;
+      if (user?.id || user?.email) {
+        const cloudTickets = await syncGuestTicketsToUserAccount(user?.id || "", user?.email || "");
+        if (Array.isArray(cloudTickets) && cloudTickets.length > 0) {
+          activeTickets = cloudTickets;
+          setTickets(cloudTickets);
+        }
+      }
+
       const res = await fetch("/api/sync-user-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickets, userId: user?.id, userEmail: user?.email }),
+        body: JSON.stringify({ tickets: activeTickets, userId: user?.id, userEmail: user?.email }),
       });
       const data = await res.json();
       if (data.status === "success" && data.data?.tickets) {

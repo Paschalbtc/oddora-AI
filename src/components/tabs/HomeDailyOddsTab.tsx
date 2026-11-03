@@ -151,7 +151,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { isInSlip, toggleLeg } = useBetSlip();
-  const { isAuthenticated, requireAuth } = useAuth();
+  const { user, isAuthenticated, requireAuth } = useAuth();
 
   // Results summary state
   const [resultsSummary, setResultsSummary] = useState({
@@ -269,11 +269,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     if (ticketMeta) {
       saveUserTicket({
         booking_code: code,
+        share_code: code,
         total_odds: ticketMeta.actualOdds || ticketMeta.targetOdds || 2.0,
         target_odds: ticketMeta.targetOdds,
         title: ticketMeta.tierName || "Daily Accumulator Ticket",
         legs: ticketMeta.legs || [],
         source: "DAILY_PRESET",
+        user_id: user?.id,
+        user_email: user?.email,
       });
     }
   };
@@ -292,11 +295,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
     // Auto-save user ticket
     saveUserTicket({
       booking_code: sportyCode || "ODDORA-LIST",
+      share_code: sportyCode || "ODDORA-LIST",
       total_odds: actualOdds || targetOdds || 2.0,
       target_odds: targetOdds,
       title: tierName,
       legs: legs || [],
       source: "MANUAL_PICKS_LIST",
+      user_id: user?.id,
+      user_email: user?.email,
     });
 
     const lines = [

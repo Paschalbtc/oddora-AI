@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
+import { saveUserTicket } from "@/lib/userTicketTracker";
+import { useAuth } from "./AuthContext";
 
 export interface CartLeg {
   id: string; // unique identifier: matchId or matchId_market_selection
@@ -91,12 +93,57 @@ function isDuplicateLeg(a: CartLeg, b: CartLeg): boolean {
 }
 
 export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  let authUser: any = null;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user;
+  } catch {}
+
   const [legs, setLegs] = useState<CartLeg[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [stake, setStake] = useState<number>(1000);
   const [isBooking, setIsBooking] = useState(false);
   const [bookedTicket, setBookedTicket] = useState<BookedTicketResponse | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+
+  // Cross-Device Draft Hydration: If local cart is empty, hydrate from Supabase cloud
+  const hasHydratedFromCloud = useRef(false);
+  useEffect(() => {
+    if (authUser?.id && !hasHydratedFromCloud.current) {
+      hasHydratedFromCloud.current = true;
+      fetch(`/api/tickets?user_id=${authUser.id}&email=${encodeURIComponent(authUser.email || "")}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "success" && Array.isArray(data.draftSlip) && data.draftSlip.length > 0) {
+            setLegs((prev) => {
+              if (prev.length === 0) {
+                return data.draftSlip;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [authUser?.id, authUser?.email]);
+
+  // Cross-Device Draft Sync: Debounce-save draft slip to Supabase cloud whenever legs change
+  useEffect(() => {
+    if (!authUser?.id) return;
+    const timer = setTimeout(() => {
+      fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_draft",
+          userId: authUser.id,
+          legs,
+        }),
+      }).catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [legs, authUser?.id]);
 
   // Restore cart from localStorage on mount
   useEffect(() => {
@@ -416,6 +463,32 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
         totalOdds: data.actual_odds || totalOdds,
         legsCount: data.legs_count || uniqueLegs.length,
       };
+
+      // Auto-save user ticket to Supabase cloud and local tracker
+      try {
+        saveUserTicket({
+          booking_code: code,
+          share_code: code,
+          total_odds: result.totalOdds,
+          title: `Custom Bet Slip (${uniqueLegs.length} Matches)`,
+          legs: uniqueLegs.map((l) => ({
+            match: `${l.homeTeam} vs ${l.awayTeam}`,
+            home_team: l.homeTeam,
+            away_team: l.awayTeam,
+            league: l.league,
+            market: l.market,
+            selection: l.selection,
+            odd: Number(l.odd || l.odds) || 1.35,
+            win_probability: Number(l.winProbability) || 80,
+            eventId: l.eventId || l.matchId,
+          })),
+          source: "FLOATING_SLIP",
+          user_id: authUser?.id,
+          user_email: authUser?.email,
+        });
+      } catch (saveErr) {
+        console.warn("BetSlip booking auto-save notice:", saveErr);
+      }
 
       setBookedTicket(result);
       return result;

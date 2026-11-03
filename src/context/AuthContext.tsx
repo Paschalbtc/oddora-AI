@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { getSupabaseClient } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 import { UserTier } from "@/components/Navbar";
+import { syncGuestTicketsToUserAccount } from "@/lib/userTicketTracker";
 
 export interface UserProfile {
   id?: string;
@@ -195,44 +196,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {}
         }
 
-        // 2. Query public.user_saved_tickets by uid or email
-        let ticketQuery = supabase
-          .from("user_saved_tickets")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(100);
-
-        if (uid && email) {
-          ticketQuery = ticketQuery.or(`user_id.eq.${uid},user_email.ilike.${email}`);
-        } else if (uid) {
-          ticketQuery = ticketQuery.eq("user_id", uid);
-        } else {
-          ticketQuery = ticketQuery.ilike("user_email", email);
-        }
-
-        const { data: dbTickets, error: ticketErr } = await ticketQuery;
-        if (!ticketErr && Array.isArray(dbTickets) && dbTickets.length > 0) {
-          const normalizedTickets = dbTickets.map((t: any) => ({
-            id: t.id,
-            user_id: t.user_id || uid,
-            user_email: t.user_email || email,
-            booking_code: t.booking_code,
-            total_odds: Number(t.total_odds) || 2.0,
-            target_odds: t.target_odds ? Number(t.target_odds) : undefined,
-            tier: t.tier || "FREE",
-            title: t.title || "Oddora Accumulator Ticket",
-            legs: Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [],
-            status: t.status || "PENDING",
-            source: t.source || "ODDORA_PLATFORM",
-            created_at: t.created_at,
-            updated_at: t.updated_at,
-          }));
-
-          if (typeof window !== "undefined") {
-            localStorage.setItem("oddora_user_saved_tickets", JSON.stringify(normalizedTickets));
-            window.dispatchEvent(new CustomEvent("oddora:ticket-saved", { detail: normalizedTickets }));
-          }
-        }
+        // 2. Cross-Device Cloud Sync for User Saved Tickets
+        // Merges local guest slips into account & fetches all tickets from Supabase across all devices
+        await syncGuestTicketsToUserAccount(uid, email);
       } catch (syncErr) {
         console.warn("Supabase profile & ticket restoration notice:", syncErr);
       }

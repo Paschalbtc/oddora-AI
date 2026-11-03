@@ -35,7 +35,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { addLegs, setIsOpen: setSlipOpen } = useBetSlip();
-  const { isAuthenticated, requireAuth } = useAuth();
+  const { user, isAuthenticated, requireAuth } = useAuth();
 
   // Step 1: Sport Category (Strictly sports only, NO banker here)
   const [sportType, setSportType] = useState<string>("all");
@@ -182,6 +182,8 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           eventId: l.eventId,
         })),
         source: "SLIP_BUILDER",
+        user_id: user?.id,
+        user_email: user?.email,
       });
     }
   };
@@ -194,6 +196,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     // Auto-save user ticket
     saveUserTicket({
       booking_code: resultSlip.sportyCode || "CART-SLIP",
+      share_code: resultSlip.sportyCode || "CART-SLIP",
       total_odds: Number(resultSlip.actual_odds) || Number(targetOdds) || 2.0,
       target_odds: Number(targetOdds) || undefined,
       title: `Slip Builder (${activeLegs.length} Matches)`,
@@ -209,6 +212,8 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
         eventId: l.eventId,
       })),
       source: "SLIP_BUILDER",
+      user_id: user?.id,
+      user_email: user?.email,
     });
 
     const cartLegs: CartLeg[] = activeLegs.map((leg: any, idx: number) => ({

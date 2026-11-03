@@ -5,6 +5,7 @@
  * - Ready-made homepage accumulator copy events
  * - Custom Slip Builder copy & booking events
  * - Bet Slip cart generation & leg additions
+ * - Cloud synchronization across multiple devices via Supabase Auth
  */
 
 import { addUserNotification } from "./userNotifications";
@@ -14,6 +15,7 @@ export interface SavedTicket {
   user_id?: string;
   user_email?: string;
   booking_code: string;
+  share_code?: string;
   total_odds: number;
   target_odds?: number;
   tier?: string;
@@ -46,8 +48,42 @@ export interface SavedTicket {
 
 const LOCAL_STORAGE_KEY = "oddora_user_saved_tickets";
 
+/**
+ * Resolves current logged-in user credentials from local memory
+ */
+export function getActiveUserCredentials(): { userId?: string; userEmail?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    const rawUser = localStorage.getItem("oddora_auth_user");
+    if (rawUser) {
+      const u = JSON.parse(rawUser);
+      if (u?.id || u?.email) {
+        return {
+          userId: u.id,
+          userEmail: u.email ? String(u.email).toLowerCase().trim() : undefined,
+        };
+      }
+    }
+    const rawProf = localStorage.getItem("oddora_user_profile");
+    if (rawProf) {
+      const p = JSON.parse(rawProf);
+      if (p?.email && p.email !== "guest@oddora.ai") {
+        return {
+          userId: p.id,
+          userEmail: String(p.email).toLowerCase().trim(),
+        };
+      }
+    }
+  } catch {}
+  return {};
+}
+
+/**
+ * Saves a ticket locally and syncs to Supabase cloud account
+ */
 export async function saveUserTicket(ticket: {
   booking_code: string;
+  share_code?: string;
   total_odds: number;
   target_odds?: number;
   tier?: string;
@@ -56,34 +92,22 @@ export async function saveUserTicket(ticket: {
   source?: string;
   user_id?: string;
   user_email?: string;
+  status?: "PENDING" | "WON" | "LOST" | "VOID";
 }): Promise<SavedTicket> {
-  // Ensure every saved betslip is strictly tied to auth.users.id AND user_email
-  let resolvedUserId = ticket.user_id;
-  let resolvedUserEmail = ticket.user_email;
+  const activeCreds = getActiveUserCredentials();
+  const resolvedUserId = ticket.user_id || activeCreds.userId;
+  const resolvedUserEmail = ticket.user_email
+    ? ticket.user_email.toLowerCase().trim()
+    : activeCreds.userEmail;
 
-  if (typeof window !== "undefined" && (!resolvedUserId || !resolvedUserEmail)) {
-    try {
-      const rawUser = localStorage.getItem("oddora_auth_user");
-      if (rawUser) {
-        const u = JSON.parse(rawUser);
-        if (!resolvedUserId) resolvedUserId = u.id;
-        if (!resolvedUserEmail) resolvedUserEmail = u.email;
-      }
-      if (!resolvedUserEmail) {
-        const rawProf = localStorage.getItem("oddora_user_profile");
-        if (rawProf) {
-          const p = JSON.parse(rawProf);
-          if (p.email && p.email !== "guest@oddora.ai") resolvedUserEmail = p.email;
-        }
-      }
-    } catch {}
-  }
+  const code = ticket.booking_code || ticket.share_code || "SPORTY-CODE";
 
   const newTicket: SavedTicket = {
     id: `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     user_id: resolvedUserId,
     user_email: resolvedUserEmail,
-    booking_code: ticket.booking_code || "SPORTY-CODE",
+    booking_code: code,
+    share_code: code,
     total_odds: Number(ticket.total_odds) || 2.0,
     target_odds: ticket.target_odds ? Number(ticket.target_odds) : undefined,
     tier: ticket.tier || "FREE",
@@ -95,23 +119,23 @@ export async function saveUserTicket(ticket: {
       league: l.league || "Premier Division",
       market: l.market || "Market",
       selection: l.selection || "Selection",
-      odd: Number(l.odd || 1.35),
+      odd: Number(l.odd || l.odds) || 1.35,
       win_probability: Number(l.win_probability || 80),
       sport: l.sport || l.sport_type || "FOOTBALL",
       status: l.status || "PENDING",
       eventId: l.eventId || l.match_id,
     })),
-    status: "PENDING",
+    status: ticket.status || "PENDING",
     source: ticket.source || "ODDORA_PLATFORM",
     created_at: new Date().toISOString(),
   };
 
-  // 1. Save to localStorage immediately for offline-first reliability
+  // 1. Save to localStorage immediately for offline-first responsiveness
   if (typeof window !== "undefined") {
     try {
       const existingRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
       const existing: SavedTicket[] = existingRaw ? JSON.parse(existingRaw) : [];
-      // Prevent exact duplicates with same booking_code within 1 hour
+      // Deduplicate recent identical booking codes
       const isDuplicate = existing.some(
         (t) =>
           t.booking_code === newTicket.booking_code &&
@@ -134,9 +158,9 @@ export async function saveUserTicket(ticket: {
     }
   }
 
-  // 2. Sync to Backend API
+  // 2. Sync directly to Cloud /api/tickets (Persisting to Supabase user_saved_tickets & auth user_metadata)
   try {
-    fetch("/api/user/saved-tickets", {
+    fetch("/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newTicket),
@@ -146,6 +170,9 @@ export async function saveUserTicket(ticket: {
   return newTicket;
 }
 
+/**
+ * Reads tickets stored in client localStorage
+ */
 export function getLocalSavedTickets(): SavedTicket[] {
   if (typeof window === "undefined") return [];
   try {
@@ -156,6 +183,9 @@ export function getLocalSavedTickets(): SavedTicket[] {
   }
 }
 
+/**
+ * Updates a ticket status locally and broadcasts change
+ */
 export function updateLocalTicketStatus(ticketId: string, status: "WON" | "LOST" | "PENDING"): void {
   if (typeof window === "undefined") return;
   try {
@@ -187,3 +217,86 @@ export function updateLocalTicketStatus(ticketId: string, status: "WON" | "LOST"
   } catch {}
 }
 
+/**
+ * Mandatory cross-device cloud sync:
+ * 1. Takes any guest slips built before logging in on this device
+ * 2. Links them to the user's Supabase account (user_id and user_email)
+ * 3. Fetches all tickets from Supabase for this user
+ * 4. Merges everything without duplicates and updates localStorage
+ */
+export async function syncGuestTicketsToUserAccount(
+  userId: string,
+  userEmail: string
+): Promise<SavedTicket[]> {
+  if (!userId && !userEmail) return getLocalSavedTickets();
+  const cleanEmail = (userEmail || "").toLowerCase().trim();
+
+  const localTickets = getLocalSavedTickets();
+  const guestTicketsToSync = localTickets.filter(
+    (t) => !t.user_id || !t.user_email || t.user_email === "guest@oddora.ai"
+  );
+
+  // If there are guest tickets on this device, assign user credentials and push to cloud
+  if (guestTicketsToSync.length > 0) {
+    const updatedGuestTickets = guestTicketsToSync.map((t) => ({
+      ...t,
+      user_id: userId,
+      user_email: cleanEmail,
+    }));
+
+    try {
+      await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tickets: updatedGuestTickets,
+          userId,
+          userEmail: cleanEmail,
+        }),
+      });
+    } catch (err) {
+      console.warn("Guest tickets sync notice:", err);
+    }
+  }
+
+  // Fetch full cloud tickets from Supabase
+  try {
+    const params = new URLSearchParams();
+    if (userId) params.set("user_id", userId);
+    if (cleanEmail) params.set("email", cleanEmail);
+
+    const res = await fetch(`/api/tickets?${params.toString()}`, { cache: "no-store" });
+    const json = await res.json();
+
+    if (json.status === "success" && Array.isArray(json.data)) {
+      const cloudTickets: SavedTicket[] = json.data;
+
+      // Merge cloud and local tickets deduplicated by id or booking code
+      const map = new Map<string, SavedTicket>();
+      [...cloudTickets, ...localTickets].forEach((t) => {
+        const key = t.id || t.booking_code;
+        if (!map.has(key)) {
+          map.set(key, {
+            ...t,
+            user_id: t.user_id || userId,
+            user_email: t.user_email || cleanEmail,
+          });
+        }
+      });
+
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      );
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent("oddora:ticket-saved", { detail: merged }));
+      }
+      return merged;
+    }
+  } catch (fetchErr) {
+    console.warn("Cloud tickets fetch error:", fetchErr);
+  }
+
+  return localTickets;
+}

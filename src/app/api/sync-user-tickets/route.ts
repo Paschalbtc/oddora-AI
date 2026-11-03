@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { SavedTicket } from "@/lib/userTicketTracker";
-import { gradeMatchLeg, gradeEntireTicket, mapMatchStatus } from "@/lib/ticketGrader";
+import { gradeMatchLeg, gradeEntireTicket, mapMatchStatus, gradeLegOutcome, parseRawSportScore } from "@/lib/ticketGrader";
 
 export async function POST(req: Request) {
   try {
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       const { data } = await supabase
         .from("oddora_v2_matches")
         .select(
-          "match_id, event_id, sport_type, sport, home_team, away_team, home_score, away_score, status, outcome_result, actual_score, match_status, leg_result"
+          "match_id, event_id, sport_type, sport, home_team, away_team, home_score, away_score, status, outcome_result, actual_score, match_status, leg_result, match_metadata"
         )
         .limit(1000);
       liveMatches = data || [];
@@ -159,14 +159,18 @@ export async function POST(req: Request) {
             let actualScoreStr = leg.actual_score || "";
 
             if (hScore !== null && aScore !== null) {
-              const grading = gradeMatchLeg(
+              const parsedScore = parseRawSportScore(
+                leg.sport || match.sport_type || match.sport || "FOOTBALL",
+                match.actual_score || `${hScore}:${aScore}`,
+                match.match_metadata?.period_scores,
+                rawStatus
+              );
+              const grading = gradeLegOutcome(
                 {
                   ...leg,
                   sport: leg.sport || match.sport_type || match.sport || "FOOTBALL",
                 },
-                hScore,
-                aScore,
-                rawStatus
+                parsedScore
               );
               legResult = grading.status === "PENDING" ? "WON" : grading.status;
               actualScoreStr = `${hScore} - ${aScore}`;

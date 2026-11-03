@@ -11,7 +11,7 @@
  */
 
 import { getSupabaseAdmin, getSupabaseClient } from "../supabase";
-import { gradeMatchLeg, mapMatchStatus } from "../ticketGrader";
+import { gradeMatchLeg, mapMatchStatus, gradeLegOutcome, parseRawSportScore } from "../ticketGrader";
 
 export interface ResultsSummaryRecord {
   id?: string;
@@ -38,7 +38,7 @@ export async function calculateAndSaveResultsSummary(): Promise<ResultsSummaryRe
   // 1. Fetch recent graded matches
   const { data: allMatches } = await supabase
     .from("oddora_v2_matches")
-    .select("match_id, sport_type, sport, home_team, away_team, home_score, away_score, is_free_preview, is_over25_candidate, status, outcome_result, best_outcome, market_name, selection_label")
+    .select("match_id, sport_type, sport, home_team, away_team, home_score, away_score, is_free_preview, is_over25_candidate, status, outcome_result, best_outcome, market_name, selection_label, actual_score, match_metadata")
     .limit(500);
 
   // 2. Fetch daily slips
@@ -61,7 +61,13 @@ export async function calculateAndSaveResultsSummary(): Promise<ResultsSummaryRe
       if (mapped === "Void") {
         m.outcome_result = "VOID";
       } else if (mapped === "Finished" && m.home_score !== null && m.home_score !== undefined) {
-        const graded = gradeMatchLeg(
+        const parsed = parseRawSportScore(
+          m.sport_type || m.sport || "FOOTBALL",
+          m.actual_score || `${m.home_score}:${m.away_score}`,
+          m.match_metadata?.period_scores,
+          m.status
+        );
+        const graded = gradeLegOutcome(
           {
             match: `${m.home_team || "Home"} vs ${m.away_team || "Away"}`,
             home_team: m.home_team,
@@ -71,9 +77,7 @@ export async function calculateAndSaveResultsSummary(): Promise<ResultsSummaryRe
             odd: 1.45,
             sport: m.sport_type || m.sport || "FOOTBALL",
           },
-          m.home_score,
-          m.away_score,
-          m.status
+          parsed
         );
         m.outcome_result = graded.status;
       }

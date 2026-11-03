@@ -59,6 +59,8 @@ export type WorkspaceTab =
 
 export type UserTier = "FREE" | "PRO" | "PREMIUM";
 
+export const ADMIN_EMAIL = "tech.paschalbtc@gmail.com";
+
 export interface NavbarProps {
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
@@ -80,6 +82,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { user, profile: authProfile, isAuthenticated, openAuthModal, requireAuth, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  const activeEmail = (user?.email || authProfile?.email || "").toLowerCase().trim();
+  const isFounderAdmin = Boolean(isAuthenticated && activeEmail === ADMIN_EMAIL);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -502,6 +507,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </div>
 
+                      {/* Founder Admin (Strictly Email Locked to Founder) */}
+                      {isFounderAdmin && (
+                        <a
+                          href="/admin"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                          className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 transition flex items-center gap-2.5 font-bold text-xs cursor-pointer"
+                        >
+                          <Crown className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span>👑 Founder Admin</span>
+                        </a>
+                      )}
+
                       {/* Divider */}
                       <div className="border-t border-slate-200 dark:border-white/10 pt-1" />
 
@@ -633,6 +650,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block px-1 mb-2">
                     Platform Tools & ticket Hubs
                   </span>
+
+                  {/* FOUNDER ADMIN (Strictly Email Locked to tech.paschalbtc@gmail.com) */}
+                  {isFounderAdmin && (
+                    <a
+                      href="/admin"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-full p-3 rounded-2xl text-left border flex items-center justify-between transition cursor-pointer bg-gradient-to-r from-amber-500/15 via-emerald-500/15 to-transparent hover:from-amber-500/25 text-slate-900 dark:text-white border-amber-500/50 hover:border-amber-500/80 shadow-xs mb-2"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
+                          <Crown className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div className="truncate">
+                          <div className="font-bold text-xs text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                            <span>👑 Founder Admin</span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 font-mono font-bold">
+                              CONFIDENTIAL
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            Live visitors, user signups & system analytics
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30">
+                        FOUNDER
+                      </span>
+                    </a>
+                  )}
 
                   {drawerNavItems.map((item) => {
                     const ItemIcon = item.icon;

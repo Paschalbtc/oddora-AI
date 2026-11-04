@@ -75,16 +75,14 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   const premiumMarkets = currentSportOutcomes.filter((o) => o.tierAccess === "PREMIUM");
 
   const quickOddsPresets = [
-    { label: "2x", val: 2 },
-    { label: "3x", val: 3 },
     { label: "5x", val: 5 },
     { label: "10x", val: 10 },
-    { label: "20x", val: 20 },
     { label: "50x", val: 50 },
-    { label: "100x", val: 100 },
     { label: "500x", val: 500 },
-    { label: "5,000x", val: 5000 },
-    { label: "20,000x", val: 20000 },
+    { label: "1,000x", val: 1000 },
+    { label: "10,000x", val: 10000 },
+    { label: "50,000x", val: 50000 },
+    { label: "200,000x", val: 200000 },
   ];
 
   const toggleMarket = (marketId: string, tierAccess: "FREE" | "PRO" | "PREMIUM" = "FREE") => {
@@ -522,21 +520,42 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
             })}
           </div>
 
-          {/* Custom odds input */}
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              min="1.5"
-              max="20000"
-              step="0.5"
-              value={isAutoOdds ? "" : targetOdds}
-              onChange={(e) => {
-                setIsAutoOdds(false);
-                setTargetOdds(e.target.value);
-              }}
-              placeholder={isAutoOdds ? "Auto Odds Active (e.g. 10x - 25x)" : "Custom multiplier e.g. 5000"}
-              className="w-full bg-[#070A0E] border border-white/10 rounded-xl py-2.5 px-4 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
-            />
+          {/* Custom odds input & dynamic slider */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1.5"
+                max="200000"
+                step="any"
+                value={isAutoOdds ? "" : targetOdds}
+                onChange={(e) => {
+                  setIsAutoOdds(false);
+                  setTargetOdds(e.target.value);
+                }}
+                placeholder={isAutoOdds ? "Auto Odds Active (e.g. 10x - 25x)" : "Custom multiplier e.g. 200000"}
+                className="w-full bg-[#070A0E] border border-white/10 rounded-xl py-2.5 px-4 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            {!isAutoOdds && (
+              <div className="flex items-center gap-3 px-1">
+                <input
+                  type="range"
+                  min="1.5"
+                  max="200000"
+                  step="1"
+                  value={Math.min(200000, Math.max(1.5, parseFloat(targetOdds) || 10))}
+                  onChange={(e) => {
+                    setIsAutoOdds(false);
+                    setTargetOdds(e.target.value);
+                  }}
+                  className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
+                />
+                <span className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
+                  Max 200k
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -584,7 +603,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           {matchCountMode === "CUSTOM" && (
             <div className="space-y-2 pt-2 animate-in fade-in">
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                {[3, 5, 10, 15, 25, 35, 50].map((cnt) => (
+                {[3, 5, 10, 15, 25, 35, 40, 50].map((cnt) => (
                   <button
                     key={cnt}
                     type="button"

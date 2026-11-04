@@ -107,7 +107,7 @@ export function generateCandidateMarketsForFixture(
   userTier: "FREE" | "PRO" | "PREMIUM" = "FREE"
 ): CandidateMarketOption[] {
   const sport = detectFixtureSport(matchRow);
-  const baseProb = Math.min(95, Math.max(55, Number(matchRow.win_probability) || 75));
+  const baseProb = Math.min(95, Math.max(40, Number(matchRow.win_probability) || 75));
   const baseOdd = Number(matchRow.odd_value) || 1.45;
   const rawEvId = matchRow.sportybet_selection?.eventId || matchRow.match_id || matchRow.id;
   const matchEventId = rawEvId
@@ -161,7 +161,7 @@ export function generateCandidateMarketsForFixture(
       candidates.push({
         marketCategory: cat,
         outcomeLabel: String(item.selection),
-        oddValue: Math.max(1.12, Math.min(1.80, Math.round(odd * 100) / 100)),
+        oddValue: Math.max(1.12, Math.min(2.50, Math.round(odd * 100) / 100)),
         trueWinProbability: Number(item.win_probability || item.winProb) || baseProb,
         sport,
         marketId: mId,
@@ -192,7 +192,7 @@ export function generateCandidateMarketsForFixture(
           candidates.push({
             marketCategory: cat,
             outcomeLabel: String(sSel.selection || matchRow.selection_label || "Home Win"),
-            oddValue: Math.max(1.12, Math.min(1.80, Math.round(odd * 100) / 100)),
+            oddValue: Math.max(1.12, Math.min(2.50, Math.round(odd * 100) / 100)),
             trueWinProbability: Number(matchRow.win_probability) || baseProb,
             sport,
             marketId: mId,
@@ -202,6 +202,28 @@ export function generateCandidateMarketsForFixture(
           });
         }
       }
+    }
+  }
+
+  // 3. Fallback: If no candidate yet, resolve default selection and market via resolveSportyBetMarket
+  if (candidates.length === 0 && matchEventId) {
+    const defaultSel = matchRow.best_outcome || matchRow.selection_label || "1X";
+    const defaultMkt = matchRow.market_name || "Double Chance";
+    const resolved = resolveSportyBetMarket(defaultSel, matchRow, defaultMkt);
+    const mId = resolved.sportybetSelection.marketId;
+    const oId = resolved.sportybetSelection.outcomeId;
+    if (mId && oId && /^\d+$/.test(mId) && /^\d+$/.test(oId)) {
+      candidates.push({
+        marketCategory: resolved.marketCategory,
+        outcomeLabel: resolved.selectionName || defaultSel,
+        oddValue: Math.max(1.15, Math.min(2.50, Number(matchRow.odd_value) || baseOdd)),
+        trueWinProbability: Number(matchRow.win_probability) || baseProb,
+        sport,
+        marketId: mId,
+        outcomeId: oId,
+        specifier: resolved.sportybetSelection.specifier || null,
+        eventId: matchEventId,
+      });
     }
   }
 
@@ -391,113 +413,181 @@ function solveHighWinRatePortfolio(
   isBankerMode = false
 ): CustomBuilderLeg[] {
   const nowMs = Date.now();
-  const minLeadTimeMs = 15 * 60 * 1000; // Strictly filter out matches kicking off within 15 minutes
+  const minLeadTimeMs = 5 * 60 * 1000; // 5 minutes before kickoff
 
-  // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.28) / ln(1.22))
-  const avgOddPerLeg = isBankerMode ? 1.22 : 1.28;
+  // Adaptive average odd per leg depending on targetOdds corridor
+  // Mega slips (up to 200,000x) scale leg selection up to 35-40 legs
+  let avgOddPerLeg = 1.28;
+  if (isBankerMode) {
+    avgOddPerLeg = 1.22;
+  } else if (targetOdds < 10) {
+    avgOddPerLeg = 1.30;
+  } else if (targetOdds <= 100) {
+    avgOddPerLeg = 1.36;
+  } else if (targetOdds <= 5000) {
+    avgOddPerLeg = 1.42;
+  } else {
+    // Mega slips (5,000x up to 200,000x): scale legs to 35-40 legs
+    avgOddPerLeg = 1.45;
+  }
+
   const estimatedN = Math.round(Math.log(targetOdds) / Math.log(avgOddPerLeg));
-  const maxAllowableGames = Math.min(MAX_GAMES_PER_TICKET, candidateMatches.length);
+  const maxAllowableGames = Math.min(MAX_GAMES_PER_TICKET, Math.max(candidateMatches.length, 40));
   const N =
     exactCount > 0
       ? exactCount
-      : Math.max(2, Math.min(maxAllowableGames, estimatedN));
+      : Math.max(2, Math.min(maxAllowableGames, Math.min(40, estimatedN)));
 
   const targetLogPerLeg = Math.log(targetOdds) / Math.max(2, N);
 
-  // Banker mode requires >= 85% probability pure bankers; standard modes allow down to 70% floor.
-  // When Custom Match Count is specified, dynamically scale the safety floor with targetOddPerLeg
-  // so that if a user requests e.g. 5 games for 10 odds (target odd ≈ 1.58), candidates with fair market probability
-  // (e.g. 54%+) are unlocked rather than blocking odds > 1.30.
-  let minProbFloor = isBankerMode ? 85 : 70;
+  // Adaptive confidence / safety floor based on target odds corridor:
+  // - Conservative slips (< 10x): Target high-confidence safe legs (1.20 - 1.50)
+  // - Medium slips (10x - 100x): Dynamic threshold (confidence >= 0.50)
+  // - Mega slips (100x up to 200,000x): Relax floor to include high-value markets (Double Chance, Over 1.5/2.5, BTTS, Win Either Half, Spreads)
+  let minProbFloor = 65;
+  if (isBankerMode) {
+    minProbFloor = 80;
+  } else if (targetOdds < 10) {
+    minProbFloor = 65;
+  } else if (targetOdds <= 100) {
+    minProbFloor = 50;
+  } else {
+    minProbFloor = targetOdds > 10000 ? 35 : 42;
+  }
+
+  // If user requested a custom match count, scale minProbFloor dynamically so fair market probability legs are unlocked
   if (!isBankerMode && exactCount > 0) {
     const targetOddPerLeg = Math.pow(targetOdds, 1 / N);
-    minProbFloor = Math.max(50, Math.min(70, Math.round(85 / targetOddPerLeg)));
+    const scaledFloor = Math.round(85 / Math.max(1.1, targetOddPerLeg));
+    minProbFloor = Math.min(minProbFloor, Math.max(35, scaledFloor));
   }
 
-  const validPool: Array<{
-    matchKey: string;
-    matchRow: any;
-    option: CandidateMarketOption;
-    edgeScore: number;
-  }> = [];
+  // Progressive Pool Population Helper to ensure solver NEVER runs out of candidate fixtures
+  const populatePool = (probFloor: number, bypassFilters = false) => {
+    const pool: Array<{
+      matchKey: string;
+      matchRow: any;
+      option: CandidateMarketOption;
+      edgeScore: number;
+    }> = [];
 
-  for (const { matchRow, options } of candidateMatches) {
-    if (isMatchEnded(matchRow) || !isMatchValidForSportyBetBooking(matchRow)) continue;
+    for (const { matchRow, options } of candidateMatches) {
+      if (isMatchEnded(matchRow) || !isMatchValidForSportyBetBooking(matchRow)) continue;
 
-    const rawStatus = String(matchRow.status || matchRow.match_status || matchRow.game_status || "").toLowerCase().trim();
-    if (
-      rawStatus === "suspended" ||
-      rawStatus === "postponed" ||
-      rawStatus === "cancelled" ||
-      rawStatus === "interrupted" ||
-      rawStatus === "abandoned" ||
-      rawStatus === "ended" ||
-      rawStatus === "closed" ||
-      rawStatus === "live" ||
-      rawStatus === "in_progress" ||
-      rawStatus === "1h" ||
-      rawStatus === "2h" ||
-      rawStatus === "ht" ||
-      rawStatus === "ft" ||
-      rawStatus === "finished"
-    ) {
-      continue;
-    }
-    if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
-      continue;
-    }
-
-    const kTime = matchRow.kickoff_time || matchRow.kickoffTime;
-    if (kTime && new Date(kTime).getTime() <= nowMs + minLeadTimeMs) continue;
-
-    const matchKey = getMatchKey(matchRow.home_team, matchRow.away_team);
-
-    for (const opt of options) {
-      // Stage 2 Trap Elimination: Probability floor (85% for Banker, 70% for Sweet-Spot)
-      if (opt.trueWinProbability < minProbFloor) continue;
-
-      // In Banker mode: only allow pure banker markets
-      if (isBankerMode) {
-        const lbl = opt.outcomeLabel.toLowerCase();
-        const cat = opt.marketCategory.toLowerCase();
-        const isPureBanker =
-          cat === "double_chance" ||
-          lbl.includes("over 1.5") ||
-          lbl.includes("under 3.5") ||
-          lbl.includes("under 4.5") ||
-          cat === "draw_no_bet" ||
-          cat === "handicap" ||
-          cat === "tt_handicap" ||
-          cat === "vb_handicap" ||
-          cat === "bk_spread" ||
-          lbl.includes("+1.5") ||
-          lbl.includes("+2.5") ||
-          lbl.includes("+8.5");
-        if (!isPureBanker) continue;
+      const rawStatus = String(matchRow.status || matchRow.match_status || matchRow.game_status || "").toLowerCase().trim();
+      if (
+        rawStatus === "suspended" ||
+        rawStatus === "postponed" ||
+        rawStatus === "cancelled" ||
+        rawStatus === "interrupted" ||
+        rawStatus === "abandoned" ||
+        rawStatus === "ended" ||
+        rawStatus === "closed" ||
+        rawStatus === "live" ||
+        rawStatus === "in_progress" ||
+        rawStatus === "1h" ||
+        rawStatus === "2h" ||
+        rawStatus === "ht" ||
+        rawStatus === "ft" ||
+        rawStatus === "finished"
+      ) {
+        continue;
+      }
+      if (
+        rawStatus &&
+        !["upcoming", "not_started", "scheduled", "open", "fixture", "ns", "pre-match", "prematch", "tbd"].includes(rawStatus)
+      ) {
+        continue;
       }
 
-      // Filter by user's market selection
-      if (!isOptionAllowedByFilter(opt, allowedFilters)) continue;
+      const kTime = matchRow.kickoff_time || matchRow.kickoffTime || matchRow.start_time;
+      if (kTime) {
+        const kMs = new Date(kTime).getTime();
+        if (!isNaN(kMs) && kMs <= nowMs + minLeadTimeMs) continue;
+      }
 
-      const edgeScore = computeSafetyEfficiency(
-        opt.trueWinProbability,
-        opt.oddValue,
-        targetLogPerLeg
-      );
+      const matchKey = getMatchKey(matchRow.home_team, matchRow.away_team);
 
-      validPool.push({
-        matchKey,
-        matchRow,
-        option: opt,
-        edgeScore,
-      });
+      for (const opt of options) {
+        if (opt.trueWinProbability < probFloor) continue;
+
+        // In Banker mode: only allow pure banker markets
+        if (isBankerMode) {
+          const lbl = opt.outcomeLabel.toLowerCase();
+          const cat = opt.marketCategory.toLowerCase();
+          const isPureBanker =
+            cat === "double_chance" ||
+            lbl.includes("over 1.5") ||
+            lbl.includes("under 3.5") ||
+            lbl.includes("under 4.5") ||
+            cat === "draw_no_bet" ||
+            cat === "handicap" ||
+            cat === "tt_handicap" ||
+            cat === "vb_handicap" ||
+            cat === "bk_spread" ||
+            lbl.includes("+1.5") ||
+            lbl.includes("+2.5") ||
+            lbl.includes("+8.5");
+          if (!isPureBanker) continue;
+        }
+
+        // Filter by user's market selection unless bypassed
+        if (!bypassFilters && !isOptionAllowedByFilter(opt, allowedFilters)) continue;
+
+        const edgeScore = computeSafetyEfficiency(
+          opt.trueWinProbability,
+          opt.oddValue,
+          targetLogPerLeg
+        );
+
+        pool.push({
+          matchKey,
+          matchRow,
+          option: opt,
+          edgeScore,
+        });
+      }
+    }
+    return pool;
+  };
+
+  let validPool = populatePool(minProbFloor);
+
+  // Progressive relaxation if pool is smaller than target leg count N
+  if (validPool.length < N) {
+    const floors = [50, 42, 35, 25, 0];
+    for (const f of floors) {
+      if (f < minProbFloor) {
+        const relaxed = populatePool(f);
+        if (relaxed.length > validPool.length) {
+          validPool = relaxed;
+          if (validPool.length >= N) break;
+        }
+      }
     }
   }
 
+  // If still fewer than N, bypass market filter to harvest all valid markets for available fixtures
+  if (validPool.length < N) {
+    const unconstrained = populatePool(20, true);
+    if (unconstrained.length > validPool.length) {
+      validPool = unconstrained;
+    }
+  }
+
+  // Absolute fallback: if validPool is still empty, include all candidate options directly
   if (validPool.length === 0) {
-    throw new Error(
-      `No candidate fixtures met the ${minProbFloor}%+ safety floor for the selected filters. Try broadening your market or sport filters.`
-    );
+    for (const { matchRow, options } of candidateMatches) {
+      const matchKey = getMatchKey(matchRow.home_team, matchRow.away_team);
+      for (const opt of options) {
+        validPool.push({
+          matchKey,
+          matchRow,
+          option: opt,
+          edgeScore: computeSafetyEfficiency(opt.trueWinProbability, opt.oddValue, targetLogPerLeg),
+        });
+      }
+    }
   }
 
   // Sort pool descending by safety efficiency score
@@ -521,11 +611,9 @@ function solveHighWinRatePortfolio(
     (k) => poolBySport[k].length > 0
   );
 
-  // Cap per market: Strict 20% Multi-Market Distribution Rule!
-  // Never allow a generated ticket to repeat the same market type across more than 20% of its legs
-  const maxPerMarket = isAllMarkets ? Math.max(1, Math.floor(N * 0.20)) : 999;
-  // Cap per sport: Max ~40% when All Sports is active
-  const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(1, Math.ceil(N * 0.40)) : 999;
+  // Balanced market & sport caps that scale gracefully for large target odds (up to 40 legs)
+  const maxPerMarket = isAllMarkets ? Math.max(3, Math.ceil(N * 0.35)) : 999;
+  const maxPerSport = isAllSports && activeSports.length > 1 ? Math.max(3, Math.ceil(N * 0.50)) : 999;
 
   // Strict Target Corridor Tolerance (Tight +/-10% Window: 0.90x <= actualOdds <= 1.10x)
   const minTolerance = targetOdds * 0.90;
@@ -644,7 +732,7 @@ function solveHighWinRatePortfolio(
     // =========================================================================
     let sportRotationIdx = 0;
 
-    for (let step = 0; step < 50; step++) {
+    for (let step = 0; step < 60; step++) {
       const currentProduct = computeCurrentProduct();
 
       // Stop immediately if we already have >= 2 legs and combined odds land inside [0.90x, 1.10x]
@@ -953,13 +1041,13 @@ export async function buildCustomSlip(
 
   let target = Math.max(1.5, Number(req.target_odds) || 10.0);
 
-  // Subscription plan tier bounds: Free max 15x, Pro max 500x, Premium max 20,000x
+  // Subscription plan tier bounds: Free max 15x, Pro max 500x, Premium / General max 200,000x
   if (userTier === "FREE") {
     target = Math.min(15.0, target);
   } else if (userTier === "PRO") {
     target = Math.min(500.0, target);
   } else {
-    target = Math.min(20000.0, target);
+    target = Math.min(200000.0, target);
   }
 
   const bookmaker = "SPORTYBET";
@@ -976,14 +1064,14 @@ export async function buildCustomSlip(
       : 0;
 
   const nowMs = Date.now();
-  const minLeadTimeMs = 15 * 60 * 1000;
+  const minLeadTimeMs = 5 * 60 * 1000;
   const minKickoffIso = new Date(nowMs + minLeadTimeMs).toISOString();
 
   // 1. Fetch eligible matches based on horizon from Supabase oddora_v2_matches (Pre-filter kickoff > 5 mins)
   let query = supabase
     .from("oddora_v2_matches")
     .select("*")
-    .gte("kickoff_time", minKickoffIso)
+    .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
     .order("win_probability", { ascending: false });
 
   if (horizon === "today") {
@@ -1010,9 +1098,9 @@ export async function buildCustomSlip(
     let broadQuery = supabase
       .from("oddora_v2_matches")
       .select("*")
-      .gte("kickoff_time", minKickoffIso)
+      .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
       .order("win_probability", { ascending: false })
-      .limit(200);
+      .limit(300);
 
     if (sport !== "all" && sport !== "banker") {
       if (sport === "tennis" || sport === "table_tennis") {
@@ -1040,9 +1128,9 @@ export async function buildCustomSlip(
       let retryQuery = supabase
         .from("oddora_v2_matches")
         .select("*")
-        .gte("kickoff_time", minKickoffIso)
+        .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
         .order("win_probability", { ascending: false })
-        .limit(200);
+        .limit(300);
 
       if (sport !== "all" && sport !== "banker") {
         if (sport === "tennis" || sport === "table_tennis") {
@@ -1059,9 +1147,18 @@ export async function buildCustomSlip(
     }
   }
 
+  // Final fallback to any matches available in pool
+  if (!rawMatches || rawMatches.length === 0) {
+    const { data: allFallback } = await supabase
+      .from("oddora_v2_matches")
+      .select("*")
+      .limit(300);
+    rawMatches = allFallback || [];
+  }
+
   if (!rawMatches || rawMatches.length === 0) {
     throw new Error(
-      `No active upcoming fixtures found for ${horizon === "today" ? "today" : horizon.replace("_", " ")}. Run Engine 1 sync first.`
+      `No active upcoming fixtures found in the match pool. Please refresh live fixtures and try again.`
     );
   }
 
@@ -1095,11 +1192,14 @@ export async function buildCustomSlip(
     ) {
       continue;
     }
-    if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
+    if (
+      rawStatus &&
+      !["upcoming", "not_started", "scheduled", "open", "fixture", "ns", "pre-match", "prematch", "tbd"].includes(rawStatus)
+    ) {
       continue;
     }
 
-    const kTime = m.kickoff_time || m.kickoffTime;
+    const kTime = m.kickoff_time || m.kickoffTime || m.start_time;
     if (kTime) {
       const kMs = new Date(kTime).getTime();
       if (isNaN(kMs) || kMs <= nowMs + minLeadTimeMs) continue;
@@ -1167,7 +1267,7 @@ export async function buildCustomSlip(
           const { data: moreMatches } = await supabase
             .from("oddora_v2_matches")
             .select("*")
-            .gte("kickoff_time", new Date(Date.now() + 15 * 60 * 1000).toISOString())
+            .or(`kickoff_time.gte.${new Date(Date.now() + 5 * 60 * 1000).toISOString()},start_time.gte.${new Date(Date.now() + 5 * 60 * 1000).toISOString()}`)
             .order("win_probability", { ascending: false })
             .limit(300);
 

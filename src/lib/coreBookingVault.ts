@@ -248,7 +248,10 @@ export function isMatchValidForSportyBetBooking(sel: any): boolean {
   }
 
   // If status is present, ensure it represents an open/upcoming fixture
-  if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
+  if (
+    rawStatus &&
+    !["upcoming", "not_started", "scheduled", "open", "fixture", "ns", "pre-match", "prematch", "tbd"].includes(rawStatus)
+  ) {
     return false;
   }
 
@@ -263,7 +266,7 @@ export function isMatchValidForSportyBetBooking(sel: any): boolean {
   if (timeVal) {
     const kickoffMs = typeof timeVal === "number" ? timeVal : new Date(timeVal).getTime();
     if (!isNaN(kickoffMs)) {
-      const minLeadTimeMs = 15 * 60 * 1000; // Strictly filter out matches kicking off within 15 minutes
+      const minLeadTimeMs = 5 * 60 * 1000; // Filter out matches kicking off within 5 minutes
       const now = Date.now();
       if (kickoffMs <= now + minLeadTimeMs) {
         return false;

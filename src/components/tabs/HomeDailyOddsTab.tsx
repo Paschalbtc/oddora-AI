@@ -238,33 +238,16 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   async function fetchSlips() {
     setIsLoading(true);
     try {
-      let res = await fetch(`/api/daily-accumulators?tier=${currentTier}`);
-      if (!res.ok) {
-        res = await fetch(`/api/engines/daily-slips?tier=${currentTier}`);
-      }
+      const res = await fetch(`/api/engines/daily-slips?tier=${currentTier}`);
       if (res.ok) {
         const json = await res.json();
         const incoming = Array.isArray(json.data) ? json.data : (Array.isArray(json.slips) ? json.slips : []);
         if (incoming.length > 0) {
-          // If all or some slips have 0 matches, auto force refresh
-          const hasEmpty = incoming.some(
-            (s: any) => (!s.legs || s.legs.length === 0) && (!s.legs_json || s.legs_json.length === 0)
-          );
-          if (hasEmpty) {
-            const forceRes = await fetch(`/api/daily-accumulators?tier=${currentTier}&force=true`);
-            if (forceRes.ok) {
-              const forceJson = await forceRes.json();
-              const refreshed = Array.isArray(forceJson.data) ? forceJson.data : forceJson.slips;
-              if (Array.isArray(refreshed) && refreshed.length > 0) {
-                setSlips(refreshed);
-                return;
-              }
-            }
-          }
           setSlips(incoming);
         }
       }
-    } catch {
+    } catch (err) {
+      console.warn("Failed to fetch daily slips:", err);
     } finally {
       setIsLoading(false);
     }

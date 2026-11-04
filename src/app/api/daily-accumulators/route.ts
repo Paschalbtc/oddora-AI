@@ -17,24 +17,11 @@ export async function GET(request: NextRequest) {
 
     let slips = await getDailySlipsForUI(tier);
 
-    const hasBloatedSlip = Boolean(slips && slips.some((s) => (s.legs?.length || 0) > 25));
-    const hasDuplicateMatches = Boolean(slips && slips.some(hasDuplicateLegsInSlip));
-    const hasMonochromatic = Boolean(slips && slips.some(isMonochromaticSlip));
-    const isMissingSlips = !slips || slips.length < 8;
-    const hasEmptySlips = Boolean(
-      slips &&
-        slips.some(
-          (s) =>
-            (!s.legs || s.legs.length === 0) &&
-            (!s.legs_json || s.legs_json.length === 0) ||
-            Number(s.actual_odds) <= 1.05
-        )
-    );
-
-    if (force || isMissingSlips || hasBloatedSlip || hasDuplicateMatches || hasMonochromatic || hasEmptySlips) {
+    // Only force regeneration if explicitly requested via ?force=true or if 0 slips were retrieved
+    if (force || !slips || slips.length === 0) {
       try {
         console.log(
-          `[Daily Accumulators API] Auto-generating slips (force: ${force}, missing: ${isMissingSlips}, empty: ${hasEmptySlips})...`
+          `[Daily Accumulators API] Explicit force or empty slips (force: ${force}, count: ${slips?.length || 0}). Auto-generating slips...`
         );
         await generateAndBookDailySlips();
         slips = await getDailySlipsForUI(tier);

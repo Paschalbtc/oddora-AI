@@ -110,13 +110,15 @@ export function generateCandidateMarketsForFixture(
   const baseProb = Math.min(95, Math.max(40, Number(matchRow.win_probability) || 75));
   const baseOdd = Number(matchRow.odd_value) || 1.45;
   const rawEvId = matchRow.sportybet_selection?.eventId || matchRow.match_id || matchRow.id;
-  const matchEventId = rawEvId
-    ? String(rawEvId).startsWith("sr:match:")
-      ? String(rawEvId)
-      : `sr:match:${rawEvId}`
-    : null;
-
-  if (!matchEventId || matchEventId.length < 10) return [];
+  if (!rawEvId) return [];
+  const evStr = String(rawEvId).trim();
+  const digits = evStr.replace(/\D/g, "");
+  if (digits.length < 5) return [];
+  if (evStr.startsWith("sr:match:")) {
+    const after = evStr.slice("sr:match:".length);
+    if (!/^\d+$/.test(after)) return [];
+  }
+  const matchEventId = `sr:match:${digits}`;
 
   const candidates: CandidateMarketOption[] = [];
   const seenMarketKeys = new Set<string>();
@@ -1270,7 +1272,7 @@ export async function buildCustomSlip(
 
   // 4. TWO-WAY SPORTYBET VERIFICATION & REPLACEMENT LOOP
   // Strictly eliminates dropped/suspended legs and guarantees 1:1 odds/games parity on SportyBet
-  const MAX_REPLACEMENT_PASSES = 5;
+  const MAX_REPLACEMENT_PASSES = 2;
   const blacklistedEventIds = new Set<string>();
   const blacklistedMatchKeys = new Set<string>();
 

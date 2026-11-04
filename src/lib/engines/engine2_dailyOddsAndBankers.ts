@@ -750,13 +750,14 @@ export async function generateAndBookDailySlips(): Promise<{
 
     const rawEvId = m.sportybet_selection?.eventId || m.match_id;
     if (!rawEvId) continue;
-
-    let cleanEvId = String(rawEvId).trim();
-    if (!cleanEvId.startsWith("sr:match:")) {
-      const digits = cleanEvId.replace(/\D/g, "");
-      cleanEvId = digits.length >= 4 ? `sr:match:${digits}` : `sr:match:${cleanEvId}`;
+    const evStr = String(rawEvId).trim();
+    const digits = evStr.replace(/\D/g, "");
+    if (digits.length < 5) continue;
+    if (evStr.startsWith("sr:match:")) {
+      const after = evStr.slice("sr:match:".length);
+      if (!/^\d+$/.test(after)) continue;
     }
-    if (cleanEvId.length < 10) continue;
+    const cleanEvId = `sr:match:${digits}`;
 
     const home = (m.home_team || "").trim();
     const away = (m.away_team || "").trim();
@@ -997,19 +998,21 @@ export async function getDailySlipsForUI(
     .select("*")
     .eq("slip_date", todayStr);
 
-  // If slips are not in DB, incomplete (< 8 slips), bloated (> 25 matches), contain duplicate matches, monochromatic, or empty (0 legs / <= 1.05 odds), auto-generate fresh slips
-  const hasBloated = Boolean(data && data.some((r: any) => Number(r.match_count) > 25));
-  const hasDuplicates = Boolean(data && data.some(hasDuplicateLegsInSlip));
-  const hasMonochromatic = Boolean(data && data.some(isMonochromaticSlip));
-  const isMissingSlips = !data || data.length < 8;
-  const hasEmptySlips = Boolean(
-    data && data.some((r: any) => !r.legs_json || !Array.isArray(r.legs_json) || r.legs_json.length === 0 || Number(r.total_odds) <= 1.05)
+  // Filter out any custom solver or non-daily records and retain only valid populated daily slips
+  const dailySlipsInDb = (data || []).filter(
+    (r: any) =>
+      r.slip_category &&
+      r.slip_category !== "CUSTOM_SOLVER" &&
+      Array.isArray(r.legs_json) &&
+      r.legs_json.length > 0 &&
+      Number(r.total_odds) > 1.05
   );
 
-  if (isMissingSlips || hasBloated || hasDuplicates || hasMonochromatic || hasEmptySlips) {
+  // Only auto-generate if cache is completely empty or severely deficient (< 4 slips)
+  if (dailySlipsInDb.length < 4) {
     try {
       console.log(
-        `[Daily Slips Engine] Detected invalid, stale or empty cache (missing: ${isMissingSlips}, bloated: ${hasBloated}, duplicates: ${hasDuplicates}, monochromatic: ${hasMonochromatic}, empty: ${hasEmptySlips}). Auto-generating fresh diversified slips...`
+        `[Daily Slips Engine] Cache has only ${dailySlipsInDb.length} valid slips. Auto-generating fresh diversified slips...`
       );
       const generated = await generateAndBookDailySlips();
       return generated.slips.map((slip) => filterSlipForTier(slip, userTier));
@@ -1018,7 +1021,7 @@ export async function getDailySlipsForUI(
     }
   }
 
-  const items = data || [];
+  const items = dailySlipsInDb.length > 0 ? dailySlipsInDb : (data || []).filter((r: any) => r.slip_category !== "CUSTOM_SOLVER");
 
   return items.map((r: any) => {
     const slipType = r.slip_category as V2DailySlipRecord["slip_type"];

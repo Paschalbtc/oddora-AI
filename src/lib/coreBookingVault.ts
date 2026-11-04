@@ -274,6 +274,17 @@ export function isMatchValidForSportyBetBooking(sel: any): boolean {
     }
   }
 
+  // Real SportyBet event IDs are strictly numeric (at least 5 digits)
+  const rawEvId = sel.sportybet_selection?.eventId || sel.eventId || sel.match_id || sel.id;
+  if (!rawEvId) return false;
+  const evStr = String(rawEvId).trim();
+  const digits = evStr.replace(/\D/g, "");
+  if (digits.length < 5) return false;
+  if (evStr.startsWith("sr:match:")) {
+    const after = evStr.slice("sr:match:".length);
+    if (!/^\d+$/.test(after)) return false;
+  }
+
   return true;
 }
 
@@ -423,11 +434,11 @@ export function cleanSportyBetSelectionPayload(
   if (!rawEvId) return null;
   const s = String(rawEvId).trim();
   let cleanEvId: string;
-  if (s.startsWith("sr:match:")) {
+  if (/^sr:match:\d{5,}$/.test(s)) {
     cleanEvId = s;
   } else {
     const digits = s.replace(/\D/g, "");
-    if (digits.length < 4) return null;
+    if (digits.length < 5) return null;
     cleanEvId = `sr:match:${digits}`;
   }
 
@@ -678,7 +689,7 @@ export async function bookVaultSlip(
       headers: SPORTYBET_BROWSER_HEADERS,
       body: JSON.stringify({ selections: formattedSelections }),
       cache: "no-store",
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(3500),
     });
 
     if (res.ok) {
@@ -754,7 +765,7 @@ export async function bookVaultSlip(
             headers: SPORTYBET_BROWSER_HEADERS,
             body: JSON.stringify({ selections: [payload] }),
             cache: "no-store",
-            signal: AbortSignal.timeout(3500),
+            signal: AbortSignal.timeout(2000),
           });
           if (pRes.ok) {
             const pJson = await pRes.json();
@@ -796,7 +807,7 @@ export async function bookVaultSlip(
           headers: SPORTYBET_BROWSER_HEADERS,
           body: JSON.stringify({ selections: openLegs.map((o) => o.payload) }),
           cache: "no-store",
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.timeout(3000),
         });
         if (batchRes.ok) {
           const batchJson = await batchRes.json();

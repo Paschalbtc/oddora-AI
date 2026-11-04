@@ -10,7 +10,7 @@
  */
 
 import { getSupabaseAdmin } from "../supabase";
-import { bookVaultSlip, isMatchValidForSportyBetBooking } from "../coreBookingVault";
+import { bookVaultSlip, isMatchValidForSportyBetBooking, getSportyBetShareOutcomes } from "../coreBookingVault";
 import { bookUniversalSlip } from "./bookingEngine";
 import { syncMatchesForDate, syncTodayAllMatches } from "./engine1_allMatches";
 import { isMatchEnded } from "../multiSportScheduleFeed";
@@ -74,6 +74,14 @@ export interface CustomBuilderResult {
   average_leg_probability: number;
   legs: CustomBuilderLeg[];
   legs_json?: CustomBuilderLeg[];
+  code?: string;
+  shareCode?: string;
+  bookingCode?: string;
+  sportybet_code?: string;
+  sportybetCode?: string;
+  sportyCode?: string;
+  shareUrl?: string;
+  sportyUrl?: string;
 }
 
 export interface CandidateMarketOption {
@@ -383,7 +391,7 @@ function solveHighWinRatePortfolio(
   isBankerMode = false
 ): CustomBuilderLeg[] {
   const nowMs = Date.now();
-  const minLeadTimeMs = 5 * 60 * 1000;
+  const minLeadTimeMs = 15 * 60 * 1000; // Strictly filter out matches kicking off within 15 minutes
 
   // Determine target leg count N (Sweet spot 1.22–1.42 per leg uses ln(1.28) / ln(1.22))
   const avgOddPerLeg = isBankerMode ? 1.22 : 1.28;
@@ -414,7 +422,31 @@ function solveHighWinRatePortfolio(
   }> = [];
 
   for (const { matchRow, options } of candidateMatches) {
-    if (isMatchEnded(matchRow)) continue;
+    if (isMatchEnded(matchRow) || !isMatchValidForSportyBetBooking(matchRow)) continue;
+
+    const rawStatus = String(matchRow.status || matchRow.match_status || matchRow.game_status || "").toLowerCase().trim();
+    if (
+      rawStatus === "suspended" ||
+      rawStatus === "postponed" ||
+      rawStatus === "cancelled" ||
+      rawStatus === "interrupted" ||
+      rawStatus === "abandoned" ||
+      rawStatus === "ended" ||
+      rawStatus === "closed" ||
+      rawStatus === "live" ||
+      rawStatus === "in_progress" ||
+      rawStatus === "1h" ||
+      rawStatus === "2h" ||
+      rawStatus === "ht" ||
+      rawStatus === "ft" ||
+      rawStatus === "finished"
+    ) {
+      continue;
+    }
+    if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
+      continue;
+    }
+
     const kTime = matchRow.kickoff_time || matchRow.kickoffTime;
     if (kTime && new Date(kTime).getTime() <= nowMs + minLeadTimeMs) continue;
 
@@ -944,7 +976,7 @@ export async function buildCustomSlip(
       : 0;
 
   const nowMs = Date.now();
-  const minLeadTimeMs = 5 * 60 * 1000;
+  const minLeadTimeMs = 15 * 60 * 1000;
   const minKickoffIso = new Date(nowMs + minLeadTimeMs).toISOString();
 
   // 1. Fetch eligible matches based on horizon from Supabase oddora_v2_matches (Pre-filter kickoff > 5 mins)
@@ -1042,8 +1074,30 @@ export async function buildCustomSlip(
   const seenMatches = new Set<string>();
 
   for (const m of rawMatches) {
-    if (isMatchEnded(m)) continue;
-    if (!isMatchValidForSportyBetBooking(m)) continue;
+    if (isMatchEnded(m) || !isMatchValidForSportyBetBooking(m)) continue;
+
+    const rawStatus = String(m.status || m.match_status || m.game_status || "").toLowerCase().trim();
+    if (
+      rawStatus === "suspended" ||
+      rawStatus === "postponed" ||
+      rawStatus === "cancelled" ||
+      rawStatus === "interrupted" ||
+      rawStatus === "abandoned" ||
+      rawStatus === "ended" ||
+      rawStatus === "closed" ||
+      rawStatus === "live" ||
+      rawStatus === "in_progress" ||
+      rawStatus === "1h" ||
+      rawStatus === "2h" ||
+      rawStatus === "ht" ||
+      rawStatus === "ft" ||
+      rawStatus === "finished"
+    ) {
+      continue;
+    }
+    if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
+      continue;
+    }
 
     const kTime = m.kickoff_time || m.kickoffTime;
     if (kTime) {
@@ -1080,13 +1134,227 @@ export async function buildCustomSlip(
     selectedLegs = selectedLegs.slice(0, MAX_GAMES_PER_TICKET);
   }
 
-  // Calculate Accuracy & Safety Grade
-  const rawCombined = selectedLegs.reduce((acc, l) => acc * l.odd, 1.0);
-  const actualCombinedOdds = Math.round(rawCombined * 100) / 100;
-  const accuracy = Math.round((actualCombinedOdds / target) * 1000) / 10;
+  const requestedLegCount = customCount > 0 ? customCount : selectedLegs.length;
+
+  // 4. TWO-WAY SPORTYBET VERIFICATION & REPLACEMENT LOOP
+  // Strictly eliminates dropped/suspended legs and guarantees 1:1 odds/games parity on SportyBet
+  const MAX_REPLACEMENT_PASSES = 5;
+  const blacklistedEventIds = new Set<string>();
+  const blacklistedMatchKeys = new Set<string>();
+
+  let activePool = [...candidateMatches];
+  let candidateLegs = [...selectedLegs];
+  let finalBookedResult: any = null;
+  let finalConfirmedOutcomes: any[] = [];
+
+  for (let pass = 1; pass <= MAX_REPLACEMENT_PASSES; pass++) {
+    // If not first pass or candidateLegs count < requestedLegCount, re-solve using activePool without blacklisted matches
+    if (pass > 1 || candidateLegs.length < requestedLegCount) {
+      activePool = activePool.filter((c) => {
+        const evId = String(c.matchRow.sportybet_event_id || c.matchRow.event_id || c.matchRow.match_id || c.matchRow.id || "");
+        const digits = evId.replace(/\D/g, "");
+        const key = getMatchKey(c.matchRow.home_team, c.matchRow.away_team);
+        if (evId && blacklistedEventIds.has(evId)) return false;
+        if (digits && blacklistedEventIds.has(digits)) return false;
+        if (key && blacklistedMatchKeys.has(key)) return false;
+        if (isMatchEnded(c.matchRow) || !isMatchValidForSportyBetBooking(c.matchRow)) return false;
+        return true;
+      });
+
+      // Replenish activePool from Supabase oddora_v2_matches if running low
+      if (activePool.length < requestedLegCount + 5) {
+        try {
+          const { data: moreMatches } = await supabase
+            .from("oddora_v2_matches")
+            .select("*")
+            .gte("kickoff_time", new Date(Date.now() + 15 * 60 * 1000).toISOString())
+            .order("win_probability", { ascending: false })
+            .limit(300);
+
+          if (moreMatches && moreMatches.length > 0) {
+            const existingKeys = new Set(activePool.map((c) => getMatchKey(c.matchRow.home_team, c.matchRow.away_team)));
+            for (const m of moreMatches) {
+              if (isMatchEnded(m) || !isMatchValidForSportyBetBooking(m)) continue;
+              const evId = String(m.sportybet_event_id || m.event_id || m.match_id || m.id || "");
+              const digits = evId.replace(/\D/g, "");
+              const key = getMatchKey(m.home_team, m.away_team);
+              if (evId && blacklistedEventIds.has(evId)) continue;
+              if (digits && blacklistedEventIds.has(digits)) continue;
+              if (key && (blacklistedMatchKeys.has(key) || existingKeys.has(key))) continue;
+
+              const opts = generateCandidateMarketsForFixture(m, userTier as any);
+              if (opts.length > 0) {
+                existingKeys.add(key);
+                activePool.push({ matchRow: m, options: opts });
+              }
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("[SlipBuilder] Pool replenishment notice:", fetchErr);
+        }
+      }
+
+      if (activePool.length > 0) {
+        candidateLegs = solveHighWinRatePortfolio(
+          activePool,
+          target,
+          requestedLegCount,
+          isAllSports,
+          isAllMarkets,
+          allowedFilters,
+          isBanker
+        );
+        if (candidateLegs.length > MAX_GAMES_PER_TICKET) {
+          candidateLegs = candidateLegs.slice(0, MAX_GAMES_PER_TICKET);
+        }
+      }
+    }
+
+    console.log(
+      `[SlipBuilder] Verification Pass ${pass}/${MAX_REPLACEMENT_PASSES}: Submitting ${candidateLegs.length} legs to SportyBet order share...`
+    );
+
+    const isLastPass = pass === MAX_REPLACEMENT_PASSES;
+    const booked = await bookVaultSlip(candidateLegs, {
+      slip_category: "CUSTOM_SOLVER",
+      target_odds: target,
+      preserve_exact_legs: true,
+      require_all_legs: !isLastPass,
+    });
+
+    const returnedCode = (booked.sportybet_code || booked.code || "").trim();
+
+    // Verify live outcomes directly from SportyBet API
+    let liveOutcomes: any[] = [];
+    if (returnedCode) {
+      try {
+        liveOutcomes = await getSportyBetShareOutcomes(returnedCode);
+      } catch (err) {
+        console.warn("[SlipBuilder] Live share outcome check notice:", err);
+      }
+    }
+
+    const liveAcceptedCount = liveOutcomes.length > 0 ? liveOutcomes.length : (booked.legs ? booked.legs.length : 0);
+    const liveAcceptedSet = new Set<string>();
+    if (liveOutcomes.length > 0) {
+      for (const o of liveOutcomes) {
+        if (o.eventId) liveAcceptedSet.add(String(o.eventId).trim());
+        const digits = String(o.eventId || "").replace(/\D/g, "");
+        if (digits) liveAcceptedSet.add(digits);
+      }
+    } else if (booked.accepted_event_ids && booked.accepted_event_ids.length > 0) {
+      for (const id of booked.accepted_event_ids) {
+        liveAcceptedSet.add(String(id).trim());
+        const digits = String(id).replace(/\D/g, "");
+        if (digits) liveAcceptedSet.add(digits);
+      }
+    }
+
+    const isLegInSportyTicket = (l: CustomBuilderLeg) => {
+      const evId = String(l.eventId || "").trim();
+      const digits = evId.replace(/\D/g, "");
+      return liveAcceptedSet.has(evId) || (digits.length >= 4 && liveAcceptedSet.has(digits));
+    };
+
+    const droppedLegs = candidateLegs.filter((l) => !isLegInSportyTicket(l));
+
+    if (!returnedCode || droppedLegs.length > 0 || liveAcceptedCount < candidateLegs.length) {
+      // SportyBet dropped legs or rejected the batch!
+      console.warn(
+        `[SlipBuilder Pass ${pass}] Dropped legs detected: ${droppedLegs.length} leg(s) dropped by SportyBet (${liveAcceptedCount}/${candidateLegs.length} accepted).`
+      );
+
+      // Blacklist all dropped legs and failed legs
+      for (const d of droppedLegs) {
+        blacklistedEventIds.add(String(d.eventId));
+        const digits = String(d.eventId || "").replace(/\D/g, "");
+        if (digits) blacklistedEventIds.add(digits);
+        blacklistedMatchKeys.add(getMatchKey(d.home_team, d.away_team));
+      }
+
+      if (booked.rejected_event_ids) {
+        for (const rejId of booked.rejected_event_ids) {
+          blacklistedEventIds.add(String(rejId));
+          const digits = String(rejId).replace(/\D/g, "");
+          if (digits) blacklistedEventIds.add(digits);
+        }
+      }
+
+      // If not the last pass, do not accept this code! Continue to next pass to replace and re-solve!
+      if (!isLastPass) {
+        continue;
+      }
+    }
+
+    // SportyBet accepted all legs (or we're on the final pass and have a valid code)
+    if (returnedCode && (booked.legs.length > 0 || liveOutcomes.length > 0)) {
+      finalBookedResult = booked;
+      finalConfirmedOutcomes = liveOutcomes;
+      break;
+    }
+  }
+
+  if (!finalBookedResult || !finalBookedResult.sportybet_code) {
+    throw new Error(
+      finalBookedResult?.error_message ||
+        "SportyBet order share could not verify the selections. Please try again."
+    );
+  }
+
+  const primaryCode = finalBookedResult.sportybet_code;
+  const shareUrl = finalBookedResult.sporty_url;
+
+  // Build verifiedLegs: strictly the legs that were accepted and registered in SportyBet's code
+  const liveConfirmedSet = new Set<string>();
+  if (finalConfirmedOutcomes.length > 0) {
+    for (const o of finalConfirmedOutcomes) {
+      if (o.eventId) liveConfirmedSet.add(String(o.eventId).trim());
+      const digits = String(o.eventId || "").replace(/\D/g, "");
+      if (digits) liveConfirmedSet.add(digits);
+    }
+  } else if (finalBookedResult.accepted_event_ids && finalBookedResult.accepted_event_ids.length > 0) {
+    for (const id of finalBookedResult.accepted_event_ids) {
+      liveConfirmedSet.add(String(id).trim());
+      const digits = String(id).replace(/\D/g, "");
+      if (digits) liveConfirmedSet.add(digits);
+    }
+  }
+
+  let matchedVerified = candidateLegs.filter((l) => {
+    const evId = String(l.eventId || "").trim();
+    const digits = evId.replace(/\D/g, "");
+    return liveConfirmedSet.has(evId) || (digits.length >= 4 && liveConfirmedSet.has(digits));
+  });
+
+  if (matchedVerified.length === 0 && finalBookedResult.legs && finalBookedResult.legs.length > 0) {
+    matchedVerified = finalBookedResult.legs.map((l: any) => ({
+      match: l.match,
+      home_team: l.home_team,
+      away_team: l.away_team,
+      league: l.league,
+      market: l.market,
+      selection: l.selection,
+      odd: Number(l.odd) || 1.35,
+      win_probability: Number(l.win_probability) || 82,
+      eventId: l.eventId,
+      marketId: String(l.marketId || "1"),
+      outcomeId: String(l.outcomeId || "1"),
+      specifier: l.specifier ?? null,
+      sport: l.sport || "FOOTBALL",
+      marketCategory: l.market || "Match Winner",
+    }));
+  }
+
+  const verifiedLegs: CustomBuilderLeg[] = matchedVerified;
+
+  // Strict cumulative odds multiplication: TotalOdds = product of all verified leg odds
+  const finalCalculatedOdds = Math.round(
+    verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) > 1.0 ? Number(l.odd) : 1.0), 1.0) * 100
+  ) / 100;
+  const finalAccuracy = Math.round((finalCalculatedOdds / target) * 1000) / 10;
 
   const avgLegProb = Math.round(
-    selectedLegs.reduce((acc, l) => acc + l.win_probability, 0) / Math.max(1, selectedLegs.length)
+    verifiedLegs.reduce((acc, l) => acc + l.win_probability, 0) / Math.max(1, verifiedLegs.length)
   );
 
   let safetyGrade = "A High Value";
@@ -1109,66 +1377,23 @@ export async function buildCustomSlip(
   // Combined slip win rate estimate
   const compoundWinRate =
     Math.round(
-      selectedLegs.reduce((acc, l) => acc * (l.win_probability / 100), 1.0) * 1000
+      verifiedLegs.reduce((acc, l) => acc * (l.win_probability / 100), 1.0) * 1000
     ) / 10;
-
-  // 4. Book authentic verified live booking codes via Core Booking Vault with PRESERVE EXACT LEGS
-  let booked = await bookVaultSlip(selectedLegs, {
-    slip_category: "CUSTOM_SOLVER",
-    target_odds: target,
-    preserve_exact_legs: true,
-  });
-
-  if (booked.status === "error" || !booked.sportybet_code) {
-    throw new Error(
-      booked.error_message || "SportyBet order share could not verify the selections. Please try again."
-    );
-  }
-
-  let sportyCode = booked.sportybet_code;
-  let sportyUrl = booked.sporty_url;
-
-  const primaryCode = sportyCode;
-  const shareUrl = sportyUrl;
-  
-  // Guarantee that verifiedLegs retains strictly the legs booked by SportyBet
-  const rawVerified =
-    booked.legs && booked.legs.length > 0
-      ? booked.legs
-      : (booked.legs_json && booked.legs_json.length > 0
-          ? booked.legs_json
-          : selectedLegs);
-
-  const verifiedLegs: CustomBuilderLeg[] = rawVerified.map((l: any, i: number) => ({
-    match: l.match || selectedLegs[i]?.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
-    home_team: l.home_team || selectedLegs[i]?.home_team || "Home",
-    away_team: l.away_team || selectedLegs[i]?.away_team || "Away",
-    league: l.league || selectedLegs[i]?.league || "Premier Division",
-    market: l.market || selectedLegs[i]?.market || "Match Winner",
-    selection: l.selection || selectedLegs[i]?.selection || "Selection",
-    odd: Number(l.odd || selectedLegs[i]?.odd) || 1.35,
-    win_probability: Number(l.win_probability || selectedLegs[i]?.win_probability) || 82,
-    eventId: l.eventId || selectedLegs[i]?.eventId,
-    marketId: String(l.marketId || selectedLegs[i]?.marketId || "1"),
-    outcomeId: String(l.outcomeId || selectedLegs[i]?.outcomeId || "1"),
-    specifier: l.specifier ?? selectedLegs[i]?.specifier ?? null,
-    sport: l.sport || selectedLegs[i]?.sport || "FOOTBALL",
-    marketCategory: l.marketCategory || selectedLegs[i]?.marketCategory || l.market || "Match Winner",
-    edgeScore: l.edgeScore ?? selectedLegs[i]?.edgeScore,
-  }));
-
-  // Strict cumulative odds multiplication: TotalOdds = product of all verified leg odds
-  const finalCalculatedOdds = Math.round(
-    verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) > 1.0 ? Number(l.odd) : 1.0), 1.0) * 100
-  ) / 100;
-  const finalAccuracy = Math.round((finalCalculatedOdds / target) * 1000) / 10;
 
   return {
     bookmaker: "SPORTYBET",
     booking_code: primaryCode,
-    sporty_code: sportyCode,
+    sporty_code: primaryCode,
+    code: primaryCode,
+    shareCode: primaryCode,
+    bookingCode: primaryCode,
+    sportybet_code: primaryCode,
+    sportybetCode: primaryCode,
+    sportyCode: primaryCode,
     share_url: shareUrl,
-    sporty_url: sportyUrl,
+    sporty_url: shareUrl,
+    shareUrl: shareUrl,
+    sportyUrl: shareUrl,
     target_odds_requested: target,
     actual_combined_odds: finalCalculatedOdds,
     odds_accuracy_ratio: `${finalAccuracy}%`,

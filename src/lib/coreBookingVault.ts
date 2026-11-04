@@ -72,10 +72,13 @@ export interface VaultBookingResult {
   actual_odds: number;
   legs_count: number;
   is_verified_live: boolean;
+  all_legs_accepted?: boolean;
   legs: VaultBookedLeg[];
   legs_json: VaultBookedLeg[];
   accepted_event_ids?: string[];
   acceptedEventIds?: string[];
+  rejected_event_ids?: string[];
+  rejectedEventIds?: string[];
   error_message?: string;
   bet9ja_code?: string;
   bet9ja_url?: string;
@@ -160,7 +163,7 @@ export async function fetchLiveSportyBetCatalogWithRealMarkets(
     for (const ev of events) {
       if (!ev || !ev.eventId) continue;
       const startTime = Number(ev.estimateStartTime);
-      if (startTime && startTime <= nowMs + 5 * 60 * 1000) continue; // Exclude past / kicking off within 5 minutes
+      if (startTime && startTime <= nowMs + 15 * 60 * 1000) continue; // Exclude past / kicking off within 15 minutes
 
       const home = (ev.homeTeamName || "").trim();
       const away = (ev.awayTeamName || "").trim();
@@ -216,33 +219,51 @@ export async function fetchLiveSportyBetCatalogWithRealMarkets(
 
 /**
  * PRE-FLIGHT VALIDATION CHECK:
- * Ensures no selected match is suspended, cancelled, or kicking off within 45 minutes,
- * preventing dead/expired codes from being issued on SportyBet.
+ * Strictly eliminates at-risk fixtures:
+ * 1. Checks kickoff lead time > 15 minutes before match start.
+ * 2. Strictly filters out matches that are suspended, cancelled, postponed, closed, ended, finished, or live.
+ * 3. Enforces that fixture status must strictly be upcoming/open.
  */
 export function isMatchValidForSportyBetBooking(sel: any): boolean {
   if (!sel) return false;
 
-  const status = String(sel.status || sel.match_status || "").toLowerCase();
+  const rawStatus = String(sel.status || sel.match_status || sel.game_status || "").toLowerCase().trim();
   if (
-    status === "suspended" ||
-    status === "postponed" ||
-    status === "cancelled" ||
-    status === "interrupted" ||
-    status === "abandoned" ||
-    status === "ended" ||
-    status === "closed" ||
-    status === "live" ||
-    status === "ft" ||
-    status === "finished"
+    rawStatus === "suspended" ||
+    rawStatus === "postponed" ||
+    rawStatus === "cancelled" ||
+    rawStatus === "interrupted" ||
+    rawStatus === "abandoned" ||
+    rawStatus === "ended" ||
+    rawStatus === "closed" ||
+    rawStatus === "live" ||
+    rawStatus === "in_progress" ||
+    rawStatus === "1h" ||
+    rawStatus === "2h" ||
+    rawStatus === "ht" ||
+    rawStatus === "ft" ||
+    rawStatus === "finished"
   ) {
     return false;
   }
 
-  const timeVal = sel.startTime || sel.scheduled_time || sel.kickoff_time || sel.kickoffTime || sel.eventTime || sel.scheduled;
+  // If status is present, ensure it represents an open/upcoming fixture
+  if (rawStatus && !["upcoming", "not_started", "scheduled", "open", "fixture"].includes(rawStatus)) {
+    return false;
+  }
+
+  const timeVal =
+    sel.startTime ||
+    sel.start_time ||
+    sel.scheduled_time ||
+    sel.kickoff_time ||
+    sel.kickoffTime ||
+    sel.eventTime ||
+    sel.scheduled;
   if (timeVal) {
     const kickoffMs = typeof timeVal === "number" ? timeVal : new Date(timeVal).getTime();
     if (!isNaN(kickoffMs)) {
-      const minLeadTimeMs = 5 * 60 * 1000; // Filter out matches kicking off within 5 minutes
+      const minLeadTimeMs = 15 * 60 * 1000; // Strictly filter out matches kicking off within 15 minutes
       const now = Date.now();
       if (kickoffMs <= now + minLeadTimeMs) {
         return false;
@@ -512,6 +533,7 @@ export async function bookVaultSlip(
     required_tier?: "FREE" | "PRO" | "PREMIUM";
     target_odds?: number;
     preserve_exact_legs?: boolean;
+    require_all_legs?: boolean;
   } = {}
 ): Promise<VaultBookingResult> {
   if (!Array.isArray(selections) || selections.length === 0) {
@@ -641,7 +663,10 @@ export async function bookVaultSlip(
   let sportyCode = "";
   let sportyUrl = "";
   let isVerifiedLive = false;
+  let allLegsAccepted = false;
   let finalLegs: VaultBookedLeg[] = [];
+  let acceptedLegIds: string[] = [];
+  let rejectedLegIds: string[] = [];
 
   // 2. Primary Dispatch to SportyBet order share endpoint
   try {
@@ -657,21 +682,57 @@ export async function bookVaultSlip(
       const json = await res.json();
       const hasCode = Boolean((json.bizCode === 10000 || json.innerCode === "10000") && json.data?.shareCode);
       const returnedOutcomes = Array.isArray(json.data?.outcomes) ? json.data.outcomes : [];
-      const acceptedSet = new Set(returnedOutcomes.map((o: any) => String(o.eventId || o.id || "")));
 
-      if (hasCode && returnedOutcomes.length === candidateLegs.length) {
+      const acceptedSet = new Set<string>();
+      for (const o of returnedOutcomes) {
+        if (o.eventId) acceptedSet.add(String(o.eventId).trim());
+        if (o.id) acceptedSet.add(String(o.id).trim());
+        const digits = String(o.eventId || o.id || "").replace(/\D/g, "");
+        if (digits) acceptedSet.add(digits);
+      }
+
+      const isLegAccepted = (l: VaultBookedLeg) => {
+        const evId = String(l.eventId || "").trim();
+        const digits = evId.replace(/\D/g, "");
+        return acceptedSet.has(evId) || (digits.length >= 4 && acceptedSet.has(digits));
+      };
+
+      const acceptedCandidateLegs = candidateLegs.filter(isLegAccepted);
+      const droppedCandidateLegs = candidateLegs.filter((l) => !isLegAccepted(l));
+      const droppedEventIds = droppedCandidateLegs.map((l) => l.eventId);
+
+      if (hasCode && acceptedCandidateLegs.length === candidateLegs.length) {
         // 100% of candidate legs booked
         sportyCode = json.data.shareCode;
         sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
         finalLegs = [...candidateLegs];
         isVerifiedLive = true;
-      } else if (hasCode && returnedOutcomes.length > 0 && candidateLegs.some((l) => acceptedSet.has(l.eventId))) {
-        // Partial set accepted by SportyBet — sync finalLegs to exactly the accepted outcomes!
-        finalLegs = candidateLegs.filter((l) => acceptedSet.has(l.eventId));
-        sportyCode = json.data.shareCode;
-        sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-        isVerifiedLive = true;
-        console.log(`[SportyBet Vault] Partial success: SportyBet booked ${finalLegs.length}/${candidateLegs.length} legs. Code: ${sportyCode}`);
+        allLegsAccepted = true;
+        acceptedLegIds = candidateLegs.map((l) => l.eventId);
+        rejectedLegIds = [];
+      } else if (hasCode && acceptedCandidateLegs.length > 0) {
+        acceptedLegIds = acceptedCandidateLegs.map((l) => l.eventId);
+        rejectedLegIds = droppedEventIds;
+
+        if (options.require_all_legs) {
+          // Caller strictly requires 100% of legs accepted — do not accept partial code!
+          console.warn(
+            `[SportyBet Vault] Dropped legs detected: SportyBet returned ${acceptedCandidateLegs.length}/${candidateLegs.length} legs. Rejecting code due to require_all_legs.`
+          );
+          allLegsAccepted = false;
+          // Do not assign sportyCode so caller knows legs were dropped
+        } else {
+          // Partial set accepted by SportyBet — sync finalLegs to exactly the accepted outcomes!
+          finalLegs = acceptedCandidateLegs;
+          sportyCode = json.data.shareCode;
+          sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+          isVerifiedLive = true;
+          allLegsAccepted = false;
+          console.log(`[SportyBet Vault] Partial success: SportyBet booked ${finalLegs.length}/${candidateLegs.length} legs. Code: ${sportyCode}`);
+        }
+      } else {
+        allLegsAccepted = false;
+        rejectedLegIds = candidateLegs.map((l) => l.eventId);
       }
     }
   } catch (err) {
@@ -718,8 +779,15 @@ export async function bookVaultSlip(
         )
         .map((r) => r.value);
 
-      if (openLegs.length > 1) {
-        // Re-submit the batch with ONLY verified open matches
+      const failedLegs = candidateLegs.filter(
+        (_, idx) => probeResults[idx].status === "rejected" || (probeResults[idx].status === "fulfilled" && probeResults[idx].value === null)
+      );
+      if (failedLegs.length > 0) {
+        rejectedLegIds = Array.from(new Set([...rejectedLegIds, ...failedLegs.map((l) => l.eventId)]));
+      }
+
+      if (openLegs.length === candidateLegs.length && openLegs.length > 1) {
+        // Re-submit the batch with ALL open matches
         const batchRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
           method: "POST",
           headers: SPORTYBET_BROWSER_HEADERS,
@@ -734,20 +802,84 @@ export async function bookVaultSlip(
             sportyUrl = batchJson.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
             finalLegs = openLegs.map((o) => o.leg);
             isVerifiedLive = true;
+            allLegsAccepted = true;
+            acceptedLegIds = finalLegs.map((l) => l.eventId);
           }
         }
-      } else if (openLegs.length === 1) {
-        sportyCode = openLegs[0].shareCode;
-        sportyUrl = openLegs[0].shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-        finalLegs = [openLegs[0].leg];
-        isVerifiedLive = true;
+      } else if (!options.require_all_legs && openLegs.length > 0) {
+        if (openLegs.length > 1) {
+          const batchRes = await fetch("https://www.sportybet.com/api/ng/orders/share", {
+            method: "POST",
+            headers: SPORTYBET_BROWSER_HEADERS,
+            body: JSON.stringify({ selections: openLegs.map((o) => o.payload) }),
+            cache: "no-store",
+            signal: AbortSignal.timeout(6000),
+          });
+          if (batchRes.ok) {
+            const batchJson = await batchRes.json();
+            if ((batchJson.bizCode === 10000 || batchJson.innerCode === "10000") && batchJson.data?.shareCode) {
+              sportyCode = batchJson.data.shareCode;
+              sportyUrl = batchJson.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+              finalLegs = openLegs.map((o) => o.leg);
+              isVerifiedLive = true;
+              allLegsAccepted = false;
+              acceptedLegIds = finalLegs.map((l) => l.eventId);
+            }
+          }
+        } else if (openLegs.length === 1) {
+          sportyCode = openLegs[0].shareCode;
+          sportyUrl = openLegs[0].shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
+          finalLegs = [openLegs[0].leg];
+          isVerifiedLive = true;
+          allLegsAccepted = false;
+          acceptedLegIds = [openLegs[0].leg.eventId];
+        }
       }
     } catch (probeErr) {
       console.warn("[SportyBet Vault] Per-leg probe error:", probeErr);
     }
   }
 
-  // 4. Return error if no authentic SportyBet booking code could be produced
+  // 4. Live GET verification of the generated SportyBet code
+  if (sportyCode && isVerifiedLive) {
+    try {
+      const liveOutcomes = await getSportyBetShareOutcomes(sportyCode);
+      if (liveOutcomes.length > 0) {
+        const liveSet = new Set<string>();
+        for (const o of liveOutcomes) {
+          if (o.eventId) liveSet.add(String(o.eventId).trim());
+          if (o.id) liveSet.add(String(o.id).trim());
+          const digits = String(o.eventId || o.id || "").replace(/\D/g, "");
+          if (digits) liveSet.add(digits);
+        }
+
+        const isLiveAccepted = (l: VaultBookedLeg) => {
+          const evId = String(l.eventId || "").trim();
+          const digits = evId.replace(/\D/g, "");
+          return liveSet.has(evId) || (digits.length >= 4 && liveSet.has(digits));
+        };
+
+        const liveConfirmed = finalLegs.filter(isLiveAccepted);
+        if (options.require_all_legs && liveConfirmed.length < candidateLegs.length) {
+          console.warn(
+            `[SportyBet Vault] Live share check confirmed ${liveConfirmed.length}/${candidateLegs.length} legs. Rejecting code.`
+          );
+          allLegsAccepted = false;
+          sportyCode = "";
+          finalLegs = liveConfirmed;
+          const liveDropped = candidateLegs.filter((l) => !isLiveAccepted(l)).map((l) => l.eventId);
+          rejectedLegIds = Array.from(new Set([...rejectedLegIds, ...liveDropped]));
+        } else {
+          finalLegs = liveConfirmed;
+          acceptedLegIds = finalLegs.map((l) => l.eventId);
+        }
+      }
+    } catch (vErr) {
+      console.warn("[SportyBet Vault] Live share GET verification notice:", vErr);
+    }
+  }
+
+  // 5. Return error if no authentic SportyBet booking code could be produced
   if (!sportyCode || sportyCode.trim().length < 4 || finalLegs.length === 0) {
     return {
       status: "error",
@@ -768,11 +900,17 @@ export async function bookVaultSlip(
       actual_odds: 1.0,
       legs_count: 0,
       is_verified_live: false,
+      all_legs_accepted: false,
       legs: [],
       legs_json: [],
-      accepted_event_ids: [],
-      acceptedEventIds: [],
-      error_message: "None of the selected matches are currently available for booking on SportyBet. Some markets may have closed.",
+      accepted_event_ids: acceptedLegIds,
+      acceptedEventIds: acceptedLegIds,
+      rejected_event_ids: rejectedLegIds,
+      rejectedEventIds: rejectedLegIds,
+      error_message:
+        rejectedLegIds.length > 0
+          ? `${rejectedLegIds.length} match(es) are currently suspended or unavailable on SportyBet.`
+          : "None of the selected matches are currently available for booking on SportyBet. Some markets may have closed.",
     };
   }
 
@@ -820,10 +958,13 @@ export async function bookVaultSlip(
     actual_odds: actualOdds,
     legs_count: finalLegs.length,
     is_verified_live: isVerifiedLive,
+    all_legs_accepted: allLegsAccepted,
     legs: finalLegs,
     legs_json: finalLegs,
     accepted_event_ids: acceptedEventIds,
     acceptedEventIds: acceptedEventIds,
+    rejected_event_ids: rejectedLegIds,
+    rejectedEventIds: rejectedLegIds,
     error_message: undefined,
   };
 }

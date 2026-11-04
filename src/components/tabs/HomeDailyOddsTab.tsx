@@ -238,10 +238,31 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
   async function fetchSlips() {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/engines/daily-slips?tier=${currentTier}`);
+      let res = await fetch(`/api/daily-accumulators?tier=${currentTier}`);
+      if (!res.ok) {
+        res = await fetch(`/api/engines/daily-slips?tier=${currentTier}`);
+      }
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json.data)) setSlips(json.data);
+        const incoming = Array.isArray(json.data) ? json.data : (Array.isArray(json.slips) ? json.slips : []);
+        if (incoming.length > 0) {
+          // If all or some slips have 0 matches, auto force refresh
+          const hasEmpty = incoming.some(
+            (s: any) => (!s.legs || s.legs.length === 0) && (!s.legs_json || s.legs_json.length === 0)
+          );
+          if (hasEmpty) {
+            const forceRes = await fetch(`/api/daily-accumulators?tier=${currentTier}&force=true`);
+            if (forceRes.ok) {
+              const forceJson = await forceRes.json();
+              const refreshed = Array.isArray(forceJson.data) ? forceJson.data : forceJson.slips;
+              if (Array.isArray(refreshed) && refreshed.length > 0) {
+                setSlips(refreshed);
+                return;
+              }
+            }
+          }
+          setSlips(incoming);
+        }
       }
     } catch {
     } finally {
@@ -626,7 +647,9 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
               // Strict Payload-to-Display Binding: Render strictly from slip.legs_json with defensive 1-to-1 match deduplication
               const rawLegs = Array.isArray(matchedSlip?.legs_json) && matchedSlip.legs_json.length > 0
                 ? matchedSlip.legs_json
-                : (Array.isArray(matchedSlip?.legs) ? matchedSlip.legs : []);
+                : (Array.isArray(matchedSlip?.legs) && matchedSlip.legs.length > 0
+                  ? matchedSlip.legs
+                  : (Array.isArray(matchedSlip?.matches) ? matchedSlip.matches : []));
 
               const seenMatchKeys = new Set<string>();
               const legs: any[] = [];

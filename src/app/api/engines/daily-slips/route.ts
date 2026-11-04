@@ -14,16 +14,19 @@ export async function GET(request: NextRequest) {
 
     let slips = await getDailySlipsForUI(tier);
 
-    // If force is requested, or slips missing (< 8), bloated (> 25 legs), duplicate matches, or monochromatic, auto-generate clean diversified slips
+    // If force is requested, or slips missing (< 8), bloated (> 25 legs), duplicate matches, monochromatic, or empty (0 legs / <= 1.05 odds), auto-generate clean diversified slips
     const hasBloatedSlip = Boolean(slips && slips.some((s) => (s.legs?.length || 0) > 25));
     const hasDuplicateMatches = Boolean(slips && slips.some(hasDuplicateLegsInSlip));
     const hasMonochromatic = Boolean(slips && slips.some(isMonochromaticSlip));
     const isMissingSlips = !slips || slips.length < 8;
+    const hasEmptySlips = Boolean(
+      slips && slips.some((s) => (!s.legs || s.legs.length === 0) && (!s.legs_json || s.legs_json.length === 0) || Number(s.actual_odds) <= 1.05)
+    );
 
-    if (force || isMissingSlips || hasBloatedSlip || hasDuplicateMatches || hasMonochromatic) {
+    if (force || isMissingSlips || hasBloatedSlip || hasDuplicateMatches || hasMonochromatic || hasEmptySlips) {
       try {
         console.log(
-          `[Daily Slips API] Regenerating slips (force: ${force}, missing: ${isMissingSlips}, bloated: ${hasBloatedSlip}, duplicates: ${hasDuplicateMatches}, monochromatic: ${hasMonochromatic})...`
+          `[Daily Slips API] Regenerating slips (force: ${force}, missing: ${isMissingSlips}, bloated: ${hasBloatedSlip}, duplicates: ${hasDuplicateMatches}, monochromatic: ${hasMonochromatic}, empty: ${hasEmptySlips})...`
         );
         await generateAndBookDailySlips();
         slips = await getDailySlipsForUI(tier);

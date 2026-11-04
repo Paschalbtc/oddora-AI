@@ -205,25 +205,47 @@ export function generateCandidateMarketsForFixture(
     }
   }
 
-  // 3. Fallback: If no candidate yet, resolve default selection and market via resolveSportyBetMarket
-  if (candidates.length === 0 && matchEventId) {
-    const defaultSel = matchRow.best_outcome || matchRow.selection_label || "1X";
-    const defaultMkt = matchRow.market_name || "Double Chance";
-    const resolved = resolveSportyBetMarket(defaultSel, matchRow, defaultMkt);
-    const mId = resolved.sportybetSelection.marketId;
-    const oId = resolved.sportybetSelection.outcomeId;
-    if (mId && oId && /^\d+$/.test(mId) && /^\d+$/.test(oId)) {
-      candidates.push({
-        marketCategory: resolved.marketCategory,
-        outcomeLabel: resolved.selectionName || defaultSel,
-        oddValue: Math.max(1.15, Math.min(2.50, Number(matchRow.odd_value) || baseOdd)),
-        trueWinProbability: Number(matchRow.win_probability) || baseProb,
-        sport,
-        marketId: mId,
-        outcomeId: oId,
-        specifier: resolved.sportybetSelection.specifier || null,
-        eventId: matchEventId,
-      });
+  // 3. Fallback & Default Primary Markets (1X2, Double Chance, Over 1.5, BTTS)
+  // Ensures that if a fixture lacks specialized AI sub-probabilities, primary markets are guaranteed so the solver always has 100+ fixtures
+  if (candidates.length < 3 && matchEventId) {
+    const isFootball = sport === "FOOTBALL";
+    const defaultMarkets: Array<{
+      cat: any;
+      label: string;
+      odd: number;
+      prob: number;
+      mId: string;
+      oId: string;
+      spec: string | null;
+    }> = isFootball
+      ? [
+          { cat: "DOUBLE_CHANCE", label: "1X (Home or Draw)", odd: 1.34, prob: 86, mId: "10", oId: "9", spec: null },
+          { cat: "OVER_UNDER", label: "Over 1.5 Goals", odd: 1.38, prob: 84, mId: "18", oId: "12", spec: "total=1.5" },
+          { cat: "DOUBLE_CHANCE", label: "X2 (Draw or Away)", odd: 1.38, prob: 84, mId: "10", oId: "11", spec: null },
+          { cat: "1X2", label: "Home Win", odd: 1.55, prob: 78, mId: "1", oId: "1", spec: null },
+          { cat: "BTTS", label: "GG (Both Teams to Score)", odd: 1.72, prob: 75, mId: "29", oId: "74", spec: null },
+        ]
+      : [
+          { cat: "MATCH_WINNER", label: "Home Win", odd: 1.45, prob: 80, mId: "1", oId: "1", spec: null },
+          { cat: "MATCH_WINNER", label: "Away Win", odd: 1.55, prob: 75, mId: "1", oId: "2", spec: null },
+        ];
+
+    for (const dm of defaultMarkets) {
+      const dedupKey = `${dm.mId}_${dm.oId}_${dm.spec || ""}`;
+      if (!seenMarketKeys.has(dedupKey) && isMarketAllowedForTier(dm.cat, userTier)) {
+        seenMarketKeys.add(dedupKey);
+        candidates.push({
+          marketCategory: dm.cat,
+          outcomeLabel: dm.label,
+          oddValue: dm.odd,
+          trueWinProbability: dm.prob,
+          sport,
+          marketId: dm.mId,
+          outcomeId: dm.oId,
+          specifier: dm.spec,
+          eventId: matchEventId,
+        });
+      }
     }
   }
 
@@ -440,26 +462,24 @@ function solveHighWinRatePortfolio(
 
   const targetLogPerLeg = Math.log(targetOdds) / Math.max(2, N);
 
-  // Adaptive confidence / safety floor based on target odds corridor:
-  // - Conservative slips (< 10x): Target high-confidence safe legs (1.20 - 1.50)
-  // - Medium slips (10x - 100x): Dynamic threshold (confidence >= 0.50)
-  // - Mega slips (100x up to 200,000x): Relax floor to include high-value markets (Double Chance, Over 1.5/2.5, BTTS, Win Either Half, Spreads)
-  let minProbFloor = 65;
+  // Strategy-based probability floor (No rigid 70% gate):
+  // - Pure Safe Banker mode: targets safe outcomes (odds 1.10 - 1.25/1.30), expands down to 60% if needed.
+  // - Auto Sweet-Spot mode (1.18 - 1.40 odds): accepts all valid market selections with probability >= 45% (0.45).
+  // - Large accumulators (up to 200,000x target odds): removes the safety filter floor entirely (floor = 0) so the solver stacks upcoming fixtures.
+  let minProbFloor = 45;
   if (isBankerMode) {
-    minProbFloor = 80;
-  } else if (targetOdds < 10) {
-    minProbFloor = 65;
-  } else if (targetOdds <= 100) {
-    minProbFloor = 50;
+    minProbFloor = 75; // Pure Safe Banker: target safe outcomes, dynamic expansion down to 60 if needed
+  } else if (targetOdds >= 100) {
+    minProbFloor = 0; // Large accumulators: completely remove floor so solver never runs out of fixtures
   } else {
-    minProbFloor = targetOdds > 10000 ? 35 : 42;
+    minProbFloor = 45; // Auto Sweet-Spot: accept all valid selections >= 45%
   }
 
   // If user requested a custom match count, scale minProbFloor dynamically so fair market probability legs are unlocked
   if (!isBankerMode && exactCount > 0) {
     const targetOddPerLeg = Math.pow(targetOdds, 1 / N);
     const scaledFloor = Math.round(85 / Math.max(1.1, targetOddPerLeg));
-    minProbFloor = Math.min(minProbFloor, Math.max(35, scaledFloor));
+    minProbFloor = Math.min(minProbFloor, Math.max(0, Math.min(45, scaledFloor)));
   }
 
   // Progressive Pool Population Helper to ensure solver NEVER runs out of candidate fixtures
@@ -509,9 +529,9 @@ function solveHighWinRatePortfolio(
       const matchKey = getMatchKey(matchRow.home_team, matchRow.away_team);
 
       for (const opt of options) {
-        if (opt.trueWinProbability < probFloor) continue;
+        if (probFloor > 0 && opt.trueWinProbability < probFloor) continue;
 
-        // In Banker mode: only allow pure banker markets
+        // In Banker mode: target safe outcomes with odds 1.10 - 1.30
         if (isBankerMode) {
           const lbl = opt.outcomeLabel.toLowerCase();
           const cat = opt.marketCategory.toLowerCase();
@@ -527,8 +547,9 @@ function solveHighWinRatePortfolio(
             cat === "bk_spread" ||
             lbl.includes("+1.5") ||
             lbl.includes("+2.5") ||
-            lbl.includes("+8.5");
-          if (!isPureBanker) continue;
+            lbl.includes("+8.5") ||
+            (opt.oddValue >= 1.10 && opt.oddValue <= 1.35);
+          if (!bypassFilters && !isPureBanker) continue;
         }
 
         // Filter by user's market selection unless bypassed
@@ -555,9 +576,20 @@ function solveHighWinRatePortfolio(
 
   // Progressive relaxation if pool is smaller than target leg count N
   if (validPool.length < N) {
-    const floors = [50, 42, 35, 25, 0];
-    for (const f of floors) {
-      if (f < minProbFloor) {
+    if (isBankerMode) {
+      // For Banker mode: automatically expand down to 60% probability (and further to 0% if needed)
+      const bankerFloors = [60, 50, 40, 0];
+      for (const f of bankerFloors) {
+        const relaxed = populatePool(f);
+        if (relaxed.length > validPool.length) {
+          validPool = relaxed;
+          if (validPool.length >= N) break;
+        }
+      }
+    } else {
+      // Auto Sweet-Spot: progressively expand down through [35, 25, 0]
+      const floors = [35, 25, 0];
+      for (const f of floors) {
         const relaxed = populatePool(f);
         if (relaxed.length > validPool.length) {
           validPool = relaxed;
@@ -569,7 +601,7 @@ function solveHighWinRatePortfolio(
 
   // If still fewer than N, bypass market filter to harvest all valid markets for available fixtures
   if (validPool.length < N) {
-    const unconstrained = populatePool(20, true);
+    const unconstrained = populatePool(0, true);
     if (unconstrained.length > validPool.length) {
       validPool = unconstrained;
     }
@@ -1071,7 +1103,7 @@ export async function buildCustomSlip(
   let query = supabase
     .from("oddora_v2_matches")
     .select("*")
-    .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
+    .gte("kickoff_time", minKickoffIso)
     .order("win_probability", { ascending: false });
 
   if (horizon === "today") {
@@ -1093,14 +1125,14 @@ export async function buildCustomSlip(
 
   let { data: rawMatches } = await query;
 
-  // If few matches found for today (< 15), broaden horizon to upcoming dates so solver has rich pre-verified candidate pool
-  if (!rawMatches || rawMatches.length < 15) {
+  // If few matches found for today (< 100), broaden horizon to upcoming dates so solver has rich pre-verified candidate pool (always 100+ fixtures available)
+  if (!rawMatches || rawMatches.length < 100) {
     let broadQuery = supabase
       .from("oddora_v2_matches")
       .select("*")
-      .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
+      .gte("kickoff_time", minKickoffIso)
       .order("win_probability", { ascending: false })
-      .limit(300);
+      .limit(500);
 
     if (sport !== "all" && sport !== "banker") {
       if (sport === "tennis" || sport === "table_tennis") {
@@ -1128,7 +1160,7 @@ export async function buildCustomSlip(
       let retryQuery = supabase
         .from("oddora_v2_matches")
         .select("*")
-        .or(`kickoff_time.gte.${minKickoffIso},start_time.gte.${minKickoffIso}`)
+        .gte("kickoff_time", minKickoffIso)
         .order("win_probability", { ascending: false })
         .limit(300);
 
@@ -1267,7 +1299,7 @@ export async function buildCustomSlip(
           const { data: moreMatches } = await supabase
             .from("oddora_v2_matches")
             .select("*")
-            .or(`kickoff_time.gte.${new Date(Date.now() + 5 * 60 * 1000).toISOString()},start_time.gte.${new Date(Date.now() + 5 * 60 * 1000).toISOString()}`)
+            .gte("kickoff_time", new Date(Date.now() + 5 * 60 * 1000).toISOString())
             .order("win_probability", { ascending: false })
             .limit(300);
 
@@ -1506,4 +1538,41 @@ export async function buildCustomSlip(
     legs: verifiedLegs,
     legs_json: verifiedLegs,
   };
+}
+
+/**
+ * Convenience wrapper to solve accumulators by targetOdds and strategy mode
+ * e.g. solveAccumulator({ targetOdds: 10, mode: 'sweet_spot' })
+ */
+export interface SolveAccumulatorParams {
+  targetOdds?: number;
+  target_odds?: number;
+  mode?: "sweet_spot" | "banker" | "pure_banker" | string;
+  strategy_mode?: "PURE_BANKER" | "SWEET_SPOT" | string;
+  sport?: string;
+  sport_type?: string;
+  user_tier?: "FREE" | "PRO" | "PREMIUM";
+  allowed_markets?: string[];
+  custom_match_count?: number;
+  match_count_mode?: "AUTO" | "CUSTOM";
+  date_horizon?: "today" | "14_days" | "30_days";
+}
+
+export async function solveAccumulator(params: SolveAccumulatorParams): Promise<CustomBuilderResult> {
+  const target = Math.max(1.5, Number(params.targetOdds ?? params.target_odds ?? 10.0));
+  const isBanker = params.mode === "banker" || params.mode === "pure_banker" || params.strategy_mode === "PURE_BANKER";
+  const stratMode = isBanker ? "PURE_BANKER" : "SWEET_SPOT";
+  const sport = params.sport || params.sport_type || "all";
+  const tier = params.user_tier || "PREMIUM";
+
+  return buildCustomSlip({
+    target_odds: target,
+    sport_type: sport,
+    strategy_mode: stratMode,
+    user_tier: tier,
+    allowed_markets: params.allowed_markets,
+    custom_match_count: params.custom_match_count,
+    match_count_mode: params.match_count_mode,
+    date_horizon: params.date_horizon || "today",
+  });
 }

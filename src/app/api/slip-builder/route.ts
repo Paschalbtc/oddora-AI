@@ -6,20 +6,27 @@ export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CustomBuilderRequest = await request.json();
+    const body: any = await request.json().catch(() => ({}));
+    const targetOdds = Number(body.target_odds || body.targetOdds || (body.is_auto_odds ? 10.0 : 0));
 
-    if (!body || (!body.target_odds && !body.is_auto_odds)) {
+    if (!targetOdds && !body.is_auto_odds) {
       return NextResponse.json(
         { status: "error", message: "Target odds parameter is required." },
         { status: 400 }
       );
     }
 
-    if (!body.target_odds && body.is_auto_odds) {
-      body.target_odds = 10.0;
-    }
+    const payload: CustomBuilderRequest = {
+      ...body,
+      target_odds: targetOdds || 10.0,
+      sport_type: body.sport_type || body.sport || "all",
+      strategy_mode:
+        body.strategy_mode ||
+        (body.mode === "banker" || body.mode === "pure_banker" ? "PURE_BANKER" : "SWEET_SPOT"),
+      user_tier: (body.user_tier || body.tier || "FREE").toUpperCase(),
+    };
 
-    const slip: any = await buildCustomSlip(body);
+    const slip: any = await buildCustomSlip(payload);
 
     const generatedCode =
       slip.sportybet_code ||
@@ -80,17 +87,20 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const targetOdds = parseFloat(searchParams.get("target_odds") || "10");
-  const sport = searchParams.get("sport") || "all";
+  const targetOdds = parseFloat(searchParams.get("target_odds") || searchParams.get("targetOdds") || "10");
+  const sport = searchParams.get("sport") || searchParams.get("sport_type") || "all";
+  const mode = (searchParams.get("mode") || searchParams.get("strategy_mode") || "SWEET_SPOT").toUpperCase();
+  const isBanker = mode === "BANKER" || mode === "PURE_BANKER";
   const tier = (searchParams.get("tier") || "FREE").toUpperCase() as any;
 
   try {
     const slip = await buildCustomSlip({
       target_odds: targetOdds,
       sport_type: sport,
+      strategy_mode: isBanker ? "PURE_BANKER" : "SWEET_SPOT",
       user_tier: tier,
     });
-    return NextResponse.json({ status: "success", data: slip });
+    return NextResponse.json({ status: "success", data: slip, slip });
   } catch (err: any) {
     return NextResponse.json({ status: "error", message: err.message }, { status: 500 });
   }

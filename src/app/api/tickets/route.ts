@@ -17,7 +17,22 @@ function normalizeTicketLegs(t: any) {
       legs = [];
     }
   }
-  return Array.isArray(legs) ? legs : [];
+  if (!Array.isArray(legs)) legs = [];
+  return legs.map((l: any) => ({
+    match: l.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
+    home_team: l.home_team || l.match?.split(" vs ")[0] || "Home",
+    away_team: l.away_team || l.match?.split(" vs ")[1] || "Away",
+    market: l.market || l.market_name || "Market",
+    prediction: l.prediction || l.selection || "Selection",
+    selection: l.selection || l.prediction || "Selection",
+    odds: Number(l.odds || l.odd) || 1.35,
+    odd: Number(l.odd || l.odds) || 1.35,
+    status: (l.status || "PENDING").toLowerCase(),
+    actual_score: l.actual_score,
+    match_status: l.match_status || "NS",
+    league: l.league || "Premier Division",
+    eventId: l.eventId || l.match_id || l.id,
+  }));
 }
 
 export async function GET(request: NextRequest) {
@@ -168,17 +183,26 @@ export async function POST(request: NextRequest) {
       const resolvedUserEmail = rawEmail ? String(rawEmail).toLowerCase().trim() : null;
       const bookingCode = raw.booking_code || raw.share_code || raw.sporty_code || "SPORTY-CODE";
 
+      const normalizedLegs = normalizeTicketLegs(raw);
+      const computedTotalOdds = normalizedLegs.reduce((prod: number, l: any) => prod * (Number(l.odds) || 1), 1);
+      const resolvedTotalOdds =
+        Number(raw.total_odds) > 1.05
+          ? Number(raw.total_odds)
+          : computedTotalOdds > 1
+          ? Number(computedTotalOdds.toFixed(2))
+          : 2.0;
+
       const record = {
         id: ticketId,
         user_id: resolvedUserId,
         user_email: resolvedUserEmail,
         booking_code: bookingCode,
         share_code: bookingCode,
-        total_odds: Number(raw.total_odds) || 2.0,
+        total_odds: resolvedTotalOdds,
         target_odds: raw.target_odds ? Number(raw.target_odds) : null,
         tier: raw.tier || "FREE",
         title: raw.title || "Oddora Accumulator Ticket",
-        legs: normalizeTicketLegs(raw),
+        legs: normalizedLegs,
         status: (raw.status || "PENDING").toLowerCase(),
         source: raw.source || "ODDORA_PLATFORM",
         payout: raw.payout ? Number(raw.payout) : null,

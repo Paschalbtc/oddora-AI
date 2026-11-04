@@ -102,29 +102,41 @@ export async function saveUserTicket(ticket: {
 
   const code = ticket.booking_code || ticket.share_code || "SPORTY-CODE";
 
+  const mappedLegs = (Array.isArray(ticket.legs) ? ticket.legs : []).map((l: any) => ({
+    match: l.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
+    home_team: l.home_team || l.match?.split(" vs ")[0] || "Home",
+    away_team: l.away_team || l.match?.split(" vs ")[1] || "Away",
+    market: l.market || l.market_name || "Market",
+    prediction: l.prediction || l.selection || "Selection",
+    selection: l.selection || l.prediction || "Selection",
+    odds: Number(l.odds || l.odd) || 1.35,
+    odd: Number(l.odd || l.odds) || 1.35,
+    win_probability: Number(l.win_probability || 80),
+    sport: l.sport || l.sport_type || "FOOTBALL",
+    status: (l.status || "PENDING").toUpperCase(),
+    league: l.league || "Premier Division",
+    eventId: l.eventId || l.match_id || l.id,
+  }));
+
+  const computedOdds = mappedLegs.reduce((prod: number, l: any) => prod * (Number(l.odds) || 1), 1);
+  const resolvedTotalOdds =
+    Number(ticket.total_odds) > 1.05
+      ? Number(ticket.total_odds)
+      : computedOdds > 1
+      ? Number(computedOdds.toFixed(2))
+      : 2.0;
+
   const newTicket: SavedTicket = {
     id: `ticket_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     user_id: resolvedUserId,
     user_email: resolvedUserEmail,
     booking_code: code,
     share_code: code,
-    total_odds: Number(ticket.total_odds) || 2.0,
+    total_odds: resolvedTotalOdds,
     target_odds: ticket.target_odds ? Number(ticket.target_odds) : undefined,
     tier: ticket.tier || "FREE",
     title: ticket.title || "Oddora Accumulator Ticket",
-    legs: (ticket.legs || []).map((l) => ({
-      match: l.match || `${l.home_team || "Home"} vs ${l.away_team || "Away"}`,
-      home_team: l.home_team || l.match?.split(" vs ")[0] || "Home",
-      away_team: l.away_team || l.match?.split(" vs ")[1] || "Away",
-      league: l.league || "Premier Division",
-      market: l.market || "Market",
-      selection: l.selection || "Selection",
-      odd: Number(l.odd || l.odds) || 1.35,
-      win_probability: Number(l.win_probability || 80),
-      sport: l.sport || l.sport_type || "FOOTBALL",
-      status: l.status || "PENDING",
-      eventId: l.eventId || l.match_id,
-    })),
+    legs: mappedLegs,
     status: ticket.status || "PENDING",
     source: ticket.source || "ODDORA_PLATFORM",
     created_at: new Date().toISOString(),

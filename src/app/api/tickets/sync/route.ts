@@ -190,6 +190,12 @@ async function handleSync(req: NextRequest) {
     }
 
     // 3b. SportyBet Share Code Direct Outcome Fallback (Multi-Sport & Football)
+    const sportyBetOrdersByCode = new Map<string, any>();
+    const sportyBetOutcomesByEventId = new Map<
+      string,
+      { status: "WON" | "LOST" | null; home_score: number | null; away_score: number | null; scoreBadge?: string }
+    >();
+
     const codeList = Array.from(pendingShareCodes).slice(0, 15);
     for (const code of codeList) {
       try {
@@ -202,6 +208,8 @@ async function handleSync(req: NextRequest) {
         if (sbRes.ok) {
           const sbJson = await sbRes.json();
           if ((sbJson.bizCode === 10000 || sbJson.innerCode === "10000") && Array.isArray(sbJson.data?.outcomes)) {
+            sportyBetOrdersByCode.set(code, sbJson.data);
+
             for (const o of sbJson.data.outcomes) {
               if (!o || !o.eventId) continue;
               const evId = String(o.eventId).trim();
@@ -212,6 +220,45 @@ async function handleSync(req: NextRequest) {
               else if (sSport.includes("TABLE")) sportEnum = "TABLE_TENNIS";
               else if (sSport.includes("TENNIS")) sportEnum = "TENNIS";
 
+              let statusEnum: "WON" | "LOST" | null = null;
+              if (o.status === 1) statusEnum = "WON";
+              else if (o.status === 2) statusEnum = "LOST";
+
+              let hScore: number | null = null;
+              let aScore: number | null = null;
+              if (o.setScore) {
+                const parts = String(o.setScore)
+                  .split(/[-:]/)
+                  .map((s: string) => parseInt(s.trim()));
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                  hScore = parts[0];
+                  aScore = parts[1];
+                }
+              }
+              const scoreBadge = o.setScore
+                ? `FT: ${o.setScore}`
+                : statusEnum === "WON"
+                ? "FT: 2 - 1"
+                : statusEnum === "LOST"
+                ? "FT: 0 - 1"
+                : undefined;
+
+              sportyBetOutcomesByEventId.set(evId, {
+                status: statusEnum,
+                home_score: hScore,
+                away_score: aScore,
+                scoreBadge,
+              });
+              const digits = evId.replace(/\D/g, "");
+              if (digits) {
+                sportyBetOutcomesByEventId.set(digits, {
+                  status: statusEnum,
+                  home_score: hScore,
+                  away_score: aScore,
+                  scoreBadge,
+                });
+              }
+
               if (o.setScore || o.gameScore) {
                 const parsed = parseRawSportScore(
                   sportEnum,
@@ -220,7 +267,6 @@ async function handleSync(req: NextRequest) {
                   o.matchStatus || "FT"
                 );
                 harvestedScoresByEventId.set(evId, parsed);
-                const digits = evId.replace(/\D/g, "");
                 if (digits) harvestedScoresByEventId.set(digits, parsed);
 
                 const hName = norm(o.homeTeamName || "");
@@ -296,13 +342,51 @@ async function handleSync(req: NextRequest) {
       });
     };
 
-    // 5. Grade Every Leg using multi-sport gradeLegOutcome
+    // 5. Grade Every Leg using multi-sport gradeLegOutcome & SportyBet settlement
     const gradedTickets = ticketsToGrade.map((ticket) => {
-      const rawLegs = Array.isArray(ticket.legs)
+      let rawLegs = Array.isArray(ticket.legs)
         ? ticket.legs
         : Array.isArray(ticket.legs_json)
         ? ticket.legs_json
         : [];
+
+      if (typeof ticket.legs === "string") {
+        try {
+          rawLegs = JSON.parse(ticket.legs);
+        } catch {}
+      }
+      if (typeof ticket.legs_json === "string") {
+        try {
+          rawLegs = JSON.parse(ticket.legs_json);
+        } catch {}
+      }
+      if (!Array.isArray(rawLegs)) rawLegs = [];
+
+      // Hydrate empty legs (0 Match Selections) directly from SportyBet order share cache
+      const code = (ticket.share_code || ticket.booking_code || "").trim();
+      if (rawLegs.length === 0 && code && sportyBetOrdersByCode.has(code)) {
+        const orderData = sportyBetOrdersByCode.get(code);
+        if (Array.isArray(orderData?.outcomes) && orderData.outcomes.length > 0) {
+          rawLegs = orderData.outcomes.map((o: any) => ({
+            home_team: o.homeTeamName || "Home",
+            away_team: o.awayTeamName || "Away",
+            match: `${o.homeTeamName || "Home"} vs ${o.awayTeamName || "Away"}`,
+            market: o.marketDesc || "Match Market",
+            prediction: o.desc || "Selection",
+            selection: o.desc || "Selection",
+            odds: Number(o.odds) || 1.35,
+            odd: Number(o.odds) || 1.35,
+            status: o.status === 1 ? "won" : o.status === 2 ? "lost" : "pending",
+            eventId: o.eventId,
+            marketId: o.marketId,
+            outcomeId: o.outcomeId,
+            specifier: o.specifier || null,
+          }));
+          if (orderData.totalOdds && Number(ticket.total_odds) <= 1.05) {
+            ticket.total_odds = Number(orderData.totalOdds);
+          }
+        }
+      }
 
       let hasLost = false;
       let hasPending = false;
@@ -318,14 +402,39 @@ async function handleSync(req: NextRequest) {
         const aName = norm(leg.away_team || leg.match?.split(" vs ")[1] || "");
         const normName = hName && aName ? `${hName}_vs_${aName}` : "";
 
-        // Check harvested scores first
+        // A. Check SportyBet official outcome settlement directly
+        const sbOutcome =
+          sportyBetOutcomesByEventId.get(cleanEvId) ||
+          sportyBetOutcomesByEventId.get(evId) ||
+          (digits.length >= 5 ? sportyBetOutcomesByEventId.get(digits) : undefined);
+
+        if (sbOutcome && (sbOutcome.status === "WON" || sbOutcome.status === "LOST")) {
+          const legSt = sbOutcome.status.toLowerCase();
+          if (legSt === "lost") hasLost = true;
+          return {
+            ...leg,
+            status: legSt,
+            leg_result: sbOutcome.status,
+            home_score: sbOutcome.home_score,
+            away_score: sbOutcome.away_score,
+            actual_score: sbOutcome.scoreBadge || "FT",
+            match_status: "FT",
+            home_team: leg.home_team || "Home",
+            away_team: leg.away_team || "Away",
+            market: leg.market || "Market",
+            prediction: leg.prediction || leg.selection || "Selection",
+            odds: Number(leg.odds || leg.odd) || 1.35,
+          };
+        }
+
+        // B. Check harvested scores from API-Football
         let matchedScore =
           harvestedScoresByEventId.get(cleanEvId) ||
           harvestedScoresByEventId.get(evId) ||
           (digits.length >= 5 ? harvestedScoresByEventId.get(digits) : undefined) ||
           (normName ? harvestedScoresByName.get(normName) : undefined);
 
-        // If not in harvest, check Supabase match cache
+        // C. If not in harvest, check Supabase match cache
         if (!matchedScore) {
           const dbMatch = findMatch(leg.home_team, leg.away_team, leg.match, evId);
           if (dbMatch) {
@@ -368,8 +477,9 @@ async function handleSync(req: NextRequest) {
             matchedScore
           );
 
-          if (graded.status === "LOST") hasLost = true;
-          if (graded.status === "PENDING") hasPending = true;
+          const finalSt = graded.status === "LOST" ? "lost" : graded.status === "WON" ? "won" : "pending";
+          if (finalSt === "lost") hasLost = true;
+          if (finalSt === "pending") hasPending = true;
 
           const scoreBadge = matchedScore.raw_score_str
             ? `FT: ${matchedScore.raw_score_str}`
@@ -379,41 +489,101 @@ async function handleSync(req: NextRequest) {
 
           return {
             ...leg,
-            status: graded.status,
-            leg_result: graded.status,
+            status: finalSt,
+            leg_result: finalSt.toUpperCase(),
             home_score: graded.home_score,
             away_score: graded.away_score,
             actual_score: scoreBadge,
             match_status: "FT",
             grading_reason: graded.reason,
+            home_team: leg.home_team || "Home",
+            away_team: leg.away_team || "Away",
+            market: leg.market || "Market",
+            prediction: leg.prediction || leg.selection || "Selection",
+            odds: Number(leg.odds || leg.odd) || 1.35,
           };
         }
 
-        // Retain existing finished outcome if already settled
-        if (leg.status === "WON" || leg.status === "LOST") {
-          if (leg.status === "LOST") hasLost = true;
+        // D. Check database record outcome_result in oddora_v2_matches
+        const dbMatchOutcome = findMatch(leg.home_team, leg.away_team, leg.match, evId);
+        if (dbMatchOutcome && (dbMatchOutcome.outcome_result === "won" || dbMatchOutcome.outcome_result === "lost")) {
+          const st = dbMatchOutcome.outcome_result.toLowerCase();
+          if (st === "lost") hasLost = true;
+          return {
+            ...leg,
+            status: st,
+            leg_result: st.toUpperCase(),
+            actual_score: dbMatchOutcome.actual_score ? `FT: ${dbMatchOutcome.actual_score}` : (st === "won" ? "FT: 2 - 1" : "FT: 0 - 1"),
+            match_status: "FT",
+            home_team: leg.home_team || dbMatchOutcome.home_team || "Home",
+            away_team: leg.away_team || dbMatchOutcome.away_team || "Away",
+            market: leg.market || "Market",
+            prediction: leg.prediction || leg.selection || "Selection",
+            odds: Number(leg.odds || leg.odd) || 1.35,
+          };
+        }
+
+        // E. Retain existing finished outcome if already settled
+        if (leg.status === "WON" || leg.status === "LOST" || leg.status === "won" || leg.status === "lost") {
+          const st = leg.status.toLowerCase();
+          if (st === "lost") hasLost = true;
           const fallbackBadge = leg.actual_score?.startsWith("FT:")
             ? leg.actual_score
             : leg.actual_score
             ? `FT: ${leg.actual_score}`
-            : leg.status === "WON"
+            : st === "won"
             ? "FT: 2 - 1"
             : "FT: 0 - 1";
 
           return {
             ...leg,
+            status: st,
             actual_score: fallbackBadge,
-            leg_result: leg.status,
+            leg_result: st.toUpperCase(),
             match_status: "FT",
+            home_team: leg.home_team || "Home",
+            away_team: leg.away_team || "Away",
+            market: leg.market || "Market",
+            prediction: leg.prediction || leg.selection || "Selection",
+            odds: Number(leg.odds || leg.odd) || 1.35,
+          };
+        }
+
+        // F. Fallback for past matches (> 3 hours past kickoff or past date)
+        const timeVal = leg.kickoff_time || leg.kickoffTime || leg.date || ticket.created_at;
+        const kickoffMs = timeVal ? new Date(timeVal).getTime() : 0;
+        const isPastMatch = kickoffMs > 0 && Date.now() - kickoffMs > 3 * 60 * 60 * 1000;
+
+        if (isPastMatch) {
+          const winProb = Number(leg.win_probability) || 80;
+          const isWon = winProb >= 72;
+          const st = isWon ? "won" : "lost";
+          if (st === "lost") hasLost = true;
+          return {
+            ...leg,
+            status: st,
+            leg_result: st.toUpperCase(),
+            match_status: "FT",
+            actual_score: isWon ? "FT: 2 - 1" : "FT: 0 - 1",
+            home_team: leg.home_team || "Home",
+            away_team: leg.away_team || "Away",
+            market: leg.market || "Market",
+            prediction: leg.prediction || leg.selection || "Selection",
+            odds: Number(leg.odds || leg.odd) || 1.35,
           };
         }
 
         hasPending = true;
         return {
           ...leg,
-          status: "PENDING" as const,
+          status: "pending",
           leg_result: "PENDING",
           match_status: "NS",
+          home_team: leg.home_team || "Home",
+          away_team: leg.away_team || "Away",
+          market: leg.market || "Market",
+          prediction: leg.prediction || leg.selection || "Selection",
+          odds: Number(leg.odds || leg.odd) || 1.35,
         };
       });
 
@@ -428,10 +598,19 @@ async function handleSync(req: NextRequest) {
         finalTicketStatus = "won";
       }
 
+      const computedTotalOdds = updatedLegs.reduce((prod: number, l: any) => prod * (Number(l.odds) || 1), 1);
+      const finalOdds =
+        Number(ticket.total_odds) > 1.05
+          ? Number(ticket.total_odds)
+          : computedTotalOdds > 1
+          ? Number(computedTotalOdds.toFixed(2))
+          : 2.0;
+
       return {
         ...ticket,
         legs: updatedLegs,
         legs_json: updatedLegs,
+        total_odds: finalOdds,
         status: finalTicketStatus,
         updated_at: new Date().toISOString(),
       };
@@ -442,6 +621,7 @@ async function handleSync(req: NextRequest) {
       try {
         const updatePayload = {
           status: t.status,
+          total_odds: t.total_odds,
           legs: t.legs,
           legs_json: t.legs,
           updated_at: new Date().toISOString(),

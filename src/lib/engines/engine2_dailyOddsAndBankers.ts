@@ -119,7 +119,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
       selectionLabel: "1X (Home or Draw)",
-      odd: 1.25,
+      odd: 1.36,
       winProbability: 86,
       marketId: "10",
       outcomeId: "9",
@@ -131,7 +131,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
       selectionLabel: "Over 1.5",
-      odd: 1.28,
+      odd: 1.40,
       winProbability: 84,
       marketId: "18",
       outcomeId: "12",
@@ -143,7 +143,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
       selectionLabel: "X2 (Draw or Away)",
-      odd: 1.30,
+      odd: 1.38,
       winProbability: 84,
       marketId: "10",
       outcomeId: "11",
@@ -155,7 +155,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
       selectionLabel: "12 (No Draw)",
-      odd: 1.22,
+      odd: 1.32,
       winProbability: 85,
       marketId: "10",
       outcomeId: "10",
@@ -167,7 +167,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "1X2",
       marketName: "1X2 (Match Winner)",
       selectionLabel: "Home Win",
-      odd: 1.48,
+      odd: 1.55,
       winProbability: 78,
       marketId: "1",
       outcomeId: "1",
@@ -179,7 +179,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "1X2",
       marketName: "1X2 (Match Winner)",
       selectionLabel: "Away Win",
-      odd: 1.52,
+      odd: 1.62,
       winProbability: 76,
       marketId: "1",
       outcomeId: "3",
@@ -192,7 +192,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
       selectionLabel: "Over 2.5",
-      odd: 1.62,
+      odd: 1.78,
       winProbability: 76,
       marketId: "18",
       outcomeId: "12",
@@ -204,7 +204,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
       selectionLabel: "Under 3.5",
-      odd: 1.34,
+      odd: 1.38,
       winProbability: 83,
       marketId: "18",
       outcomeId: "13",
@@ -216,7 +216,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
       selectionLabel: "Under 4.5",
-      odd: 1.18,
+      odd: 1.25,
       winProbability: 88,
       marketId: "18",
       outcomeId: "13",
@@ -228,7 +228,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "DRAW_NO_BET",
       marketName: "Draw No Bet",
       selectionLabel: "Home DNB",
-      odd: 1.35,
+      odd: 1.45,
       winProbability: 82,
       marketId: "11",
       outcomeId: "4",
@@ -240,7 +240,7 @@ export function buildCandidateMarketsForMatch(
       marketCategory: "DRAW_NO_BET",
       marketName: "Draw No Bet",
       selectionLabel: "Away DNB",
-      odd: 1.38,
+      odd: 1.48,
       winProbability: 80,
       marketId: "11",
       outcomeId: "5",
@@ -248,6 +248,16 @@ export function buildCandidateMarketsForMatch(
     });
 
     // 12. Both Teams To Score (GG)
+    options.push({
+      marketCategory: "BTTS",
+      marketName: "Both Teams to Score",
+      selectionLabel: "GG (Yes)",
+      odd: 1.72,
+      winProbability: 75,
+      marketId: "29",
+      outcomeId: "74",
+      specifier: null,
+    });
     options.push({
       marketCategory: "BTTS",
       marketName: "Both Teams To Score",
@@ -655,14 +665,14 @@ const DAILY_PRESET_CONFIGS: Array<{
   minOddPerLeg: number;
   maxOddPerLeg: number;
 }> = [
-  // Strict Banker Corridor: Absolute Min = 1.12, Absolute Max = 1.60
-  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.0, minOdds: 1.95, maxOdds: 2.25, tierLock: "FREE", maxLegs: 3, minOddPerLeg: 1.18, maxOddPerLeg: 1.45 },
-  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.0, minOdds: 2.85, maxOdds: 3.45, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.20, maxOddPerLeg: 1.50 },
-  { type: "DAILY_4X", title: "Tactical Quad Slip (4.00x)", target: 4.0, minOdds: 3.85, maxOdds: 4.60, tierLock: "PRO", maxLegs: 5, minOddPerLeg: 1.22, maxOddPerLeg: 1.55 },
-  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.5, maxOdds: 11.5, tierLock: "PRO", maxLegs: 8, minOddPerLeg: 1.25, maxOddPerLeg: 1.58 },
-  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 46.0, maxOdds: 58.0, tierLock: "PRO", maxLegs: 16, minOddPerLeg: 1.22, maxOddPerLeg: 1.60 },
-  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 92.0, maxOdds: 118.0, tierLock: "PREMIUM", maxLegs: 18, minOddPerLeg: 1.22, maxOddPerLeg: 1.60 },
-  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 185.0, maxOdds: 235.0, tierLock: "PREMIUM", maxLegs: 22, minOddPerLeg: 1.22, maxOddPerLeg: 1.60 },
+  // Strict Banker Corridor: Absolute Min = 1.12, Absolute Max = 1.75
+  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.0, minOdds: 1.85, maxOdds: 2.30, tierLock: "FREE", maxLegs: 2, minOddPerLeg: 1.30, maxOddPerLeg: 1.55 },
+  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.0, minOdds: 2.80, maxOdds: 3.50, tierLock: "PRO", maxLegs: 3, minOddPerLeg: 1.30, maxOddPerLeg: 1.60 },
+  { type: "DAILY_4X", title: "Tactical Quad Slip (4.00x)", target: 4.0, minOdds: 3.80, maxOdds: 4.80, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.30, maxOddPerLeg: 1.60 },
+  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.0, maxOdds: 12.5, tierLock: "PRO", maxLegs: 6, minOddPerLeg: 1.32, maxOddPerLeg: 1.65 },
+  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 45.0, maxOdds: 62.0, tierLock: "PRO", maxLegs: 11, minOddPerLeg: 1.35, maxOddPerLeg: 1.70 },
+  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 90.0, maxOdds: 125.0, tierLock: "PREMIUM", maxLegs: 13, minOddPerLeg: 1.35, maxOddPerLeg: 1.70 },
+  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 180.0, maxOdds: 250.0, tierLock: "PREMIUM", maxLegs: 15, minOddPerLeg: 1.35, maxOddPerLeg: 1.75 },
 ];
 
 /**
@@ -677,27 +687,15 @@ export async function generateAndBookDailySlips(): Promise<{
   const nowIso = new Date().toISOString();
   const minLeadTimeIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-  // 1. Fetch live upcoming matches from oddora_v2_matches with kickoff > 5 mins in future
-  // Prioritize verified football matches first for maximum SportyBet order share compatibility,
-  // supplemented by multi-sport fixtures
-  let { data: footballMatches } = await supabase
+  // 1. Fetch live upcoming matches from oddora_v2_matches with kickoff > 5 mins in future, sorted by kickoff time
+  let { data: allUpcomingMatches } = await supabase
     .from("oddora_v2_matches")
     .select("*")
-    .eq("sport_type", "FOOTBALL")
     .gte("kickoff_time", minLeadTimeIso)
-    .order("win_probability", { ascending: false });
+    .order("kickoff_time", { ascending: true })
+    .limit(300);
 
-  let { data: multiSportMatches } = await supabase
-    .from("oddora_v2_matches")
-    .select("*")
-    .neq("sport_type", "FOOTBALL")
-    .gte("kickoff_time", minLeadTimeIso)
-    .order("win_probability", { ascending: false })
-    .limit(100);
-
-  let rawMatches = (footballMatches && footballMatches.length >= 30)
-    ? footballMatches
-    : [...(footballMatches || []), ...(multiSportMatches || [])];
+  let rawMatches = allUpcomingMatches || [];
 
   // Count unique match fixtures available in the upcoming pool
   const uniqueMatchCount = new Set(
@@ -999,16 +997,19 @@ export async function getDailySlipsForUI(
     .select("*")
     .eq("slip_date", todayStr);
 
-  // If slips are not in DB, incomplete (< 8 slips), bloated (> 25 matches), contain duplicate matches, or are monochromatic, auto-generate fresh slips
+  // If slips are not in DB, incomplete (< 8 slips), bloated (> 25 matches), contain duplicate matches, monochromatic, or empty (0 legs / <= 1.05 odds), auto-generate fresh slips
   const hasBloated = Boolean(data && data.some((r: any) => Number(r.match_count) > 25));
   const hasDuplicates = Boolean(data && data.some(hasDuplicateLegsInSlip));
   const hasMonochromatic = Boolean(data && data.some(isMonochromaticSlip));
   const isMissingSlips = !data || data.length < 8;
+  const hasEmptySlips = Boolean(
+    data && data.some((r: any) => !r.legs_json || !Array.isArray(r.legs_json) || r.legs_json.length === 0 || Number(r.total_odds) <= 1.05)
+  );
 
-  if (isMissingSlips || hasBloated || hasDuplicates || hasMonochromatic) {
+  if (isMissingSlips || hasBloated || hasDuplicates || hasMonochromatic || hasEmptySlips) {
     try {
       console.log(
-        `[Daily Slips Engine] Detected invalid, stale or monochromatic cache (missing: ${isMissingSlips}, bloated: ${hasBloated}, duplicates: ${hasDuplicates}, monochromatic: ${hasMonochromatic}). Auto-generating fresh diversified slips...`
+        `[Daily Slips Engine] Detected invalid, stale or empty cache (missing: ${isMissingSlips}, bloated: ${hasBloated}, duplicates: ${hasDuplicates}, monochromatic: ${hasMonochromatic}, empty: ${hasEmptySlips}). Auto-generating fresh diversified slips...`
       );
       const generated = await generateAndBookDailySlips();
       return generated.slips.map((slip) => filterSlipForTier(slip, userTier));
@@ -1057,18 +1058,25 @@ function filterSlipForTier(slip: V2DailySlipRecord, userTier: "FREE" | "PRO" | "
     (slip.is_locked_for_tier === "PREMIUM" && userTier !== "PREMIUM");
 
   if (isLocked) {
+    const rawLegs = Array.isArray(slip.legs_json) && slip.legs_json.length > 0
+      ? slip.legs_json
+      : (Array.isArray(slip.legs) ? slip.legs : []);
+
+    const maskedLegs = rawLegs.map((l, i) => ({
+      ...l,
+      home_team: i === 0 ? l.home_team : "🔒 VIP Team",
+      away_team: i === 0 ? l.away_team : "🔒 VIP Team",
+      match: i === 0 ? l.match : "🔒 VIP Match",
+    }));
+
     return {
       ...slip,
       sporty_code: "🔒 VIP ONLY",
       sportybet_code: "🔒 VIP ONLY",
       share_url: "#upgrade",
       sporty_url: "#upgrade",
-      legs: (slip.legs || []).map((l, i) => ({
-        ...l,
-        home_team: i === 0 ? l.home_team : "🔒 VIP Team",
-        away_team: i === 0 ? l.away_team : "🔒 VIP Team",
-        match: i === 0 ? l.match : "🔒 VIP Match",
-      })),
+      legs: maskedLegs,
+      legs_json: maskedLegs,
     };
   }
 

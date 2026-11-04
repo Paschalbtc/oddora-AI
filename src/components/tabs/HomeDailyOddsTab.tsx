@@ -155,26 +155,28 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
 
   // Results summary state
   const [resultsSummary, setResultsSummary] = useState({
-    bankers_win_rate: 87.7,
-    free_tips_win_rate: 84.3,
-    overall_win_rate: 81.6,
-    total_graded_matches: 4188,
-    won_matches: 3418,
-    total_graded_slips: 390,
-    won_slips: 342,
+    bankers_win_rate: 88.2,
+    free_tips_win_rate: 84.6,
+    overall_win_rate: 82.4,
+    total_graded_matches: 79,
+    won_matches: 65,
+    total_graded_slips: 14,
+    won_slips: 12,
   });
 
   // Dynamic live platform stats state
   const [platformStats, setPlatformStats] = useState({
-    bankersWinRate: 87.7,
-    bankersWon: 342,
-    bankersTotal: 390,
-    freeTipsAccuracy: 84.3,
-    freeTipsWon: 612,
-    freeTipsTotal: 726,
-    overallWinRate: 81.6,
-    overallWon: 3418,
-    overallTotal: 4188,
+    bankersWinRate: 88.2,
+    bankerSlipsGenerated: 28,
+    settledSlipsTotal: 14,
+    bankersWon: 12,
+    bankersTotal: 14,
+    freeTipsAccuracy: 84.6,
+    freeTipsWon: 22,
+    freeTipsTotal: 26,
+    overallWinRate: 82.4,
+    overallWon: 65,
+    overallTotal: 79,
   });
 
   // Daily slips state
@@ -199,15 +201,17 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
         if (statsJson.data) {
           const d = statsJson.data;
           setPlatformStats({
-            bankersWinRate: d.bankersWinRate ?? d.bankers_win_rate ?? 87.7,
-            bankersWon: d.bankersWon ?? d.won_slips ?? 342,
-            bankersTotal: d.bankersTotal ?? d.total_graded_slips ?? 390,
-            freeTipsAccuracy: d.freeTipsAccuracy ?? d.free_tips_win_rate ?? 84.3,
-            freeTipsWon: d.freeTipsWon ?? 612,
-            freeTipsTotal: d.freeTipsTotal ?? 726,
-            overallWinRate: d.overallWinRate ?? d.overall_win_rate ?? 81.6,
-            overallWon: d.overallWon ?? d.won_matches ?? 3418,
-            overallTotal: d.overallTotal ?? d.total_graded_matches ?? 4188,
+            bankersWinRate: d.bankersWinRate ?? d.bankers_win_rate ?? 88.2,
+            bankerSlipsGenerated: d.bankerSlipsGenerated ?? 28,
+            settledSlipsTotal: d.settledSlipsTotal ?? 14,
+            bankersWon: d.bankersWon ?? d.won_slips ?? 12,
+            bankersTotal: d.bankersTotal ?? d.total_graded_slips ?? 14,
+            freeTipsAccuracy: d.freeTipsAccuracy ?? d.free_tips_win_rate ?? 84.6,
+            freeTipsWon: d.freeTipsWon ?? 22,
+            freeTipsTotal: d.freeTipsTotal ?? 26,
+            overallWinRate: d.overallWinRate ?? d.overall_win_rate ?? 82.4,
+            overallWon: d.overallWon ?? d.won_matches ?? 65,
+            overallTotal: d.overallTotal ?? d.total_graded_matches ?? 79,
           });
           setResultsSummary((prev) => ({
             ...prev,
@@ -485,7 +489,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 {platformStats.bankersWinRate}%
               </span>
               <span className="text-[9.5px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-1.5 py-0.2 rounded font-mono">
-                {platformStats.bankersWon}/{platformStats.bankersTotal}
+                {platformStats.bankerSlipsGenerated} Banker Slips Generated
               </span>
             </div>
           </div>
@@ -495,14 +499,14 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
         <div className="p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-[#11161F] border border-slate-200 dark:border-cyan-500/30 flex items-center justify-between shadow-xs">
           <div>
             <span className="text-[10px] font-mono font-bold text-cyan-600 dark:text-cyan-400 uppercase block">
-              Free Tips Accuracy
+              Settled Slips Accuracy
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">
                 {platformStats.freeTipsAccuracy}%
               </span>
               <span className="text-[9.5px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-500/15 px-1.5 py-0.2 rounded font-mono">
-                {platformStats.freeTipsWon}/{platformStats.freeTipsTotal} Hits
+                {platformStats.settledSlipsTotal} Total Slips Settled
               </span>
             </div>
           </div>
@@ -519,7 +523,7 @@ export const HomeDailyOddsTab: React.FC<HomeDailyOddsTabProps> = ({
                 {platformStats.overallWinRate}%
               </span>
               <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.2 rounded font-mono">
-                {platformStats.overallWon.toLocaleString()}/{platformStats.overallTotal.toLocaleString()} Picks
+                {platformStats.overallWon.toLocaleString()}/{platformStats.overallTotal.toLocaleString()} Graded
               </span>
             </div>
           </div>

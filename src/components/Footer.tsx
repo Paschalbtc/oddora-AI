@@ -29,6 +29,13 @@ export interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
   const [activeLegalModal, setActiveLegalModal] = useState<"privacy" | "terms" | "disclaimer" | null>(null);
 
+  const handleNavigate = (tab: WorkspaceTab) => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+    onNavigateTab(tab);
+  };
+
   return (
     <>
       <footer className="w-full bg-slate-100 dark:bg-[#070A0E] border-t border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition-colors">
@@ -64,7 +71,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("home")}
+                    onClick={() => handleNavigate("home")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-emerald-500" />
@@ -74,7 +81,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("slip_builder")}
+                    onClick={() => handleNavigate("slip_builder")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-emerald-500" />
@@ -84,7 +91,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("edit_game")}
+                    onClick={() => handleNavigate("edit_game")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-emerald-500" />
@@ -94,7 +101,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("over_25")}
+                    onClick={() => handleNavigate("over_25")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-emerald-500" />
@@ -104,7 +111,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("all_matches")}
+                    onClick={() => handleNavigate("all_matches")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-emerald-500" />
@@ -123,7 +130,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("guide")}
+                    onClick={() => handleNavigate("guide")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <BookOpen className="w-3 h-3 text-cyan-500" />
@@ -133,7 +140,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("markets_glossary")}
+                    onClick={() => handleNavigate("markets_glossary")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <Layers className="w-3 h-3 text-cyan-500" />
@@ -143,7 +150,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("pricing")}
+                    onClick={() => handleNavigate("pricing")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <Zap className="w-3 h-3 text-amber-500" />
@@ -162,7 +169,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigateTab("affiliates")}
+                    onClick={() => handleNavigate("affiliates")}
                     className="hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 text-left cursor-pointer"
                   >
                     <ChevronRight className="w-3 h-3 text-slate-400" />

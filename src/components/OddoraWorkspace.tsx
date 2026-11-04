@@ -92,12 +92,20 @@ const OddoraWorkspaceInner: React.FC<OddoraWorkspaceProps> = ({ initialTab }) =>
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Global scroll restoration: scroll to top immediately whenever activeTab changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, [activeTab, searchParams]);
+
   const proceedTabChange = (newTab: WorkspaceTab, options?: { sport?: string }) => {
     setActiveTab(newTab);
     if (options?.sport) {
       setSelectedSportFilter(options.sport.toLowerCase());
     }
     if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       const url = new URL(window.location.href);
       if (newTab === "home") {
         url.searchParams.delete("tab");

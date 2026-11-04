@@ -124,11 +124,19 @@ export async function GET(request: NextRequest) {
     // 4. Query Active Matches in Pool
     let activeMatchesInPool = 0;
     try {
+      const nowIso = new Date().toISOString();
       const { count: mCount } = await supabase
         .from("oddora_v2_matches")
-        .select("id", { count: "exact", head: true });
-      if (typeof mCount === "number") {
+        .select("*", { count: "exact", head: true })
+        .gt("kickoff_time", nowIso);
+
+      if (typeof mCount === "number" && mCount > 0) {
         activeMatchesInPool = mCount;
+      } else {
+        const { count: allCount } = await supabase
+          .from("oddora_v2_matches")
+          .select("*", { count: "exact", head: true });
+        activeMatchesInPool = typeof allCount === "number" ? allCount : 0;
       }
     } catch (err) {
       console.warn("Could not query oddora_v2_matches for admin stats:", err);
@@ -198,6 +206,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       status: "success",
       adminEmail: ADMIN_EMAIL,
+      totalUsers: totalRegisteredUsers,
+      newUsersToday: newSignupsToday24h,
+      totalSlips: totalSavedTickets,
+      activeMatches: activeMatchesInPool,
       metrics: {
         totalVisitorsAllTime,
         visitorsToday24h,
@@ -205,6 +217,10 @@ export async function GET(request: NextRequest) {
         newSignupsToday24h,
         totalSavedTickets,
         activeMatchesInPool,
+        totalUsers: totalRegisteredUsers,
+        newUsersToday: newSignupsToday24h,
+        totalSlips: totalSavedTickets,
+        activeMatches: activeMatchesInPool,
       },
       recentUsers: sortedUsers,
       lastUpdated: new Date().toISOString(),

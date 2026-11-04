@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { resolveSportyBetMarket } from "@/lib/highProbabilityOutcomes";
-import { saveUserTicket } from "@/lib/userTicketTracker";
+import { saveUserTicket, syncGuestTicketsToUserAccount } from "@/lib/userTicketTracker";
 import { useAuth } from "./AuthContext";
 
 export interface CartLeg {
@@ -124,6 +124,15 @@ export const BetSlipProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         })
         .catch(() => {});
+    }
+  }, [authUser?.id, authUser?.email]);
+
+  // Cross-Device Permanent Email-Bound Saved Tickets Hydration
+  useEffect(() => {
+    if (authUser?.email) {
+      const email = authUser.email.toLowerCase().trim();
+      const userId = authUser.id || "";
+      syncGuestTicketsToUserAccount(userId, email).catch(() => {});
     }
   }, [authUser?.id, authUser?.email]);
 

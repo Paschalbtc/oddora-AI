@@ -106,7 +106,15 @@ function FounderAdminContent() {
 
       const data = await res.json();
       if (data.status === "success") {
-        setMetrics(data.metrics);
+        const rawMetrics = data.metrics || {};
+        setMetrics({
+          totalVisitorsAllTime: rawMetrics.totalVisitorsAllTime ?? 0,
+          visitorsToday24h: rawMetrics.visitorsToday24h ?? 0,
+          totalRegisteredUsers: data.totalUsers ?? rawMetrics.totalRegisteredUsers ?? 0,
+          newSignupsToday24h: data.newUsersToday ?? rawMetrics.newSignupsToday24h ?? 0,
+          totalSavedTickets: data.totalSlips ?? rawMetrics.totalSavedTickets ?? 0,
+          activeMatchesInPool: data.activeMatches ?? rawMetrics.activeMatchesInPool ?? 0,
+        });
         setUsersList(data.recentUsers || []);
         setLastUpdated(data.lastUpdated || new Date().toISOString());
       } else {

@@ -8,17 +8,15 @@ import {
 } from "@/lib/gradeSlipOutcome";
 import { gradeEntireTicket } from "@/lib/ticketGrader";
 import { calculateAndSaveResultsSummary } from "@/lib/engines/resultsCalculator";
+import { SPORTYBET_BROWSER_HEADERS } from "@/lib/coreBookingVault";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const BROWSER_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  Referer: "https://www.sportybet.com/",
-};
+const API_FOOTBALL_KEY =
+  process.env.API_FOOTBALL_KEY ||
+  process.env.NEXT_PUBLIC_API_FOOTBALL_KEY ||
+  "78bffc192cbd94efc7163ee4a80b4a35";
 
 interface SportyHarvesterTarget {
   sportId: string;
@@ -32,6 +30,14 @@ const HARVEST_SPORTS: SportyHarvesterTarget[] = [
   { sportId: "sr:sport:23", sportName: "VOLLEYBALL" },
   { sportId: "sr:sport:5", sportName: "TENNIS" },
 ];
+
+function norm(s: string = ""): string {
+  return s
+    .toLowerCase()
+    .replace(/\b(fc|cf|afc|sc|ac|club|de|united|city|town|wanderers|athletic|hotspur|saint|st)\b/gi, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
 
 export async function GET(request: NextRequest) {
   return handleSettle(request);
@@ -49,12 +55,12 @@ async function handleSettle(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const forceAll = searchParams.get("force") === "true";
 
-    // =========================================================================
-    // STEP 1: HARVEST SCORES FROM SPORTYBET ACROSS ALL 5 SPORTS
-    // =========================================================================
     const harvestedScoresByEventId = new Map<string, ParsedSportScore>();
     const harvestedScoresByName = new Map<string, ParsedSportScore>();
 
+    // =========================================================================
+    // STEP 1: HARVEST SCORES FROM SPORTYBET FACTS-CENTER (UPCOMING & LIVE)
+    // =========================================================================
     const fetchPromises = HARVEST_SPORTS.map(async (target) => {
       const urls = [
         `https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=${encodeURIComponent(target.sportId)}&pageSize=100`,
@@ -65,7 +71,7 @@ async function handleSettle(request: NextRequest) {
       for (const u of urls) {
         try {
           const res = await fetch(u, {
-            headers: BROWSER_HEADERS,
+            headers: SPORTYBET_BROWSER_HEADERS,
             cache: "no-store",
             signal: AbortSignal.timeout(6000),
           });
@@ -101,12 +107,10 @@ async function handleSettle(request: NextRequest) {
             const digits = rawId.replace(/\D/g, "");
             if (digits.length >= 5) harvestedScoresByEventId.set(digits, parsed);
 
-            // Also index by normalized home_vs_away name
-            const hName = ev.homeTeamName || ev.home_team || "";
-            const aName = ev.awayTeamName || ev.away_team || "";
+            const hName = norm(ev.homeTeamName || ev.home_team || "");
+            const aName = norm(ev.awayTeamName || ev.away_team || "");
             if (hName && aName) {
-              const nameKey = `${hName.toLowerCase().replace(/[^a-z0-9]/g, "")}_vs_${aName.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
-              harvestedScoresByName.set(nameKey, parsed);
+              harvestedScoresByName.set(`${hName}_vs_${aName}`, parsed);
             }
           }
         } catch {
@@ -118,18 +122,165 @@ async function handleSettle(request: NextRequest) {
     await Promise.allSettled(fetchPromises);
 
     // =========================================================================
-    // STEP 2: QUERY UNSETTLED / RECENT MATCHES FROM SUPABASE
+    // STEP 2: QUERY PENDING USER TICKETS TO EXTRACT DATES & SHARE CODES
+    // =========================================================================
+    const distinctSoccerDates = new Set<string>();
+    const pendingShareCodes = new Set<string>();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    distinctSoccerDates.add(todayStr);
+    distinctSoccerDates.add(yesterdayStr);
+
+    let pendingUserTickets: any[] = [];
+    try {
+      const { data: dbTickets } = await supabase
+        .from("user_saved_tickets")
+        .select("*")
+        .in("status", ["PENDING", "pending", "IN_PLAY", "in_play"])
+        .limit(250);
+
+      pendingUserTickets = dbTickets || [];
+
+      for (const t of pendingUserTickets) {
+        const code = t.share_code || t.booking_code;
+        if (code && typeof code === "string" && code.trim().length >= 4 && !code.includes("SPORTY")) {
+          pendingShareCodes.add(code.trim().toUpperCase());
+        }
+
+        if (t.created_at) {
+          const d = String(t.created_at).split("T")[0];
+          if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) distinctSoccerDates.add(d);
+        }
+
+        const legs = Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [];
+        for (const l of legs) {
+          const timeVal = l.kickoff_time || l.kickoffTime || l.startTime || l.date;
+          if (timeVal) {
+            const d = String(timeVal).split("T")[0];
+            if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) distinctSoccerDates.add(d);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[settle-matches] Notice querying pending user_saved_tickets:", err);
+    }
+
+    // =========================================================================
+    // STEP 3: API-FOOTBALL 3x DAILY BATCH HARVEST FOR DISTINCT DATES
+    // =========================================================================
+    const dateList = Array.from(distinctSoccerDates).slice(0, 6);
+    for (const d of dateList) {
+      try {
+        const afRes = await fetch(`https://v3.football.api-sports.io/fixtures?date=${d}`, {
+          headers: { "x-apisports-key": API_FOOTBALL_KEY },
+          cache: "no-store",
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (afRes.ok) {
+          const afJson = await afRes.json();
+          const fixtures = Array.isArray(afJson?.response) ? afJson.response : [];
+          for (const f of fixtures) {
+            const shortStatus = (f.fixture?.status?.short || "").toUpperCase();
+            if (shortStatus === "FT" || shortStatus === "AET" || shortStatus === "PEN") {
+              const homeGoals = f.goals?.home ?? f.score?.fulltime?.home;
+              const awayGoals = f.goals?.away ?? f.score?.fulltime?.away;
+              if (homeGoals !== null && awayGoals !== null && !isNaN(Number(homeGoals))) {
+                const hScore = Number(homeGoals);
+                const aScore = Number(awayGoals);
+                const htHome = f.score?.halftime?.home ?? null;
+                const htAway = f.score?.halftime?.away ?? null;
+                const htPeriods = htHome !== null && htAway !== null ? [`${htHome}:${htAway}`] : [];
+
+                const parsedScore: ParsedSportScore = parseRawSportScore(
+                  "FOOTBALL",
+                  `${hScore}:${aScore}`,
+                  htPeriods,
+                  "FT"
+                );
+
+                const extId = String(f.fixture?.id || "");
+                if (extId) {
+                  harvestedScoresByEventId.set(extId, parsedScore);
+                  harvestedScoresByEventId.set(`sr:match:${extId}`, parsedScore);
+                }
+
+                const hName = norm(f.teams?.home?.name || "");
+                const aName = norm(f.teams?.away?.name || "");
+                if (hName && aName) {
+                  harvestedScoresByName.set(`${hName}_vs_${aName}`, parsedScore);
+                }
+              }
+            }
+          }
+        }
+      } catch (afErr) {
+        console.warn(`[settle-matches] API-Football harvest error for date ${d}:`, afErr);
+      }
+    }
+
+    // =========================================================================
+    // STEP 4: SPORTYBET SHARE CODE DIRECT OUTCOME FALLBACK (MULTI-SPORT)
+    // =========================================================================
+    const codeList = Array.from(pendingShareCodes).slice(0, 20);
+    for (const code of codeList) {
+      try {
+        const sbRes = await fetch(`https://www.sportybet.com/api/ng/orders/share/${code}`, {
+          headers: SPORTYBET_BROWSER_HEADERS,
+          cache: "no-store",
+          signal: AbortSignal.timeout(4500),
+        });
+
+        if (sbRes.ok) {
+          const sbJson = await sbRes.json();
+          if ((sbJson.bizCode === 10000 || sbJson.innerCode === "10000") && Array.isArray(sbJson.data?.outcomes)) {
+            for (const o of sbJson.data.outcomes) {
+              if (!o || !o.eventId) continue;
+              const evId = String(o.eventId).trim();
+              const sSport = (o.sport?.category?.name || o.sport?.name || "FOOTBALL").toUpperCase();
+              let sportEnum: "FOOTBALL" | "BASKETBALL" | "VOLLEYBALL" | "TABLE_TENNIS" | "TENNIS" = "FOOTBALL";
+              if (sSport.includes("BASKET")) sportEnum = "BASKETBALL";
+              else if (sSport.includes("VOLLEY")) sportEnum = "VOLLEYBALL";
+              else if (sSport.includes("TABLE")) sportEnum = "TABLE_TENNIS";
+              else if (sSport.includes("TENNIS")) sportEnum = "TENNIS";
+
+              if (o.setScore || o.gameScore) {
+                const parsed = parseRawSportScore(
+                  sportEnum,
+                  o.setScore,
+                  o.gameScore,
+                  o.matchStatus || "FT"
+                );
+                harvestedScoresByEventId.set(evId, parsed);
+                const digits = evId.replace(/\D/g, "");
+                if (digits) harvestedScoresByEventId.set(digits, parsed);
+
+                const hName = norm(o.homeTeamName || "");
+                const aName = norm(o.awayTeamName || "");
+                if (hName && aName) {
+                  harvestedScoresByName.set(`${hName}_vs_${aName}`, parsed);
+                }
+              }
+            }
+          }
+        }
+      } catch (sbErr) {
+        console.warn(`[settle-matches] SportyBet share harvest notice for ${code}:`, sbErr);
+      }
+    }
+
+    // =========================================================================
+    // STEP 5: QUERY UNSETTLED / RECENT MATCHES FROM SUPABASE (oddora_v2_matches)
     // =========================================================================
     let query = supabase.from("oddora_v2_matches").select("*");
     if (!forceAll) {
-      // Look for matches that are not yet finished or were scheduled in last 36 hours
       const thirtySixHoursAgo = new Date(Date.now() - 36 * 3600000).toISOString();
       query = query.gte("created_at", thirtySixHoursAgo);
     }
 
-    const { data: dbMatches, error: matchErr } = await query.limit(500);
+    const { data: dbMatches } = await query.limit(500);
     const matches = dbMatches || [];
-
     let settledMatchesCount = 0;
 
     for (const m of matches) {
@@ -138,17 +289,14 @@ async function handleSettle(request: NextRequest) {
         ? rawId
         : `sr:match:${rawId.replace(/\D/g, "") || rawId}`;
       const digits = rawId.replace(/\D/g, "");
+      const normName = `${norm(m.home_team)}_vs_${norm(m.away_team)}`;
 
-      const normName = `${(m.home_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}_vs_${(m.away_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}`;
-
-      // Check harvested scores
       let matchedScore =
         harvestedScoresByEventId.get(cleanId) ||
         harvestedScoresByEventId.get(rawId) ||
         (digits.length >= 5 ? harvestedScoresByEventId.get(digits) : undefined) ||
         harvestedScoresByName.get(normName);
 
-      // If no live score harvested, check if the record already has scores stored
       if (!matchedScore) {
         if (m.home_score !== null && m.home_score !== undefined && m.away_score !== null && m.away_score !== undefined) {
           const rawStatus = m.match_status || m.status || "FT";
@@ -162,7 +310,6 @@ async function handleSettle(request: NextRequest) {
       }
 
       if (matchedScore) {
-        // Grade leg outcome using multi-sport rules
         const graded = gradeLegOutcome(
           {
             match: `${m.home_team || "Home"} vs ${m.away_team || "Away"}`,
@@ -191,7 +338,6 @@ async function handleSettle(request: NextRequest) {
           updatePayload.actual_score = matchedScore.raw_score_str;
         }
 
-        // Preserve and enrich multi-sport metadata
         const existingMeta = typeof m.match_metadata === "object" && m.match_metadata ? m.match_metadata : {};
         updatePayload.match_metadata = {
           ...existingMeta,
@@ -216,7 +362,7 @@ async function handleSettle(request: NextRequest) {
     }
 
     // =========================================================================
-    // STEP 3: SETTLE DAILY READY SLIPS (oddora_v2_daily_slips)
+    // STEP 6: SETTLE DAILY READY SLIPS (oddora_v2_daily_slips)
     // =========================================================================
     let settledSlipsCount = 0;
     try {
@@ -244,7 +390,7 @@ async function handleSettle(request: NextRequest) {
           const cleanId = evId.startsWith("sr:match:")
             ? evId
             : `sr:match:${evId.replace(/\D/g, "") || evId}`;
-          const normName = `${(leg.home_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}_vs_${(leg.away_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+          const normName = `${norm(leg.home_team)}_vs_${norm(leg.away_team)}`;
 
           const score =
             harvestedScoresByEventId.get(cleanId) ||
@@ -261,6 +407,7 @@ async function handleSettle(request: NextRequest) {
               home_score: graded.home_score,
               away_score: graded.away_score,
               actual_score: score.raw_score_str,
+              score_badge: `FT: ${graded.home_score ?? 0} - ${graded.away_score ?? 0}`,
               reason: graded.reason,
             };
           }
@@ -293,20 +440,16 @@ async function handleSettle(request: NextRequest) {
     }
 
     // =========================================================================
-    // STEP 4: SETTLE USER TICKETS (user_saved_tickets)
+    // STEP 7: SETTLE USER TICKETS (user_saved_tickets) WITH ACCURATE SCORE BADGES
     // =========================================================================
     let settledTicketsCount = 0;
     try {
-      const { data: dbTickets } = await supabase
-        .from("user_saved_tickets")
-        .select("*")
-        .eq("status", "PENDING")
-        .limit(100);
+      const ticketsToSettle = pendingUserTickets.length > 0
+        ? pendingUserTickets
+        : (await supabase.from("user_saved_tickets").select("*").in("status", ["PENDING", "pending"]).limit(100)).data || [];
 
-      const tickets = dbTickets || [];
-
-      for (const t of tickets) {
-        const rawLegs = Array.isArray(t.legs) ? t.legs : [];
+      for (const t of ticketsToSettle) {
+        const rawLegs = Array.isArray(t.legs) ? t.legs : Array.isArray(t.legs_json) ? t.legs_json : [];
         if (rawLegs.length === 0) continue;
 
         const updatedLegs = rawLegs.map((leg: any) => {
@@ -314,7 +457,7 @@ async function handleSettle(request: NextRequest) {
           const cleanId = evId.startsWith("sr:match:")
             ? evId
             : `sr:match:${evId.replace(/\D/g, "") || evId}`;
-          const normName = `${(leg.home_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}_vs_${(leg.away_team || "").toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+          const normName = `${norm(leg.home_team)}_vs_${norm(leg.away_team)}`;
 
           const score =
             harvestedScoresByEventId.get(cleanId) ||
@@ -323,12 +466,15 @@ async function handleSettle(request: NextRequest) {
 
           if (score) {
             const graded = gradeLegOutcome(leg, score);
+            const hScore = graded.home_score ?? 0;
+            const aScore = graded.away_score ?? 0;
             return {
               ...leg,
               status: graded.status,
               home_score: graded.home_score,
               away_score: graded.away_score,
               actual_score: score.raw_score_str,
+              score_badge: `FT: ${hScore} - ${aScore}`,
               reason: graded.reason,
             };
           }
@@ -336,11 +482,13 @@ async function handleSettle(request: NextRequest) {
         });
 
         const overallStatus = gradeEntireTicket(updatedLegs);
-        if (overallStatus !== t.status) {
+        const finalStatus = overallStatus === "WON" ? "won" : overallStatus === "LOST" ? "lost" : "pending";
+
+        if (finalStatus !== String(t.status).toLowerCase()) {
           await supabase
             .from("user_saved_tickets")
             .update({
-              status: overallStatus,
+              status: finalStatus,
               legs: updatedLegs,
               updated_at: new Date().toISOString(),
             })
@@ -353,7 +501,7 @@ async function handleSettle(request: NextRequest) {
     }
 
     // =========================================================================
-    // STEP 5: RECALCULATE WIN-RATES INTO oddora_v2_results_summary
+    // STEP 8: RECALCULATE WIN-RATES INTO oddora_v2_results_summary
     // =========================================================================
     let summaryData: any = null;
     try {
@@ -364,7 +512,7 @@ async function handleSettle(request: NextRequest) {
 
     return NextResponse.json({
       status: "success",
-      message: "Multi-sport score harvesting & outcome grading complete",
+      message: "API-Football & SportyBet multi-sport harvester & settlement complete",
       durationMs,
       harvestedEvents: harvestedScoresByEventId.size,
       settledMatches: settledMatchesCount,

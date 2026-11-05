@@ -394,31 +394,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </div>
 
-                      {/* My Bets Tracker Link */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsProfileDropdownOpen(false);
-                          handleSelectNav("my_bets");
-                        }}
-                        className="w-full text-left p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/10 dark:hover:bg-amber-500/15 border border-amber-500/30 transition flex items-center justify-between group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                            <Trophy className="w-3.5 h-3.5" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-xs text-slate-900 dark:text-white block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                              My Bets Tracker
-                            </span>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                              Track saved slips & live match grading
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
-
                       {/* 2. My Profile / Account Details Button */}
                       <button
                         type="button"

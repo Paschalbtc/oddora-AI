@@ -75,6 +75,7 @@ export interface VaultBookingResult {
   all_legs_accepted?: boolean;
   legs: VaultBookedLeg[];
   legs_json: VaultBookedLeg[];
+  live_outcomes?: any[];
   accepted_event_ids?: string[];
   acceptedEventIds?: string[];
   rejected_event_ids?: string[];
@@ -339,6 +340,70 @@ export async function getSportyBetShareOutcomes(code: string): Promise<any[]> {
     console.warn("[SportyBet] GET orders/share live check warning:", err);
   }
   return [];
+}
+
+/**
+ * Maps live SportyBet API outcomes directly into VaultBookedLeg array.
+ * Ensures 100% 1-to-1 match between the platform ticket and the SportyBet booking code.
+ */
+export function mapSportyBetOutcomesToLegs(
+  returnedOutcomes: any[],
+  fallbackCandidates: any[] = []
+): VaultBookedLeg[] {
+  if (!Array.isArray(returnedOutcomes) || returnedOutcomes.length === 0) {
+    return [];
+  }
+
+  const candidateByEventId = new Map<string, any>();
+  for (const c of fallbackCandidates) {
+    const ev = String(c.eventId || c.match_id || "").trim();
+    if (ev) candidateByEventId.set(ev, c);
+    const digits = ev.replace(/\D/g, "");
+    if (digits) candidateByEventId.set(digits, c);
+  }
+
+  return returnedOutcomes.map((o) => {
+    const evId = String(o.eventId || "").trim();
+    const digits = evId.replace(/\D/g, "");
+    const matched = candidateByEventId.get(evId) || candidateByEventId.get(digits);
+
+    const home = (o.homeTeamName || matched?.home_team || "Home").trim();
+    const away = (o.awayTeamName || matched?.away_team || "Away").trim();
+    const marketObj = o.markets?.[0];
+    const outcomeObj = marketObj?.outcomes?.[0];
+
+    const marketDesc = marketObj?.desc || matched?.market || "Match Winner";
+    const outcomeDesc = outcomeObj?.desc || matched?.selection || "Selection";
+    const oddVal = Number(outcomeObj?.odds || matched?.odd || 1.30);
+    const probVal = outcomeObj?.probability
+      ? Math.round(Number(outcomeObj.probability) * 100)
+      : (matched?.win_probability || Math.round((1 / Math.max(1.01, oddVal)) * 90));
+
+    const sportName = (o.sport?.name || matched?.sport || "FOOTBALL").toUpperCase();
+    const tournamentName =
+      o.sport?.category?.tournament?.name ||
+      o.sport?.category?.name ||
+      matched?.league ||
+      "Premier Division";
+
+    return {
+      match: `${home} vs ${away}`,
+      home_team: home,
+      away_team: away,
+      league: tournamentName,
+      market: marketDesc,
+      selection: outcomeDesc,
+      odd: oddVal,
+      win_probability: probVal,
+      eventId: evId,
+      marketId: marketObj?.id || matched?.marketId || "1",
+      outcomeId: outcomeObj?.id || matched?.outcomeId || "1",
+      specifier: marketObj?.specifier ?? matched?.specifier ?? null,
+      sport: sportName,
+      kickoffTime: o.estimateStartTime ? new Date(o.estimateStartTime).toISOString() : (matched?.kickoffTime || new Date().toISOString()),
+      kickoff_time: o.estimateStartTime ? new Date(o.estimateStartTime).toISOString() : (matched?.kickoff_time || new Date().toISOString()),
+    };
+  });
 }
 
 // Note: Fallback random match substitution has been permanently deleted.
@@ -679,6 +744,7 @@ export async function bookVaultSlip(
   let isVerifiedLive = false;
   let allLegsAccepted = false;
   let finalLegs: VaultBookedLeg[] = [];
+  let returnedOutcomes: any[] = [];
   let acceptedLegIds: string[] = [];
   let rejectedLegIds: string[] = [];
   let networkFailed = false;
@@ -696,7 +762,7 @@ export async function bookVaultSlip(
     if (res.ok) {
       const json = await res.json();
       const hasCode = Boolean((json.bizCode === 10000 || json.innerCode === "10000") && json.data?.shareCode);
-      const returnedOutcomes = Array.isArray(json.data?.outcomes) ? json.data.outcomes : [];
+      returnedOutcomes = Array.isArray(json.data?.outcomes) ? json.data.outcomes : [];
 
       const acceptedSet = new Set<string>();
       for (const o of returnedOutcomes) {
@@ -720,7 +786,8 @@ export async function bookVaultSlip(
         // 100% of candidate legs booked
         sportyCode = json.data.shareCode;
         sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
-        finalLegs = [...candidateLegs];
+        const mappedOutcomes = mapSportyBetOutcomesToLegs(returnedOutcomes, candidateLegs);
+        finalLegs = mappedOutcomes.length > 0 ? mappedOutcomes : [...candidateLegs];
         isVerifiedLive = true;
         allLegsAccepted = true;
         acceptedLegIds = candidateLegs.map((l) => l.eventId);
@@ -738,7 +805,8 @@ export async function bookVaultSlip(
           // Do not assign sportyCode so caller knows legs were dropped
         } else {
           // Partial set accepted by SportyBet — sync finalLegs to exactly the accepted outcomes!
-          finalLegs = acceptedCandidateLegs;
+          const mappedOutcomes = mapSportyBetOutcomesToLegs(returnedOutcomes, acceptedCandidateLegs);
+          finalLegs = mappedOutcomes.length > 0 ? mappedOutcomes : acceptedCandidateLegs;
           sportyCode = json.data.shareCode;
           sportyUrl = json.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${sportyCode}`;
           isVerifiedLive = true;
@@ -977,6 +1045,7 @@ export async function bookVaultSlip(
     all_legs_accepted: allLegsAccepted,
     legs: finalLegs,
     legs_json: finalLegs,
+    live_outcomes: returnedOutcomes,
     accepted_event_ids: acceptedEventIds,
     acceptedEventIds: acceptedEventIds,
     rejected_event_ids: rejectedLegIds,

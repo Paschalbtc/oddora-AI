@@ -340,7 +340,7 @@ function FounderAdminContent() {
           <div className="p-5 rounded-2xl bg-[#0C111A] border border-white/10 hover:border-emerald-500/30 transition shadow-lg relative group">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
-                Saved / Booked Slips
+                Total Slips Created
               </span>
               <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
                 <Ticket className="w-4 h-4" />
@@ -353,7 +353,7 @@ function FounderAdminContent() {
               <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-bold text-[10px]">
                 LIVE TICKET VAULT
               </span>
-              <span className="text-[11px] text-slate-500">Tracked Bets</span>
+              <span className="text-[11px] text-slate-500">AI & User Slips</span>
             </div>
           </div>
 

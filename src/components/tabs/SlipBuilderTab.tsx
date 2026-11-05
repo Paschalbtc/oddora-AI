@@ -51,7 +51,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
   onOpenUpgradeModal,
 }) => {
   const { addLegs, setIsOpen: setSlipOpen } = useBetSlip();
-  const { user, requireAuth } = useAuth();
+  const { user, profile, requireAuth } = useAuth();
   const earlyAccess = isEarlyAccessActive();
 
   // Step 1: Multi-Sport Selection Matrix (Football, Basketball, Tennis, Volleyball)
@@ -230,6 +230,8 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           date_horizon: dateHorizon,
           bookmaker,
           user_tier: earlyAccess ? "VIP" : currentTier,
+          user_id: user?.id,
+          user_email: profile?.email || user?.email,
         }),
       });
 

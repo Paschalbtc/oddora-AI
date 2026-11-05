@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildCustomSlip, CustomBuilderRequest } from "@/lib/engines/engine4_slipBuilder";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -58,6 +59,67 @@ export async function POST(request: NextRequest) {
     slip.share_url = shareUrl;
     slip.sportyUrl = shareUrl;
     slip.shareUrl = shareUrl;
+
+    // Record slip creation in Founder Admin Analytics (public.user_saved_tickets & oddora_v2_daily_slips)
+    try {
+      const supabase = getSupabaseAdmin();
+      let effectiveEmail = (
+        (body as any).user_email ||
+        (body as any).email ||
+        ""
+      ).toLowerCase().trim();
+      let effectiveUserId = (body as any).user_id || (body as any).userId || null;
+
+      if (!effectiveEmail) {
+        const authHeader = request.headers.get("authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+          const token = authHeader.substring(7);
+          try {
+            const { data: { user: authUser } } = await supabase.auth.getUser(token);
+            if (authUser?.email) {
+              effectiveEmail = authUser.email.toLowerCase().trim();
+              effectiveUserId = authUser.id;
+            }
+          } catch {}
+        }
+      }
+
+      const finalLegs = slip.legs_json || slip.legs || [];
+      const finalOdds = Number(slip.actual_combined_odds || slip.actual_odds || payload.target_odds || 1.0);
+      const ticketId = `slip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      await supabase.from("user_saved_tickets").insert({
+        id: ticketId,
+        user_id: effectiveUserId,
+        user_email: effectiveEmail || "guest@oddora.ai",
+        booking_code: generatedCode || "READY",
+        share_code: generatedCode || "READY",
+        total_odds: finalOdds,
+        target_odds: Number(payload.target_odds) || 10.0,
+        tier: String(payload.user_tier || "FREE").toUpperCase(),
+        title: `AI Slip Builder (${finalOdds}x)`,
+        legs: finalLegs,
+        status: "PENDING",
+        source: "SLIP_BUILDER",
+      });
+
+      await supabase.from("oddora_v2_daily_slips").insert({
+        slip_type: "CUSTOM_SOLVER",
+        slip_title: `Slip Builder (${finalOdds}x)`,
+        target_odds: Number(payload.target_odds) || 10.0,
+        actual_odds: finalOdds,
+        sport: payload.sport_type || "multi",
+        sporty_code: generatedCode,
+        share_url: shareUrl,
+        legs: finalLegs,
+        is_locked_for_tier: String(payload.user_tier || "FREE").toUpperCase(),
+        created_date: new Date().toISOString().split("T")[0],
+        status: "ACTIVE",
+        result_status: "PENDING",
+      });
+    } catch (auditErr) {
+      console.warn("[API SlipBuilder] Slip recording notice:", auditErr);
+    }
 
     return NextResponse.json({
       status: slip.status || "success",

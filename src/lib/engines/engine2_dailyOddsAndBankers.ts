@@ -747,7 +747,7 @@ export async function generateAndBookDailySlips(): Promise<{
 
     const verifiedLegs = booked.legs_json && booked.legs_json.length > 0 ? booked.legs_json : booked.legs;
     const finalLegs =
-      verifiedLegs && verifiedLegs.length === selectedLegs.length
+      verifiedLegs && verifiedLegs.length > 0
         ? verifiedLegs
         : selectedLegs;
     const calculatedOdds =

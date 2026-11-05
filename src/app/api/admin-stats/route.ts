@@ -121,6 +121,17 @@ export async function GET(request: NextRequest) {
       console.warn("Could not query user_saved_tickets for admin stats:", err);
     }
 
+    // 3b. Query oddora_v2_daily_slips count
+    let totalDailySlipsCount = 0;
+    try {
+      const { count: sCount } = await supabase
+        .from("oddora_v2_daily_slips")
+        .select("*", { count: "exact", head: true });
+      if (typeof sCount === "number") totalDailySlipsCount = sCount;
+    } catch {}
+
+    const grandTotalSlips = Math.max(totalSavedTickets, totalSavedTickets + totalDailySlipsCount);
+
     // 4. Query Active Matches in Pool
     let activeMatchesInPool = 0;
     try {
@@ -208,18 +219,18 @@ export async function GET(request: NextRequest) {
       adminEmail: ADMIN_EMAIL,
       totalUsers: totalRegisteredUsers,
       newUsersToday: newSignupsToday24h,
-      totalSlips: totalSavedTickets,
+      totalSlips: grandTotalSlips,
       activeMatches: activeMatchesInPool,
       metrics: {
         totalVisitorsAllTime,
         visitorsToday24h,
         totalRegisteredUsers,
         newSignupsToday24h,
-        totalSavedTickets,
+        totalSavedTickets: grandTotalSlips,
         activeMatchesInPool,
         totalUsers: totalRegisteredUsers,
         newUsersToday: newSignupsToday24h,
-        totalSlips: totalSavedTickets,
+        totalSlips: grandTotalSlips,
         activeMatches: activeMatchesInPool,
       },
       recentUsers: sortedUsers,

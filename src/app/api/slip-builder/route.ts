@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildCustomSlip, CustomBuilderRequest } from "@/lib/engines/engine3_slipBuilder";
+import { buildCustomSlip, CustomBuilderRequest } from "@/lib/engines/engine4_slipBuilder";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,10 +20,12 @@ export async function POST(request: NextRequest) {
       ...body,
       target_odds: targetOdds || 10.0,
       sport_type: body.sport_type || body.sport || "all",
+      sports: body.sports || (body.sport_type ? [body.sport_type] : undefined),
       strategy_mode:
         body.strategy_mode ||
         (body.mode === "banker" || body.mode === "pure_banker" ? "PURE_BANKER" : "SWEET_SPOT"),
       user_tier: (body.user_tier || body.tier || "FREE").toUpperCase(),
+      auto_optimize: body.auto_optimize ?? true,
     };
 
     const slip: any = await buildCustomSlip(payload);
@@ -79,9 +81,13 @@ export async function POST(request: NextRequest) {
       shareUrl,
       sportyUrl: shareUrl,
       legs: slip.legs_json || slip.legs || [],
+      matches: slip.legs_json || slip.legs || [],
       legs_json: slip.legs_json || slip.legs || [],
+      total_odds: slip.actual_combined_odds || slip.actual_odds || payload.target_odds,
+      actual_odds: slip.actual_combined_odds || slip.actual_odds || payload.target_odds,
     });
   } catch (error: any) {
+    console.error("[API SlipBuilder] Error executing buildCustomSlip:", error);
     return NextResponse.json(
       { status: "error", message: error.message || "Failed to build custom slip." },
       { status: 500 }
@@ -92,6 +98,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const targetOdds = parseFloat(searchParams.get("target_odds") || searchParams.get("targetOdds") || "10");
+  const sportsParam = searchParams.get("sports");
   const sport = searchParams.get("sport") || searchParams.get("sport_type") || "all";
   const mode = (searchParams.get("mode") || searchParams.get("strategy_mode") || "SWEET_SPOT").toUpperCase();
   const isBanker = mode === "BANKER" || mode === "PURE_BANKER";
@@ -101,12 +108,21 @@ export async function GET(request: NextRequest) {
     const slip = await buildCustomSlip({
       target_odds: targetOdds,
       sport_type: sport,
+      sports: sportsParam ? sportsParam.split(",") : undefined,
       strategy_mode: isBanker ? "PURE_BANKER" : "SWEET_SPOT",
       user_tier: tier,
+      auto_optimize: true,
     });
-    return NextResponse.json({ status: "success", data: slip, slip });
+    return NextResponse.json({
+      status: "success",
+      success: true,
+      data: slip,
+      slip,
+      legs: slip.legs_json || slip.legs || [],
+      matches: slip.legs_json || slip.legs || [],
+      total_odds: slip.actual_combined_odds || (slip as any).actual_odds || targetOdds,
+    });
   } catch (err: any) {
     return NextResponse.json({ status: "error", message: err.message }, { status: 500 });
   }
 }
-

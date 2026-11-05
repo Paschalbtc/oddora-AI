@@ -274,3 +274,4 @@ async function handleFetchMatches(request: NextRequest) {
     );
   }
 }
+

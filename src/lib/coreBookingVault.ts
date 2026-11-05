@@ -681,6 +681,7 @@ export async function bookVaultSlip(
   let finalLegs: VaultBookedLeg[] = [];
   let acceptedLegIds: string[] = [];
   let rejectedLegIds: string[] = [];
+  let networkFailed = false;
 
   // 2. Primary Dispatch to SportyBet order share endpoint
   try {
@@ -750,11 +751,12 @@ export async function bookVaultSlip(
       }
     }
   } catch (err) {
+    networkFailed = true;
     console.warn("[SportyBet Vault] Primary batch order share network error:", err);
   }
 
-  // 3. Resilient Leg-by-Leg Probe if primary batch failed or zero legs were accepted
-  if (!sportyCode && candidateLegs.length >= 1) {
+  // 3. Resilient Leg-by-Leg Probe if primary batch failed or zero legs were accepted (only if network is online)
+  if (!networkFailed && !sportyCode && candidateLegs.length >= 1) {
     console.log("[SportyBet Vault] Batch failed or was rejected. Probing legs individually to isolate open matches...");
     try {
       const probeResults = await Promise.allSettled(

@@ -614,7 +614,9 @@ export interface V2DailySlipRecord {
     | "BANKER_2X"
     | "DAILY_3X"
     | "DAILY_4X"
+    | "DAILY_5X"
     | "DAILY_10X"
+    | "DAILY_20X"
     | "DAILY_50X"
     | "DAILY_100X"
     | "DAILY_200X"
@@ -665,14 +667,15 @@ const DAILY_PRESET_CONFIGS: Array<{
   minOddPerLeg: number;
   maxOddPerLeg: number;
 }> = [
-  // Strict Banker Corridor: Absolute Min = 1.12, Absolute Max = 1.75
-  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.0, minOdds: 1.85, maxOdds: 2.30, tierLock: "FREE", maxLegs: 2, minOddPerLeg: 1.30, maxOddPerLeg: 1.55 },
-  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.0, minOdds: 2.80, maxOdds: 3.50, tierLock: "PRO", maxLegs: 3, minOddPerLeg: 1.30, maxOddPerLeg: 1.60 },
-  { type: "DAILY_4X", title: "Tactical Quad Slip (4.00x)", target: 4.0, minOdds: 3.80, maxOdds: 4.80, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.30, maxOddPerLeg: 1.60 },
-  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.0, maxOdds: 12.5, tierLock: "PRO", maxLegs: 6, minOddPerLeg: 1.32, maxOddPerLeg: 1.65 },
-  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 45.0, maxOdds: 62.0, tierLock: "PRO", maxLegs: 11, minOddPerLeg: 1.35, maxOddPerLeg: 1.70 },
-  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 90.0, maxOdds: 125.0, tierLock: "PREMIUM", maxLegs: 13, minOddPerLeg: 1.35, maxOddPerLeg: 1.70 },
-  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 180.0, maxOdds: 250.0, tierLock: "PREMIUM", maxLegs: 15, minOddPerLeg: 1.35, maxOddPerLeg: 1.75 },
+  // Strict Banker Corridor: Compounded total strictly within ±5% of target tier
+  { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.05, minOdds: 2.00, maxOdds: 2.10, tierLock: "FREE", maxLegs: 2, minOddPerLeg: 1.35, maxOddPerLeg: 1.50 },
+  { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.10, minOdds: 2.95, maxOdds: 3.25, tierLock: "PRO", maxLegs: 3, minOddPerLeg: 1.35, maxOddPerLeg: 1.52 },
+  { type: "DAILY_4X", title: "Tactical Multiplier (5.00x)", target: 5.0, minOdds: 4.80, maxOdds: 5.30, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.35, maxOddPerLeg: 1.55 },
+  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.50, maxOdds: 10.80, tierLock: "PRO", maxLegs: 7, minOddPerLeg: 1.32, maxOddPerLeg: 1.55 },
+  { type: "DAILY_20X", title: "Strategic 20x Multiplier", target: 20.0, minOdds: 19.0, maxOdds: 22.0, tierLock: "PRO", maxLegs: 9, minOddPerLeg: 1.32, maxOddPerLeg: 1.60 },
+  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 48.0, maxOdds: 53.0, tierLock: "PRO", maxLegs: 13, minOddPerLeg: 1.30, maxOddPerLeg: 1.65 },
+  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 95.0, maxOdds: 108.0, tierLock: "PREMIUM", maxLegs: 16, minOddPerLeg: 1.30, maxOddPerLeg: 1.65 },
+  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 190.0, maxOdds: 215.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.30, maxOddPerLeg: 1.68 },
 ];
 
 /**
@@ -803,6 +806,56 @@ export async function generateAndBookDailySlips(): Promise<{
       kickoff_time: m.kickoff_time,
       candidate_markets: candidateMarkets,
     });
+  }
+
+  // If uniqueMatches is low, supplement with fallback multi-sport fixtures to guarantee deep pool
+  if (uniqueMatches.length < 40) {
+    const { getFallbackMultiSportFixtures } = await import("./engine4_slipBuilder");
+    const fallbacks = getFallbackMultiSportFixtures(
+      new Set(["FOOTBALL", "BASKETBALL", "TENNIS", "VOLLEYBALL"])
+    );
+    for (const fb of fallbacks) {
+      const cleanEvId = fb.id || `sr:match:${fb.match_id}`;
+      const home = fb.home_team;
+      const away = fb.away_team;
+      const matchKey = getMatchKey(home, away, cleanEvId);
+      if (seenEventIds.has(cleanEvId) || (matchKey && seenMatchKeys.has(matchKey))) continue;
+
+      const candidateMarkets = buildCandidateMarketsForMatch(fb, cleanEvId);
+      if (candidateMarkets.length === 0) continue;
+      seenEventIds.add(cleanEvId);
+      if (matchKey) seenMatchKeys.add(matchKey);
+
+      const primaryOption = candidateMarkets[0];
+      uniqueMatches.push({
+        id: fb.id,
+        match_id: fb.id,
+        matchKey,
+        eventId: cleanEvId,
+        marketId: primaryOption.marketId,
+        outcomeId: primaryOption.outcomeId,
+        specifier: primaryOption.specifier,
+        sportybet_selection: {
+          eventId: cleanEvId,
+          marketId: primaryOption.marketId,
+          outcomeId: primaryOption.outcomeId,
+          specifier: primaryOption.specifier,
+        },
+        home_team: home,
+        away_team: away,
+        match: `${home} vs ${away}`,
+        league: fb.league_name || "Global League",
+        sport: (fb.sport || "football").toLowerCase(),
+        market_name: primaryOption.marketName,
+        best_outcome: primaryOption.selectionLabel,
+        selection_label: primaryOption.selectionLabel,
+        odd_value: primaryOption.odd,
+        win_probability: Number(fb.win_probability) || primaryOption.winProbability,
+        is_over25_candidate: !!fb.is_over25_candidate,
+        kickoff_time: fb.kickoff_time,
+        candidate_markets: candidateMarkets,
+      });
+    }
   }
 
   const generatedSlips: V2DailySlipRecord[] = [];
@@ -1207,7 +1260,7 @@ function solveSubsetForTarget(
     if (!opt) continue;
 
     const candidateOdd = opt.odd;
-    const wouldExceedMax = currentOdds * candidateOdd > maxOdds * 1.15;
+    const wouldExceedMax = currentOdds * candidateOdd > maxOdds;
     if (picked.length < maxLegs && !wouldExceedMax) {
       usedEventIds.add(evId);
       if (matchKey) usedMatchKeys.add(matchKey);
@@ -1257,6 +1310,7 @@ function solveSubsetForTarget(
       if (!opt) continue;
 
       const candidateOdd = opt.odd;
+      if (currentOdds * candidateOdd > maxOdds && currentOdds >= minOdds) continue;
       usedEventIds.add(evId);
       if (matchKey) usedMatchKeys.add(matchKey);
 

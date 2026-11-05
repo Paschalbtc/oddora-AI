@@ -2,12 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generateAndBookDailySlips,
   getDailySlipsForUI,
-  hasDuplicateLegsInSlip,
-  isMonochromaticSlip,
 } from "@/lib/engines/engine2_dailyOddsAndBankers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+function enrichSlip(s: any) {
+  const code =
+    s.sporty_code ||
+    s.sportybet_code ||
+    s.booking_code ||
+    s.bookingCode ||
+    s.code ||
+    s.shareCode ||
+    "";
+  const matches = s.legs_json || s.legs || s.matches || [];
+  const actualOdds = Number(s.actual_odds || s.total_odds || s.target_odds) || 2.0;
+  return {
+    ...s,
+    sporty_code: code,
+    booking_code: code,
+    sportybet_code: code,
+    code,
+    actual_odds: actualOdds,
+    total_odds: actualOdds,
+    matches,
+    legs: matches,
+    legs_json: matches,
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,12 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Attach matches alias to guarantee client compatibility
-    const enrichedSlips = (slips || []).map((s: any) => ({
-      ...s,
-      matches: s.legs_json || s.legs || [],
-      legs: s.legs_json || s.legs || [],
-      legs_json: s.legs_json || s.legs || [],
-    }));
+    const enrichedSlips = (slips || []).map(enrichSlip);
 
     return NextResponse.json({
       status: "success",
@@ -56,12 +74,7 @@ export async function GET(request: NextRequest) {
 export async function POST() {
   try {
     const result = await generateAndBookDailySlips();
-    const enriched = (result.slips || []).map((s: any) => ({
-      ...s,
-      matches: s.legs_json || s.legs || [],
-      legs: s.legs_json || s.legs || [],
-      legs_json: s.legs_json || s.legs || [],
-    }));
+    const enriched = (result.slips || []).map(enrichSlip);
 
     return NextResponse.json({
       status: "success",
@@ -77,4 +90,3 @@ export async function POST() {
     );
   }
 }
-

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildCustomSlip, CustomBuilderRequest } from "@/lib/engines/engine3_slipBuilder";
+import { buildCustomSlip, CustomBuilderRequest } from "@/lib/engines/engine4_slipBuilder";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CustomBuilderRequest = await request.json();
+    const body: CustomBuilderRequest = await request.json().catch(() => ({}));
 
     if (!body || (!body.target_odds && !body.is_auto_odds)) {
       return NextResponse.json(
@@ -72,9 +72,13 @@ export async function POST(request: NextRequest) {
       shareUrl,
       sportyUrl: shareUrl,
       legs: slip.legs_json || slip.legs || [],
+      matches: slip.legs_json || slip.legs || [],
       legs_json: slip.legs_json || slip.legs || [],
+      total_odds: slip.actual_combined_odds || slip.actual_odds || body.target_odds || 1.0,
+      actual_odds: slip.actual_combined_odds || slip.actual_odds || body.target_odds || 1.0,
     });
   } catch (error: any) {
+    console.error("[API Builder] Error executing buildCustomSlip:", error);
     return NextResponse.json(
       { status: "error", message: error.message || "Failed to build custom slip." },
       { status: 500 }
@@ -82,3 +86,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const targetOdds = parseFloat(searchParams.get("target_odds") || searchParams.get("targetOdds") || "10");
+    const sportsParam = searchParams.get("sports");
+    const sportType = searchParams.get("sport_type") || searchParams.get("sport") || "all";
+    const mode = (searchParams.get("mode") || searchParams.get("strategy_mode") || "SWEET_SPOT").toUpperCase();
+    const minProb = searchParams.get("min_probability") ? parseFloat(searchParams.get("min_probability")!) : undefined;
+    const tier = (searchParams.get("tier") || searchParams.get("user_tier") || "FREE").toUpperCase() as any;
+
+    const payload: CustomBuilderRequest = {
+      target_odds: targetOdds || 10.0,
+      sport_type: sportType,
+      sports: sportsParam ? sportsParam.split(",") : undefined,
+      strategy_mode: mode,
+      min_probability: minProb,
+      user_tier: tier,
+      auto_optimize: true,
+    };
+
+    const slip: any = await buildCustomSlip(payload);
+    return NextResponse.json({
+      status: "success",
+      success: true,
+      data: slip,
+      slip,
+      legs: slip.legs_json || slip.legs || [],
+      matches: slip.legs_json || slip.legs || [],
+      total_odds: slip.actual_combined_odds || slip.actual_odds || targetOdds,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { status: "error", message: error.message || "Failed to solve accumulator slip." },
+      { status: 500 }
+    );
+  }
+}

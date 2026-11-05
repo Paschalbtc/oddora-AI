@@ -58,10 +58,14 @@ export async function POST(request: NextRequest) {
     slip.shareUrl = shareUrl;
 
     return NextResponse.json({
-      status: "success",
+      status: slip.status || "success",
       success: true,
       data: slip,
       slip,
+      is_pool_insufficient: slip.is_pool_insufficient || false,
+      warning: slip.warning,
+      suggested_corridor: slip.suggested_corridor,
+      suggested_min_probability: slip.suggested_min_probability,
       code: generatedCode,
       shareCode: generatedCode,
       bookingCode: generatedCode,

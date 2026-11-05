@@ -87,7 +87,15 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setBookingCode(text.trim());
+        let clean = text.trim();
+        if (clean.includes("shareCode=")) {
+          const match = clean.match(/shareCode=([A-Za-z0-9]+)/i);
+          if (match) clean = match[1];
+        } else if (clean.includes("/share/")) {
+          const match = clean.match(/\/share\/([A-Za-z0-9]+)/i);
+          if (match) clean = match[1];
+        }
+        setBookingCode(clean.replace(/[^A-Za-z0-9]/g, "").toUpperCase());
       }
     } catch {
       // Browser permissions fallback
@@ -95,7 +103,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   };
 
   const handleExecute = async () => {
-    if (!requireAuth(undefined, "Please create a free account or sign in to edit and prune tickets")) {
+    if (!requireAuth(() => handleExecute(), "Please create a free account or sign in to edit and prune tickets")) {
       return;
     }
     if (!bookingCode.trim()) {
@@ -133,7 +141,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   };
 
   const handleCopy = (code: string) => {
-    if (!requireAuth(undefined, "Please create a free account or sign in to copy verified booking codes")) return;
+    if (!requireAuth(() => handleCopy(code), "Please create a free account or sign in to copy verified booking codes")) return;
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
@@ -191,9 +199,21 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
           <div className="relative">
             <input
               type="text"
-              placeholder={`Enter or paste your ${bookmaker} booking code (e.g. YK6NTF or B9-XXXX)...`}
+              placeholder={`Enter or paste your ${bookmaker} booking code or link (e.g. YK6NTF or sportybet.com/ng/?shareCode=...)...`}
               value={bookingCode}
-              onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.includes("shareCode=") || val.includes("/share/")) {
+                  let clean = val;
+                  const m1 = clean.match(/shareCode=([A-Za-z0-9]+)/i);
+                  const m2 = clean.match(/\/share\/([A-Za-z0-9]+)/i);
+                  if (m1) clean = m1[1];
+                  else if (m2) clean = m2[1];
+                  setBookingCode(clean.replace(/[^A-Za-z0-9]/g, "").toUpperCase());
+                } else {
+                  setBookingCode(val.toUpperCase());
+                }
+              }}
               className="w-full bg-[#070A0E] border border-white/10 rounded-2xl py-3.5 px-4 text-sm font-mono font-bold text-white uppercase placeholder:normal-case placeholder-slate-500 focus:outline-none focus:border-emerald-500 shadow-inner"
             />
           </div>

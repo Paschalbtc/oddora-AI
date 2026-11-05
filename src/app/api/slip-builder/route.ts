@@ -104,18 +104,15 @@ export async function POST(request: NextRequest) {
       });
 
       await supabase.from("oddora_v2_daily_slips").insert({
-        slip_type: "CUSTOM_SOLVER",
-        slip_title: `Slip Builder (${finalOdds}x)`,
-        target_odds: Number(payload.target_odds) || 10.0,
-        actual_odds: finalOdds,
-        sport: payload.sport_type || "multi",
-        sporty_code: generatedCode,
-        share_url: shareUrl,
-        legs: finalLegs,
-        is_locked_for_tier: String(payload.user_tier || "FREE").toUpperCase(),
-        created_date: new Date().toISOString().split("T")[0],
-        status: "ACTIVE",
-        result_status: "PENDING",
+        slip_date: new Date().toISOString().split("T")[0],
+        slip_category: "CUSTOM_SOLVER",
+        required_tier: String(payload.user_tier || "FREE").toUpperCase(),
+        total_odds: finalOdds,
+        match_count: finalLegs.length,
+        sportybet_code: generatedCode,
+        bet9ja_code: null,
+        legs_json: finalLegs,
+        slip_result: "PENDING",
       });
     } catch (auditErr) {
       console.warn("[API SlipBuilder] Slip recording notice:", auditErr);

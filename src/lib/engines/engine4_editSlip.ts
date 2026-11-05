@@ -12,7 +12,12 @@
  *    of original unmodified { eventId, marketId, outcomeId, specifier } and live verification.
  */
 
-import { decodeVaultBookingCode, bookVaultSlip } from "../coreBookingVault";
+import {
+  decodeVaultBookingCode,
+  bookVaultSlip,
+  extractCleanBookingCode,
+} from "../coreBookingVault";
+import { getSupabaseAdmin } from "../supabase";
 import {
   decodeAnyBookingCode,
   bookUniversalSlip,
@@ -58,9 +63,9 @@ export interface EditSlipResponse {
 export async function executeEditSlip(
   req: EditSlipRequest
 ): Promise<EditSlipResponse> {
-  const code = (req.booking_code || "").trim();
+  const code = extractCleanBookingCode(req.booking_code);
   if (!code) {
-    throw new Error("Missing booking_code parameter.");
+    throw new Error("Missing booking_code parameter. Please enter a valid SportyBet booking code.");
   }
 
   // 1. Decode original booking code using Core Booking Vault first
@@ -80,7 +85,7 @@ export async function executeEditSlip(
         share_url: universalDecoded.share_url,
       };
     } else {
-      throw new Error(`Failed to decode booking code: ${code}. Verify the code on SportyBet or enter another.`);
+      throw new Error(`Failed to decode booking code: "${code}". Verify that this code exists on SportyBet.`);
     }
   }
 
@@ -135,10 +140,45 @@ export async function executeEditSlip(
       const primaryCode = sportyCode;
       const shareUrl = sportyUrl;
       const chunkLegs =
-        bookedChunk.legs && bookedChunk.legs.length === chunk.length
+        bookedChunk.legs && bookedChunk.legs.length > 0
           ? bookedChunk.legs
           : chunk;
-      const finalOdds = bookedChunk.actual_odds || chunkOdds;
+      const finalOdds =
+        bookedChunk.actual_odds ||
+        Math.round(chunkLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
+
+      // Persist to user_saved_tickets and oddora_v2_daily_slips
+      try {
+        const supabase = getSupabaseAdmin();
+        const tId = `split_${Date.now()}_${idx + 1}_${Math.random().toString(36).substring(2, 6)}`;
+        await supabase.from("user_saved_tickets").insert({
+          id: tId,
+          user_email: "guest@oddora.ai",
+          booking_code: primaryCode || "READY",
+          share_code: primaryCode || "READY",
+          total_odds: finalOdds,
+          target_odds: finalOdds,
+          tier: "FREE",
+          title: `Split Ticket Part #${idx + 1} (${finalOdds}x)`,
+          legs: chunkLegs,
+          status: "PENDING",
+          source: "EDIT_GAME",
+        });
+
+        await supabase.from("oddora_v2_daily_slips").insert({
+          slip_date: new Date().toISOString().split("T")[0],
+          slip_category: `SPLIT_TICKET_PART_${idx + 1}`,
+          required_tier: "FREE",
+          total_odds: finalOdds,
+          match_count: chunkLegs.length,
+          sportybet_code: primaryCode,
+          bet9ja_code: null,
+          legs_json: chunkLegs,
+          slip_result: "PENDING",
+        });
+      } catch (dbErr) {
+        console.warn("[EditGame] DB persistence notice:", dbErr);
+      }
 
       outputSlips.push({
         slip_index: idx + 1,
@@ -203,12 +243,45 @@ export async function executeEditSlip(
   const primaryCode = sportyCode;
   const shareUrl = sportyUrl;
   const verifiedLegs =
-    bookedSurviving.legs && bookedSurviving.legs.length === expectedRemainingCount
+    bookedSurviving.legs && bookedSurviving.legs.length > 0
       ? bookedSurviving.legs
       : surviving;
   const verifiedOdds =
     bookedSurviving.actual_odds ||
     Math.round(verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
+
+  // Persist pruned ticket to user_saved_tickets and oddora_v2_daily_slips
+  try {
+    const supabase = getSupabaseAdmin();
+    const tId = `pruned_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await supabase.from("user_saved_tickets").insert({
+      id: tId,
+      user_email: "guest@oddora.ai",
+      booking_code: primaryCode || "READY",
+      share_code: primaryCode || "READY",
+      total_odds: verifiedOdds,
+      target_odds: verifiedOdds,
+      tier: "FREE",
+      title: `Optimized Slip (${req.mode.replace("_", " ")}) - ${verifiedOdds}x`,
+      legs: verifiedLegs,
+      status: "PENDING",
+      source: "EDIT_GAME",
+    });
+
+    await supabase.from("oddora_v2_daily_slips").insert({
+      slip_date: new Date().toISOString().split("T")[0],
+      slip_category: `PRUNED_${req.mode}`,
+      required_tier: "FREE",
+      total_odds: verifiedOdds,
+      match_count: verifiedLegs.length,
+      sportybet_code: primaryCode,
+      bet9ja_code: null,
+      legs_json: verifiedLegs,
+      slip_result: "PENDING",
+    });
+  } catch (dbErr) {
+    console.warn("[EditGame] DB persistence notice:", dbErr);
+  }
 
   return {
     original_code: code,

@@ -1055,6 +1055,21 @@ export async function bookVaultSlip(
 }
 
 /**
+ * Extracts a clean alphanumeric SportyBet booking code from raw user input or shared links.
+ */
+export function extractCleanBookingCode(raw: string): string {
+  let clean = (raw || "").trim();
+  if (clean.includes("shareCode=")) {
+    const match = clean.match(/shareCode=([A-Za-z0-9]+)/i);
+    if (match) clean = match[1];
+  } else if (clean.includes("/share/")) {
+    const match = clean.match(/\/share\/([A-Za-z0-9]+)/i);
+    if (match) clean = match[1];
+  }
+  return clean.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+/**
  * 4. STRICT EDIT SLIP PRESERVATION (SPORTYBET-EXCLUSIVE)
  * Decodes existing code and extracts exact { eventId, marketId, outcomeId, specifier }
  */
@@ -1071,8 +1086,8 @@ export async function decodeVaultBookingCode(
   share_url: string;
   message?: string;
 }> {
-  const cleanCode = (code || "").trim().toUpperCase();
-  if (!cleanCode) {
+  const cleanCode = extractCleanBookingCode(code);
+  if (!cleanCode || cleanCode.length < 3) {
     return {
       status: "error",
       bookmaker: "SportyBet",
@@ -1081,13 +1096,13 @@ export async function decodeVaultBookingCode(
       legs_count: 0,
       legs: [],
       share_url: "",
-      message: "Please enter a valid SportyBet booking code.",
+      message: "Please enter a valid SportyBet booking code or share link.",
     };
   }
 
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseAdmin();
 
-  // 1. Check Supabase DB cache first
+  // 1. Check Supabase DB cache first (oddora_v2_daily_slips & user_saved_tickets)
   try {
     const { data: cachedSlip } = await supabase
       .from("oddora_v2_daily_slips")
@@ -1096,15 +1111,36 @@ export async function decodeVaultBookingCode(
       .limit(1)
       .maybeSingle();
 
-    if (cachedSlip && Array.isArray(cachedSlip.legs_json) && cachedSlip.legs_json.length > 0) {
+    const cachedLegs = cachedSlip?.legs_json || (cachedSlip as any)?.legs;
+    if (cachedSlip && Array.isArray(cachedLegs) && cachedLegs.length > 0) {
       return {
         status: "success",
         bookmaker: "SportyBet",
         booking_code: cleanCode,
         total_odds: Number(cachedSlip.total_odds) || 2.0,
-        legs_count: cachedSlip.legs_json.length,
-        legs: cachedSlip.legs_json,
-        share_url: `http://www.sportybet.com/ng/?shareCode=${cleanCode}`,
+        legs_count: cachedLegs.length,
+        legs: cachedLegs,
+        share_url: `https://www.sportybet.com/ng/?shareCode=${cleanCode}`,
+      };
+    }
+
+    const { data: userTicket } = await supabase
+      .from("user_saved_tickets")
+      .select("*")
+      .or(`booking_code.ilike.%${cleanCode}%,share_code.ilike.%${cleanCode}%`)
+      .limit(1)
+      .maybeSingle();
+
+    const uLegs = userTicket?.legs || userTicket?.legs_json;
+    if (userTicket && Array.isArray(uLegs) && uLegs.length > 0) {
+      return {
+        status: "success",
+        bookmaker: "SportyBet",
+        booking_code: cleanCode,
+        total_odds: Number(userTicket.total_odds) || 2.0,
+        legs_count: uLegs.length,
+        legs: uLegs,
+        share_url: `https://www.sportybet.com/ng/?shareCode=${cleanCode}`,
       };
     }
   } catch (dbErr) {
@@ -1116,7 +1152,7 @@ export async function decodeVaultBookingCode(
     const res = await fetch(`https://www.sportybet.com/api/ng/orders/share/${cleanCode}`, {
       headers: SPORTYBET_BROWSER_HEADERS,
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (res.ok) {
@@ -1127,8 +1163,9 @@ export async function decodeVaultBookingCode(
         let totalOdds = 1.0;
 
         for (const o of outcomes) {
-          const home = o.homeTeamName || "Home";
-          const away = o.awayTeamName || "Away";
+          const home = (o.homeTeamName || "Home").trim();
+          const away = (o.awayTeamName || "Away").trim();
+          const sportName = (o.sport?.name || "FOOTBALL").toUpperCase();
           const league = o.sport?.category?.tournament?.name || o.sport?.category?.name || "League";
 
           for (const m of o.markets || []) {
@@ -1145,11 +1182,16 @@ export async function decodeVaultBookingCode(
                 market: marketDesc,
                 selection: out.desc || "Pick",
                 odd,
-                win_probability: 85,
+                win_probability: out.probability
+                  ? Math.round(parseFloat(out.probability) * 100)
+                  : Math.round((1 / Math.max(1.01, odd)) * 92),
                 eventId: o.eventId,
                 marketId: String(m.id),
                 outcomeId: String(out.id),
                 specifier: m.specifier || null,
+                sport: sportName,
+                kickoffTime: o.estimateStartTime ? new Date(o.estimateStartTime).toISOString() : new Date().toISOString(),
+                kickoff_time: o.estimateStartTime ? new Date(o.estimateStartTime).toISOString() : new Date().toISOString(),
               });
             }
           }
@@ -1163,7 +1205,7 @@ export async function decodeVaultBookingCode(
             total_odds: Math.round(totalOdds * 100) / 100,
             legs_count: decodedLegs.length,
             legs: decodedLegs,
-            share_url: `http://www.sportybet.com/ng/?shareCode=${cleanCode}`,
+            share_url: `https://www.sportybet.com/ng/?shareCode=${cleanCode}`,
           };
         }
       }

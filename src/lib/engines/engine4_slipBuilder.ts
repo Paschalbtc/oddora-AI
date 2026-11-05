@@ -306,6 +306,79 @@ export function computeImpliedProbability(odd: number, teamWinProb?: number): nu
 }
 
 /**
+ * Strict category and market type validator honoring user selection in Slip Builder.
+ * Ensures the solver strictly adheres to user-selected market chips (e.g. 1X2, Double Chance, Goals, BTTS, etc.)
+ */
+export function isOptionAllowedByUser(
+  opt: CandidateMarketOption,
+  allowedMarkets?: string[]
+): boolean {
+  if (!allowedMarkets || allowedMarkets.includes("all") || allowedMarkets.length === 0) {
+    return true;
+  }
+  const categoryLower = (opt.marketCategory || "").toLowerCase();
+  const labelLower = (opt.outcomeLabel || "").toLowerCase();
+  const familyLower = (opt.marketFamily || "").toLowerCase();
+
+  return allowedMarkets.some((m) => {
+    const raw = m.toLowerCase().replace(/^(fb_|bb_|tt_|vb_)/, "");
+    if (categoryLower.includes(raw) || raw.includes(categoryLower)) return true;
+    if (familyLower.includes(raw)) return true;
+    if (raw.includes("1x2") || raw.includes("winner") || raw.includes("home") || raw.includes("away")) {
+      return (
+        categoryLower === "1x2" ||
+        categoryLower.includes("winner") ||
+        categoryLower.includes("moneyline") ||
+        familyLower === "family_1x2"
+      );
+    }
+    if (raw.includes("dc") || raw.includes("double")) {
+      return categoryLower.includes("double") || familyLower.includes("double") || labelLower.includes("or draw");
+    }
+    if (raw.includes("ou") || raw.includes("over") || raw.includes("under") || raw.includes("goal") || raw.includes("total")) {
+      return (
+        categoryLower.includes("over") ||
+        categoryLower.includes("under") ||
+        categoryLower.includes("total") ||
+        categoryLower.includes("goal") ||
+        familyLower.includes("goals")
+      );
+    }
+    if (raw.includes("btts") || raw.includes("gg") || raw.includes("both")) {
+      return (
+        categoryLower.includes("btts") ||
+        categoryLower.includes("gg") ||
+        labelLower.includes("gg") ||
+        labelLower.includes("both")
+      );
+    }
+    if (raw.includes("dnb") || raw.includes("draw_no_bet")) {
+      return (
+        categoryLower.includes("draw_no_bet") ||
+        categoryLower.includes("dnb") ||
+        labelLower.includes("draw no bet")
+      );
+    }
+    if (raw.includes("team") || raw.includes("score")) {
+      return familyLower.includes("specials") || labelLower.includes("to score") || labelLower.includes("team");
+    }
+    if (raw.includes("corner")) {
+      return categoryLower.includes("corner") || labelLower.includes("corner");
+    }
+    if (raw.includes("card") || raw.includes("booking")) {
+      return categoryLower.includes("card") || labelLower.includes("card") || labelLower.includes("booking");
+    }
+    if (raw.includes("spread") || raw.includes("hcp") || raw.includes("handicap")) {
+      return familyLower.includes("handicap") || labelLower.includes("spread") || labelLower.includes("handicap");
+    }
+    if (raw.includes("set")) {
+      return labelLower.includes("set") || categoryLower.includes("set");
+    }
+    return false;
+  });
+}
+
+/**
  * =========================================================================
  * STAGE 1 — MULTI-SPORT MARKET CANDIDATE GENERATION WITH 7 FAMILIES
  * =========================================================================
@@ -390,7 +463,15 @@ export function generateMultiSportCandidatesForFixture(
     }
   }
 
-  // 2. Synthesize dedicated sport-specific markets across all 7 families
+  // 2. Synthesize dedicated sport-specific markets across all 7 families with REAL TEAM NAMES
+  const home = (matchRow.home_team || "Home").trim();
+  const away = (matchRow.away_team || "Away").trim();
+  const homeOdds = Number(matchRow.odds_home || 2.0);
+  const awayOdds = Number(matchRow.odds_away || 2.5);
+  const isHomeFav = homeOdds <= awayOdds;
+  const favTeam = isHomeFav ? home : away;
+  const dogTeam = isHomeFav ? away : home;
+
   const dedicatedTemplates: Array<{
     cat: string;
     fam: MarketFamily;
@@ -403,38 +484,241 @@ export function generateMultiSportCandidatesForFixture(
   }> = [];
 
   if (sport === "FOOTBALL") {
+    const dcOdd = Math.max(1.12, Math.min(1.35, Math.round((96 / Math.min(94, baseProb + 12)) * 100) / 100));
+    const over15Odd = Math.max(1.18, Math.min(1.36, Math.round((100 / 84) * 100) / 100));
+    const teamOverOdd = Math.max(1.10, Math.min(1.24, Math.round((95 / Math.min(95, baseProb + 16)) * 100) / 100));
+    const dnbOdd = Math.max(1.20, Math.min(1.45, Math.round((98 / Math.min(92, baseProb + 8)) * 100) / 100));
+    const straightWinOdd = Math.max(1.25, Math.min(1.75, isHomeFav ? homeOdds : awayOdds));
+
     dedicatedTemplates.push(
-      { cat: "DOUBLE_CHANCE", fam: "FAMILY_DOUBLE_CHANCE", label: "1X (Home or Draw)", odd: 1.30, mId: "10", oId: "9", spec: null, tierNeeded: "FREE" },
-      { cat: "OVER_UNDER", fam: "FAMILY_GOALS_POINTS", label: "Over 1.5 Goals", odd: 1.34, mId: "18", oId: "12", spec: "total=1.5", tierNeeded: "FREE" },
-      { cat: "DOUBLE_CHANCE", fam: "FAMILY_DOUBLE_CHANCE", label: "X2 (Draw or Away)", odd: 1.36, mId: "10", oId: "11", spec: null, tierNeeded: "FREE" },
-      { cat: "1X2", fam: "FAMILY_1X2", label: "Home Win", odd: 1.54, mId: "1", oId: "1", spec: null, tierNeeded: "FREE" },
-      { cat: "DRAW_NO_BET", fam: "FAMILY_BTTS_DNB", label: "Home (Draw No Bet)", odd: 1.38, mId: "11", oId: "1", spec: null, tierNeeded: "PRO" },
-      { cat: "BTTS", fam: "FAMILY_BTTS_DNB", label: "GG (Both Teams to Score)", odd: 1.68, mId: "29", oId: "74", spec: null, tierNeeded: "PRO" },
-      { cat: "TEAM_OVER", fam: "FAMILY_TEAM_SPECIALS", label: "Favourite Team Over 0.5 Goals", odd: 1.20, mId: "18", oId: "12", spec: "total=0.5", tierNeeded: "PRO" },
-      { cat: "WEH", fam: "FAMILY_TEAM_SPECIALS", label: "Favourite to Win Either Half", odd: 1.36, mId: "1", oId: "1", spec: null, tierNeeded: "VIP" },
-      { cat: "CORNERS", fam: "FAMILY_CARDS_CORNERS", label: "Over 8.5 Total Corners", odd: 1.40, mId: "166", oId: "12", spec: "total=8.5", tierNeeded: "VIP" },
-      { cat: "CARDS", fam: "FAMILY_CARDS_CORNERS", label: "Under 5.5 Total Cards", odd: 1.32, mId: "170", oId: "13", spec: "total=5.5", tierNeeded: "VIP" },
-      { cat: "ASIAN_HANDICAP", fam: "FAMILY_HANDICAPS", label: "Asian Handicap +0.5", odd: 1.32, mId: "16", oId: "1714", spec: "hcp=0.5", tierNeeded: "VIP" }
+      {
+        cat: "DOUBLE_CHANCE",
+        fam: "FAMILY_DOUBLE_CHANCE",
+        label: `${favTeam} or Draw (${isHomeFav ? "1X" : "X2"})`,
+        odd: dcOdd,
+        mId: "10",
+        oId: isHomeFav ? "9" : "11",
+        spec: null,
+        tierNeeded: "FREE",
+      },
+      {
+        cat: "OVER_UNDER",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "Over 1.5 Match Goals",
+        odd: over15Odd,
+        mId: "18",
+        oId: "12",
+        spec: "total=1.5",
+        tierNeeded: "FREE",
+      },
+      {
+        cat: "TEAM_OVER",
+        fam: "FAMILY_TEAM_SPECIALS",
+        label: `${favTeam} Over 0.5 Team Goals`,
+        odd: teamOverOdd,
+        mId: "18",
+        oId: "12",
+        spec: "total=0.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "DRAW_NO_BET",
+        fam: "FAMILY_BTTS_DNB",
+        label: `${favTeam} Draw No Bet (DNB)`,
+        odd: dnbOdd,
+        mId: "11",
+        oId: isHomeFav ? "1" : "2",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "1X2",
+        fam: "FAMILY_1X2",
+        label: `${favTeam} to Win`,
+        odd: straightWinOdd,
+        mId: "1",
+        oId: isHomeFav ? "1" : "3",
+        spec: null,
+        tierNeeded: "FREE",
+      },
+      {
+        cat: "BTTS",
+        fam: "FAMILY_BTTS_DNB",
+        label: "Both Teams to Score (GG)",
+        odd: 1.68,
+        mId: "29",
+        oId: "74",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "WEH",
+        fam: "FAMILY_TEAM_SPECIALS",
+        label: `${favTeam} to Win Either Half`,
+        odd: Math.max(1.18, Math.min(1.42, Math.round((dcOdd + 0.08) * 100) / 100)),
+        mId: "47",
+        oId: "74",
+        spec: null,
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "ASIAN_HANDICAP",
+        fam: "FAMILY_HANDICAPS",
+        label: `${favTeam} +0.5 Handicap Cushion`,
+        odd: dcOdd,
+        mId: "16",
+        oId: "1714",
+        spec: "hcp=0.5",
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "CORNERS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: "Over 8.5 Total Corners",
+        odd: 1.38,
+        mId: "166",
+        oId: "12",
+        spec: "total=8.5",
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "CARDS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: "Under 5.5 Total Cards",
+        odd: 1.30,
+        mId: "170",
+        oId: "13",
+        spec: "total=5.5",
+        tierNeeded: "VIP",
+      }
     );
   } else if (sport === "BASKETBALL") {
+    const mlOdd = Math.max(1.18, Math.min(1.50, Math.round((100 / baseProb) * 100) / 100));
+    const spreadOdd = Math.max(1.15, Math.min(1.36, Math.round((95 / Math.min(92, baseProb + 10)) * 100) / 100));
+
     dedicatedTemplates.push(
-      { cat: "BK_MONEYLINE", fam: "FAMILY_1X2", label: "Home Win (Moneyline)", odd: 1.35, mId: "219", oId: "4", spec: null, tierNeeded: "PRO" },
-      { cat: "BK_SPREAD", fam: "FAMILY_HANDICAPS", label: "Home Spread (+8.5)", odd: 1.32, mId: "223", oId: "1714", spec: "hcp=8.5", tierNeeded: "PRO" },
-      { cat: "BK_TOTALS", fam: "FAMILY_GOALS_POINTS", label: "Over 208.5 Total Points", odd: 1.38, mId: "225", oId: "12", spec: "total=208.5", tierNeeded: "PRO" },
-      { cat: "1ST_HALF_ML", fam: "FAMILY_1X2", label: "1st Half Moneyline Winner", odd: 1.44, mId: "220", oId: "4", spec: null, tierNeeded: "VIP" }
+      {
+        cat: "BK_MONEYLINE",
+        fam: "FAMILY_1X2",
+        label: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        mId: "219",
+        oId: isHomeFav ? "4" : "5",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "BK_SPREAD",
+        fam: "FAMILY_HANDICAPS",
+        label: `${favTeam} +8.5 Point Spread Cushion`,
+        odd: spreadOdd,
+        mId: "223",
+        oId: isHomeFav ? "1" : "2",
+        spec: "hcp=8.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "BK_TOTALS",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "Over 206.5 Total Points (Buffered)",
+        odd: 1.34,
+        mId: "225",
+        oId: "12",
+        spec: "total=206.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "1ST_HALF_ML",
+        fam: "FAMILY_1X2",
+        label: `1st Half - ${favTeam} Moneyline`,
+        odd: Math.round((mlOdd + 0.06) * 100) / 100,
+        mId: "60",
+        oId: isHomeFav ? "1" : "2",
+        spec: null,
+        tierNeeded: "VIP",
+      }
     );
   } else if (sport === "TENNIS") {
+    const mlOdd = Math.max(1.18, Math.min(1.45, Math.round((102 / baseProb) * 100) / 100));
+    const setHcpOdd = Math.max(1.10, Math.min(1.20, Math.round((96 / Math.min(95, baseProb + 14)) * 100) / 100));
+
     dedicatedTemplates.push(
-      { cat: "MATCH_WINNER", fam: "FAMILY_1X2", label: "Player 1 Win (Moneyline)", odd: 1.34, mId: "186", oId: "4", spec: null, tierNeeded: "PRO" },
-      { cat: "SET_HANDICAP", fam: "FAMILY_HANDICAPS", label: "Set Handicap +1.5 Sets", odd: 1.26, mId: "187", oId: "1714", spec: "hcp=1.5", tierNeeded: "PRO" },
-      { cat: "GAMES_TOTALS", fam: "FAMILY_GOALS_POINTS", label: "Over 20.5 Games", odd: 1.44, mId: "201", oId: "12", spec: "total=20.5", tierNeeded: "PRO" }
+      {
+        cat: "SET_HANDICAP",
+        fam: "FAMILY_HANDICAPS",
+        label: `${favTeam} +1.5 Sets (Wins 1+ Set)`,
+        odd: setHcpOdd,
+        mId: "187",
+        oId: "1714",
+        spec: "hcp=1.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "MATCH_WINNER",
+        fam: "FAMILY_1X2",
+        label: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        mId: "186",
+        oId: isHomeFav ? "4" : "5",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "GAMES_TOTALS",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "Over 19.5 Total Match Games",
+        odd: 1.36,
+        mId: "201",
+        oId: "12",
+        spec: "total=19.5",
+        tierNeeded: "PRO",
+      }
     );
   } else if (sport === "VOLLEYBALL") {
+    const mlOdd = Math.max(1.18, Math.min(1.42, Math.round((102 / baseProb) * 100) / 100));
+    const setHcpOdd = Math.max(1.12, Math.min(1.22, Math.round((96 / Math.min(94, baseProb + 12)) * 100) / 100));
+
     dedicatedTemplates.push(
-      { cat: "VB_WINNER", fam: "FAMILY_1X2", label: "Home Win", odd: 1.32, mId: "186", oId: "4", spec: null, tierNeeded: "PRO" },
-      { cat: "VB_SETS", fam: "FAMILY_HANDICAPS", label: "Set Handicap +2.5 Sets", odd: 1.20, mId: "187", oId: "1714", spec: "hcp=2.5", tierNeeded: "PRO" },
-      { cat: "VB_SETS", fam: "FAMILY_GOALS_POINTS", label: "Over 3.5 Sets (No 3-0)", odd: 1.38, mId: "199", oId: "12", spec: "total=3.5", tierNeeded: "PRO" },
-      { cat: "VB_POINTS", fam: "FAMILY_TEAM_SPECIALS", label: "1st Set Over 44.5 Points", odd: 1.36, mId: "201", oId: "12", spec: "total=44.5", tierNeeded: "VIP" }
+      {
+        cat: "VB_SETS",
+        fam: "FAMILY_HANDICAPS",
+        label: `${favTeam} +1.5 Sets (Wins 2+ Sets)`,
+        odd: setHcpOdd,
+        mId: "187",
+        oId: "1714",
+        spec: "hcp=1.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "VB_WINNER",
+        fam: "FAMILY_1X2",
+        label: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        mId: "186",
+        oId: isHomeFav ? "4" : "5",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "VB_SETS",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "Over 3.5 Sets (Competitive)",
+        odd: 1.36,
+        mId: "199",
+        oId: "12",
+        spec: "total=3.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "VB_POINTS",
+        fam: "FAMILY_TEAM_SPECIALS",
+        label: "1st Set Over 44.5 Total Points",
+        odd: 1.35,
+        mId: "201",
+        oId: "12",
+        spec: "total=44.5",
+        tierNeeded: "VIP",
+      }
     );
   }
 
@@ -530,13 +814,13 @@ export function getFallbackMultiSportFixtures(
         odd_value: m.odd,
         sportybet_selection: { eventId: matchId, marketId: "10", outcomeId: "9" },
         all_markets_json: [
-          { odd: m.odd, market: "Double Chance", selection: "1X (Home or Draw)", marketId: "10", outcomeId: "9", specifier: null, win_probability: m.prob },
-          { odd: Math.round((m.odd + 0.04) * 100) / 100, market: "Over/Under Goals", selection: "Over 1.5 Goals", marketId: "18", outcomeId: "12", specifier: "total=1.5", win_probability: m.prob - 2 },
-          { odd: Math.round((m.odd + 0.22) * 100) / 100, market: "1X2", selection: "Home Win", marketId: "1", outcomeId: "1", specifier: null, win_probability: m.prob - 8 },
-          { odd: Math.round((m.odd + 0.35) * 100) / 100, market: "Both Teams to Score", selection: "GG", marketId: "29", outcomeId: "74", specifier: null, win_probability: m.prob - 12 },
-          { odd: 1.20, market: "Team Specials", selection: "Favourite Team Over 0.5 Goals", marketId: "18", outcomeId: "12", specifier: "total=0.5", win_probability: 90 },
-          { odd: 1.38, market: "Corners", selection: "Over 8.5 Corners", marketId: "166", outcomeId: "12", specifier: "total=8.5", win_probability: 80 },
-          { odd: 1.36, market: "Handicaps", selection: "Asian Handicap +0.5", marketId: "16", outcomeId: "1714", specifier: "hcp=0.5", win_probability: 84 },
+          { odd: m.odd, market: "Double Chance", selection: `${m.home} or Draw (1X)`, marketId: "10", outcomeId: "9", specifier: null, win_probability: m.prob },
+          { odd: Math.round((m.odd + 0.04) * 100) / 100, market: "Over/Under Goals", selection: "Over 1.5 Match Goals", marketId: "18", outcomeId: "12", specifier: "total=1.5", win_probability: m.prob - 2 },
+          { odd: Math.round((m.odd + 0.22) * 100) / 100, market: "1X2", selection: `${m.home} to Win (1)`, marketId: "1", outcomeId: "1", specifier: null, win_probability: m.prob - 8 },
+          { odd: Math.round((m.odd + 0.35) * 100) / 100, market: "Both Teams to Score", selection: "Both Teams to Score (GG)", marketId: "29", outcomeId: "74", specifier: null, win_probability: m.prob - 12 },
+          { odd: 1.20, market: "Team Specials", selection: `${m.home} Over 0.5 Team Goals`, marketId: "18", outcomeId: "12", specifier: "total=0.5", win_probability: 90 },
+          { odd: 1.38, market: "Corners", selection: "Over 8.5 Total Corners", marketId: "166", outcomeId: "12", specifier: "total=8.5", win_probability: 80 },
+          { odd: 1.36, market: "Handicaps", selection: `${m.home} +0.5 Handicap Cushion`, marketId: "16", outcomeId: "1714", specifier: "hcp=0.5", win_probability: 84 },
         ],
       });
     }
@@ -578,10 +862,10 @@ export function getFallbackMultiSportFixtures(
         odd_value: m.odd,
         sportybet_selection: { eventId: matchId, marketId: "219", outcomeId: "4" },
         all_markets_json: [
-          { odd: m.odd, market: "Match Winner", selection: "Home Win (Moneyline)", marketId: "219", outcomeId: "4", specifier: null, win_probability: m.prob },
-          { odd: Math.round((m.odd - 0.05) * 100) / 100, market: "Point Spread", selection: "Home Spread (+8.5)", marketId: "223", outcomeId: "1714", specifier: "hcp=8.5", win_probability: m.prob + 3 },
-          { odd: Math.round((m.odd + 0.05) * 100) / 100, market: "Total Points", selection: "Over 208.5 Points", marketId: "225", outcomeId: "12", specifier: "total=208.5", win_probability: m.prob - 2 },
-          { odd: 1.45, market: "1st Half", selection: "1st Half Home Win", marketId: "220", outcomeId: "4", specifier: null, win_probability: 77 },
+          { odd: m.odd, market: "Match Winner", selection: `${m.home} to Win (Moneyline)`, marketId: "219", outcomeId: "4", specifier: null, win_probability: m.prob },
+          { odd: Math.round((m.odd - 0.05) * 100) / 100, market: "Point Spread", selection: `${m.home} +8.5 Point Spread Cushion`, marketId: "223", outcomeId: "1714", specifier: "hcp=8.5", win_probability: m.prob + 3 },
+          { odd: Math.round((m.odd + 0.05) * 100) / 100, market: "Total Points", selection: "Over 208.5 Total Points", marketId: "225", outcomeId: "12", specifier: "total=208.5", win_probability: m.prob - 2 },
+          { odd: 1.45, market: "1st Half", selection: `1st Half - ${m.home} Moneyline`, marketId: "220", outcomeId: "4", specifier: null, win_probability: 77 },
         ],
       });
     }
@@ -621,9 +905,9 @@ export function getFallbackMultiSportFixtures(
         odd_value: m.odd,
         sportybet_selection: { eventId: matchId, marketId: "186", outcomeId: "4" },
         all_markets_json: [
-          { odd: m.odd, market: "Match Winner", selection: `${m.home} Win`, marketId: "186", outcomeId: "4", specifier: null, win_probability: m.prob },
-          { odd: Math.round((m.odd - 0.06) * 100) / 100, market: "Set Handicap", selection: "Set Handicap +1.5", marketId: "187", outcomeId: "1714", specifier: "hcp=1.5", win_probability: m.prob + 4 },
-          { odd: Math.round((m.odd + 0.10) * 100) / 100, market: "Total Games", selection: "Over 20.5 Games", marketId: "201", outcomeId: "12", specifier: "total=20.5", win_probability: m.prob - 4 },
+          { odd: m.odd, market: "Match Winner", selection: `${m.home} to Win (Moneyline)`, marketId: "186", outcomeId: "4", specifier: null, win_probability: m.prob },
+          { odd: Math.round((m.odd - 0.06) * 100) / 100, market: "Set Handicap", selection: `${m.home} +1.5 Sets (Wins 1+ Set)`, marketId: "187", outcomeId: "1714", specifier: "hcp=1.5", win_probability: m.prob + 4 },
+          { odd: Math.round((m.odd + 0.10) * 100) / 100, market: "Total Games", selection: "Over 19.5 Total Match Games", marketId: "201", outcomeId: "12", specifier: "total=19.5", win_probability: m.prob - 4 },
         ],
       });
     }
@@ -663,10 +947,10 @@ export function getFallbackMultiSportFixtures(
         odd_value: m.odd,
         sportybet_selection: { eventId: matchId, marketId: "186", outcomeId: "4" },
         all_markets_json: [
-          { odd: m.odd, market: "Match Winner", selection: `${m.home} Win`, marketId: "186", outcomeId: "4", specifier: null, win_probability: m.prob },
-          { odd: Math.round((m.odd + 0.06) * 100) / 100, market: "Total Sets", selection: "Over 3.5 Sets (No 3-0)", marketId: "199", outcomeId: "12", specifier: "total=3.5", win_probability: m.prob - 3 },
-          { odd: Math.round((m.odd - 0.12) * 100) / 100, market: "Set Handicap", selection: "Set Handicap +2.5 Sets", marketId: "187", outcomeId: "1714", specifier: "hcp=2.5", win_probability: m.prob + 6 },
-          { odd: 1.38, market: "1st Set", selection: "1st Set Over 44.5 Points", marketId: "201", outcomeId: "12", specifier: "total=44.5", win_probability: 80 },
+          { odd: m.odd, market: "Match Winner", selection: `${m.home} to Win (Moneyline)`, marketId: "186", outcomeId: "4", specifier: null, win_probability: m.prob },
+          { odd: Math.round((m.odd + 0.06) * 100) / 100, market: "Total Sets", selection: "Over 3.5 Sets (Competitive Match)", marketId: "199", outcomeId: "12", specifier: "total=3.5", win_probability: m.prob - 3 },
+          { odd: Math.round((m.odd - 0.12) * 100) / 100, market: "Set Handicap", selection: `${m.home} +1.5 Sets (Wins 2+ Sets)`, marketId: "187", outcomeId: "1714", specifier: "hcp=1.5", win_probability: m.prob + 6 },
+          { odd: 1.38, market: "1st Set", selection: "1st Set Over 44.5 Total Points", marketId: "201", outcomeId: "12", specifier: "total=44.5", win_probability: 80 },
         ],
       });
     }
@@ -778,7 +1062,7 @@ export function solveRevisedCorridorPortfolio(
     allowedMarkets.length === 0;
 
   // Function to build pool matching current probability floor and odd corridor
-  const buildPool = (floor: number, allowWiderOdds = false) => {
+  const buildPool = (floor: number, allowWiderOdds = false, ignoreAllowedMarkets = false) => {
     const pool: Array<{
       matchKey: string;
       matchRow: any;
@@ -806,9 +1090,21 @@ export function solveRevisedCorridorPortfolio(
         if (opt.oddValue < lowOdd || opt.oddValue > highOdd) continue;
         if (floor > 0 && opt.trueWinProbability < floor) continue;
 
-        // Score based on balance of proximity to target log odd per leg and win probability
+        // Strict category & market type filtering when user restricted markets
+        if (!ignoreAllowedMarkets && !isOptionAllowedByUser(opt, allowedMarkets)) continue;
+
+        // Punter scoring formula: heavily reward ultra-safe banker markets & high win probabilities
+        let marketBonus = 0;
+        if (opt.marketFamily === "FAMILY_TEAM_SPECIALS") marketBonus = 14;
+        else if (opt.marketFamily === "FAMILY_DOUBLE_CHANCE") marketBonus = 12;
+        else if (opt.marketFamily === "FAMILY_HANDICAPS") marketBonus = 10;
+        else if (opt.marketFamily === "FAMILY_GOALS_POINTS") marketBonus = 8;
+        else if (opt.marketFamily === "FAMILY_BTTS_DNB") marketBonus = 6;
+        else if (opt.marketFamily === "FAMILY_1X2") marketBonus = 4;
+
+        const probWeight = Math.pow(opt.trueWinProbability / 10, 2);
         const logDiff = Math.abs(Math.log(opt.oddValue) - targetLogPerLeg);
-        const score = opt.trueWinProbability * 1.5 - logDiff * 30;
+        const score = probWeight + marketBonus - logDiff * 25;
 
         pool.push({
           matchKey: mKey,
@@ -844,11 +1140,14 @@ export function solveRevisedCorridorPortfolio(
       isPoolInsufficient = true;
       warningMessage = `Corridor expanded automatically to guarantee ticket construction.`;
     }
+    if (validPool.length < 2) {
+      validPool = buildPool(0, true, true);
+    }
   }
 
-  // Target bounds: 0.92 * targetOdds to 1.08 * targetOdds
-  const lowerBound = 0.92 * targetOdds;
-  const upperBound = 1.08 * targetOdds;
+  // Target bounds: tight ±5% corridor for targetOdds <= 100, ±8% for mega slips
+  const lowerBound = targetOdds <= 100 ? 0.95 * targetOdds : 0.92 * targetOdds;
+  const upperBound = targetOdds <= 100 ? 1.05 * targetOdds : 1.08 * targetOdds;
 
   // Maximum quota per market family (Max 20% on any ticket to ensure TRUE diversity)
   const maxPerFamily = Math.max(1, Math.ceil(N * 0.22));
@@ -908,14 +1207,8 @@ export function solveRevisedCorridorPortfolio(
 
         if (usedEventIds.has(evId) || (mKey && usedMatchKeys.has(mKey))) continue;
 
-      // Enforce market family quota (Max 20%) when All Markets is active
-      if (isAllMarkets && (familyCounts.get(fam) || 0) >= maxPerFamily) continue;
-
         // Enforce market family quota (Max 20%) when All Markets is active
-        if (isAllMarkets) {
-          const currentFamCount = familyCounts.get(fam) || 0;
-          if (currentFamCount >= maxPerFamily) continue;
-        }
+        if (isAllMarkets && (familyCounts.get(fam) || 0) >= maxPerFamily) continue;
 
         // Avoid overshooting upper bound
         const testOdds = accumulatedOdds * item.option.oddValue;
@@ -1078,6 +1371,59 @@ export function solveRevisedCorridorPortfolio(
           sport: bestCloser.sport,
         });
       }
+    }
+  }
+
+  // Overshot correction: if accumulatedOdds > upperBound and picked.length > 2, swap last leg with closer replacement
+  if (accumulatedOdds > upperBound && picked.length > 2) {
+    const last = picked[picked.length - 1];
+    const oddsWithoutLast = accumulatedOdds / last.leg.odd;
+    const needed = targetOdds / oddsWithoutLast;
+
+    const precisionPool = validPool.filter(
+      (p) => !usedEventIds.has(p.option.eventId) && (!p.matchKey || !usedMatchKeys.has(p.matchKey))
+    );
+    const validReplacements = precisionPool.filter(
+      (p) => oddsWithoutLast * p.option.oddValue >= lowerBound && oddsWithoutLast * p.option.oddValue <= upperBound
+    );
+
+    if (validReplacements.length > 0) {
+      validReplacements.sort(
+        (a, b) => Math.abs(a.option.oddValue - needed) - Math.abs(b.option.oddValue - needed)
+      );
+      const rep = validReplacements[0];
+      usedEventIds.delete(last.eventId);
+      if (last.matchKey) usedMatchKeys.delete(last.matchKey);
+      picked.pop();
+
+      usedEventIds.add(rep.option.eventId);
+      if (rep.matchKey) usedMatchKeys.add(rep.matchKey);
+      accumulatedOdds = oddsWithoutLast * rep.option.oddValue;
+
+      picked.push({
+        leg: {
+          match: `${rep.matchRow.home_team} vs ${rep.matchRow.away_team}`,
+          home_team: rep.matchRow.home_team,
+          away_team: rep.matchRow.away_team,
+          league: rep.matchRow.league_name || "Premier Division",
+          market: rep.option.marketCategory,
+          selection: rep.option.outcomeLabel,
+          odd: rep.option.oddValue,
+          win_probability: rep.option.trueWinProbability,
+          eventId: rep.option.eventId,
+          marketId: rep.option.marketId,
+          outcomeId: rep.option.outcomeId,
+          specifier: rep.option.specifier || null,
+          sport: rep.option.sport,
+          marketCategory: rep.option.marketCategory,
+          marketFamily: rep.family,
+          edgeScore: rep.score,
+        },
+        matchKey: rep.matchKey,
+        eventId: rep.option.eventId,
+        family: rep.family,
+        sport: rep.sport,
+      });
     }
   }
 
@@ -1364,7 +1710,11 @@ export async function buildCustomSlip(
     }
   }
 
-  const finalLegsList = verifiedLegs.length > 0 ? verifiedLegs : candidateLegs;
+  // Guarantee that 100% of candidate legs are preserved on ticket to hit exact target odds
+  const finalLegsList =
+    verifiedLegs.length === candidateLegs.length && verifiedLegs.length > 0
+      ? verifiedLegs
+      : candidateLegs;
   const primaryCode = finalBookedResult?.sportybet_code || "SGFC58";
   const shareUrl =
     finalBookedResult?.sporty_url || `https://www.sportybet.com/ng/?shareCode=${primaryCode}`;

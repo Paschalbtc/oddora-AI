@@ -112,17 +112,32 @@ export function buildCandidateMarketsForMatch(
   const sport = detectFixtureSport(m);
   const options: DailyCandidateMarketOption[] = [];
 
+  const home = (m.home_team || "Home").trim();
+  const away = (m.away_team || "Away").trim();
+  const homeOdds = Number(m.odds_home || 2.0);
+  const awayOdds = Number(m.odds_away || 2.5);
+  const isHomeFav = homeOdds <= awayOdds;
+  const favTeam = isHomeFav ? home : away;
+  const dogTeam = isHomeFav ? away : home;
+  const baseProb = Math.min(95, Math.max(50, Number(m.win_probability) || 82));
+
   if (sport === "FOOTBALL") {
+    const dcOdd = Math.max(1.15, Math.min(1.36, Math.round((96 / Math.min(94, baseProb + 12)) * 100) / 100));
+    const over15Odd = Math.max(1.18, Math.min(1.38, Math.round((100 / 84) * 100) / 100));
+    const teamOverOdd = Math.max(1.10, Math.min(1.24, Math.round((95 / Math.min(95, baseProb + 16)) * 100) / 100));
+    const dnbOdd = Math.max(1.20, Math.min(1.45, Math.round((98 / Math.min(92, baseProb + 8)) * 100) / 100));
+    const straightWinOdd = Math.max(1.28, Math.min(1.75, isHomeFav ? homeOdds : awayOdds));
+
     // --- Free Tier Markets ---
-    // 1. Double Chance 1X
+    // 1. Double Chance
     options.push({
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
-      selectionLabel: "1X (Home or Draw)",
-      odd: 1.36,
-      winProbability: 86,
+      selectionLabel: `${favTeam} or Draw (${isHomeFav ? "1X" : "X2"})`,
+      odd: dcOdd,
+      winProbability: Math.min(94, baseProb + 10),
       marketId: "10",
-      outcomeId: "9",
+      outcomeId: isHomeFav ? "9" : "11",
       specifier: null,
     });
 
@@ -130,336 +145,199 @@ export function buildCandidateMarketsForMatch(
     options.push({
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
-      selectionLabel: "Over 1.5",
-      odd: 1.40,
-      winProbability: 84,
+      selectionLabel: "Over 1.5 Match Goals",
+      odd: over15Odd,
+      winProbability: 86,
       marketId: "18",
       outcomeId: "12",
       specifier: "total=1.5",
     });
 
-    // 3. Double Chance X2
+    // 3. Favourite Team Over 0.5 Team Goals
     options.push({
-      marketCategory: "DOUBLE_CHANCE",
-      marketName: "Double Chance",
-      selectionLabel: "X2 (Draw or Away)",
-      odd: 1.38,
-      winProbability: 84,
-      marketId: "10",
-      outcomeId: "11",
+      marketCategory: "TEAM_GOALS",
+      marketName: "Team Goals",
+      selectionLabel: `${favTeam} Over 0.5 Team Goals`,
+      odd: teamOverOdd,
+      winProbability: 92,
+      marketId: "18",
+      outcomeId: "12",
+      specifier: "total=0.5",
+    });
+
+    // 4. Draw No Bet (DNB)
+    options.push({
+      marketCategory: "DRAW_NO_BET",
+      marketName: "Draw No Bet",
+      selectionLabel: `${favTeam} Draw No Bet (DNB)`,
+      odd: dnbOdd,
+      winProbability: 86,
+      marketId: "11",
+      outcomeId: isHomeFav ? "1" : "2",
       specifier: null,
     });
 
-    // 4. Double Chance 12
+    // 5. Match Winner (1X2)
+    options.push({
+      marketCategory: "1X2",
+      marketName: "1X2 (Match Winner)",
+      selectionLabel: `${favTeam} to Win`,
+      odd: straightWinOdd,
+      winProbability: baseProb,
+      marketId: "1",
+      outcomeId: isHomeFav ? "1" : "3",
+      specifier: null,
+    });
+
+    // 6. Double Chance Alternative
     options.push({
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
-      selectionLabel: "12 (No Draw)",
-      odd: 1.32,
+      selectionLabel: `${home} or ${away} (12 No Draw)`,
+      odd: 1.30,
       winProbability: 85,
       marketId: "10",
       outcomeId: "10",
       specifier: null,
     });
 
-    // 5. 1X2 Home Win
-    options.push({
-      marketCategory: "1X2",
-      marketName: "1X2 (Match Winner)",
-      selectionLabel: "Home Win",
-      odd: 1.55,
-      winProbability: 78,
-      marketId: "1",
-      outcomeId: "1",
-      specifier: null,
-    });
-
-    // 6. 1X2 Away Win
-    options.push({
-      marketCategory: "1X2",
-      marketName: "1X2 (Match Winner)",
-      selectionLabel: "Away Win",
-      odd: 1.62,
-      winProbability: 76,
-      marketId: "1",
-      outcomeId: "3",
-      specifier: null,
-    });
-
     // --- PRO Tier Markets ---
-    // 7. Over 2.5 Goals
+    // 7. Both Teams to Score (GG)
     options.push({
-      marketCategory: "OVER_UNDER",
-      marketName: "Over/Under Goals",
-      selectionLabel: "Over 2.5",
-      odd: 1.78,
-      winProbability: 76,
-      marketId: "18",
-      outcomeId: "12",
-      specifier: "total=2.5",
+      marketCategory: "BTTS",
+      marketName: "Both Teams to Score",
+      selectionLabel: "Both Teams to Score (GG)",
+      odd: 1.68,
+      winProbability: 77,
+      marketId: "29",
+      outcomeId: "74",
+      specifier: null,
     });
 
     // 8. Under 3.5 Goals
     options.push({
       marketCategory: "OVER_UNDER",
       marketName: "Over/Under Goals",
-      selectionLabel: "Under 3.5",
-      odd: 1.38,
-      winProbability: 83,
+      selectionLabel: "Under 3.5 Match Goals",
+      odd: 1.36,
+      winProbability: 84,
       marketId: "18",
       outcomeId: "13",
       specifier: "total=3.5",
     });
 
-    // 9. Under 4.5 Goals
-    options.push({
-      marketCategory: "OVER_UNDER",
-      marketName: "Over/Under Goals",
-      selectionLabel: "Under 4.5",
-      odd: 1.25,
-      winProbability: 88,
-      marketId: "18",
-      outcomeId: "13",
-      specifier: "total=4.5",
-    });
-
-    // 10. Home DNB
-    options.push({
-      marketCategory: "DRAW_NO_BET",
-      marketName: "Draw No Bet",
-      selectionLabel: "Home DNB",
-      odd: 1.45,
-      winProbability: 82,
-      marketId: "11",
-      outcomeId: "4",
-      specifier: null,
-    });
-
-    // 11. Away DNB
-    options.push({
-      marketCategory: "DRAW_NO_BET",
-      marketName: "Draw No Bet",
-      selectionLabel: "Away DNB",
-      odd: 1.48,
-      winProbability: 80,
-      marketId: "11",
-      outcomeId: "5",
-      specifier: null,
-    });
-
-    // 12. Both Teams To Score (GG)
-    options.push({
-      marketCategory: "BTTS",
-      marketName: "Both Teams to Score",
-      selectionLabel: "GG (Yes)",
-      odd: 1.72,
-      winProbability: 75,
-      marketId: "29",
-      outcomeId: "74",
-      specifier: null,
-    });
-    options.push({
-      marketCategory: "BTTS",
-      marketName: "Both Teams To Score",
-      selectionLabel: "GG (Both Teams Score)",
-      odd: 1.60,
-      winProbability: 76,
-      marketId: "29",
-      outcomeId: "74",
-      specifier: null,
-    });
-
-    // 13. Both Teams To Score - No (NG)
-    options.push({
-      marketCategory: "BTTS",
-      marketName: "Both Teams To Score",
-      selectionLabel: "NG (Both Teams Score: No)",
-      odd: 1.58,
-      winProbability: 76,
-      marketId: "29",
-      outcomeId: "76",
-      specifier: null,
-    });
-
-    // 14. Home Team Over 0.5
-    options.push({
-      marketCategory: "TEAM_GOALS",
-      marketName: "Team Goals",
-      selectionLabel: "Home Over 0.5",
-      odd: 1.20,
-      winProbability: 87,
-      marketId: "19",
-      outcomeId: "12",
-      specifier: "total=0.5",
-    });
-
-    // 15. Handicap +1.5
+    // 9. Handicap Cushion
     options.push({
       marketCategory: "HANDICAP",
       marketName: "Handicap",
-      selectionLabel: "Handicap +1.5",
-      odd: 1.30,
-      winProbability: 84,
+      selectionLabel: `${favTeam} +1.5 Handicap Cushion`,
+      odd: 1.28,
+      winProbability: 88,
       marketId: "16",
       outcomeId: "1714",
       specifier: "hcp=1.5",
     });
 
-    // --- VIP / PREMIUM Tier Markets ---
-    // 16. Over 8.5 Corners
-    options.push({
-      marketCategory: "CORNERS",
-      marketName: "Corners",
-      selectionLabel: "Over 8.5 Corners",
-      odd: 1.42,
-      winProbability: 82,
-      marketId: "166",
-      outcomeId: "12",
-      specifier: "total=8.5",
-    });
-
-    // 17. Over 9.5 Corners
-    options.push({
-      marketCategory: "CORNERS",
-      marketName: "Corners",
-      selectionLabel: "Over 9.5 Corners",
-      odd: 1.58,
-      winProbability: 78,
-      marketId: "166",
-      outcomeId: "12",
-      specifier: "total=9.5",
-    });
-
-    // 18. Over 3.5 Cards
-    options.push({
-      marketCategory: "CARDS",
-      marketName: "Cards / Bookings",
-      selectionLabel: "Over 3.5 Cards",
-      odd: 1.45,
-      winProbability: 80,
-      marketId: "139",
-      outcomeId: "12",
-      specifier: "total=3.5",
-    });
-
-    // 19. Under 5.5 Cards
-    options.push({
-      marketCategory: "CARDS",
-      marketName: "Cards / Bookings",
-      selectionLabel: "Under 5.5 Cards",
-      odd: 1.32,
-      winProbability: 85,
-      marketId: "139",
-      outcomeId: "13",
-      specifier: "total=5.5",
-    });
-
-    // 20. 1st Half Over 0.5
-    options.push({
-      marketCategory: "FIRST_HALF_GOALS",
-      marketName: "1st Half Goals",
-      selectionLabel: "1st Half Over 0.5",
-      odd: 1.34,
-      winProbability: 82,
-      marketId: "68",
-      outcomeId: "12",
-      specifier: "total=0.5",
-    });
-
-    // 21. 1st Half Under 1.5
-    options.push({
-      marketCategory: "FIRST_HALF_GOALS",
-      marketName: "1st Half Goals",
-      selectionLabel: "1st Half Under 1.5",
-      odd: 1.32,
-      winProbability: 84,
-      marketId: "68",
-      outcomeId: "13",
-      specifier: "total=1.5",
-    });
-
-    // 22. Home Clean Sheet
-    options.push({
-      marketCategory: "CLEAN_SHEET",
-      marketName: "Clean Sheet",
-      selectionLabel: "Home Clean Sheet - Yes",
-      odd: 1.75,
-      winProbability: 74,
-      marketId: "31",
-      outcomeId: "74",
-      specifier: null,
-    });
-
-    // 23. Win Either Half
+    // 10. Win Either Half
     options.push({
       marketCategory: "WIN_EITHER_HALF",
       marketName: "Win Either Half",
-      selectionLabel: "Win Either Half",
-      odd: 1.32,
+      selectionLabel: `${favTeam} to Win Either Half`,
+      odd: Math.max(1.20, Math.min(1.42, Math.round((dcOdd + 0.08) * 100) / 100)),
       winProbability: 84,
       marketId: "47",
       outcomeId: "74",
       specifier: null,
     });
 
-    // 24. Asian Handicap +0.5
+    // --- VIP / PREMIUM Tier Markets ---
+    // 11. Over 8.5 Corners
+    options.push({
+      marketCategory: "CORNERS",
+      marketName: "Corners",
+      selectionLabel: "Over 8.5 Total Corners",
+      odd: 1.40,
+      winProbability: 82,
+      marketId: "166",
+      outcomeId: "12",
+      specifier: "total=8.5",
+    });
+
+    // 12. Under 5.5 Cards
+    options.push({
+      marketCategory: "CARDS",
+      marketName: "Cards / Bookings",
+      selectionLabel: "Under 5.5 Total Cards",
+      odd: 1.30,
+      winProbability: 86,
+      marketId: "139",
+      outcomeId: "13",
+      specifier: "total=5.5",
+    });
+
+    // 13. 1st Half Over 0.5 Goals
+    options.push({
+      marketCategory: "FIRST_HALF_GOALS",
+      marketName: "1st Half Goals",
+      selectionLabel: "1st Half Over 0.5 Goals",
+      odd: 1.32,
+      winProbability: 84,
+      marketId: "68",
+      outcomeId: "12",
+      specifier: "total=0.5",
+    });
+
+    // 14. Asian Handicap +0.5
     options.push({
       marketCategory: "ASIAN_HANDICAP",
       marketName: "Asian Handicap",
-      selectionLabel: "Asian Handicap +0.5",
-      odd: 1.28,
-      winProbability: 85,
+      selectionLabel: `${favTeam} +0.5 Asian Handicap`,
+      odd: dcOdd,
+      winProbability: 86,
       marketId: "16",
       outcomeId: "1714",
       specifier: "hcp=0.5",
     });
   } else if (sport === "BASKETBALL") {
+    const mlOdd = Math.max(1.18, Math.min(1.50, Math.round((100 / baseProb) * 100) / 100));
+    const spreadOdd = Math.max(1.15, Math.min(1.36, Math.round((95 / Math.min(92, baseProb + 10)) * 100) / 100));
+
     options.push(
       {
         marketCategory: "MONEYLINE",
         marketName: "Match Winner",
-        selectionLabel: "Home Win",
-        odd: 1.35,
-        winProbability: 80,
+        selectionLabel: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        winProbability: baseProb,
         marketId: "219",
-        outcomeId: "4",
-        specifier: null,
-      },
-      {
-        marketCategory: "MONEYLINE",
-        marketName: "Match Winner",
-        selectionLabel: "Away Win",
-        odd: 1.38,
-        winProbability: 78,
-        marketId: "219",
-        outcomeId: "5",
+        outcomeId: isHomeFav ? "4" : "5",
         specifier: null,
       },
       {
         marketCategory: "SPREAD",
         marketName: "Point Spread",
-        selectionLabel: "Spread +8.5",
-        odd: 1.30,
-        winProbability: 82,
+        selectionLabel: `${favTeam} +8.5 Point Spread Cushion`,
+        odd: spreadOdd,
+        winProbability: Math.min(92, baseProb + 8),
         marketId: "223",
-        outcomeId: "1",
+        outcomeId: isHomeFav ? "1" : "2",
         specifier: "hcp=8.5",
       },
       {
         marketCategory: "BK_TOTALS",
         marketName: "Total Points",
-        selectionLabel: "Over 208.5 Points",
-        odd: 1.32,
+        selectionLabel: "Over 206.5 Total Match Points",
+        odd: 1.34,
         winProbability: 86,
         marketId: "225",
         outcomeId: "12",
-        specifier: "total=208.5",
+        specifier: "total=206.5",
       },
       {
         marketCategory: "BK_TOTALS",
         marketName: "Total Points",
-        selectionLabel: "Under 235.5 Points",
-        odd: 1.34,
+        selectionLabel: "Under 235.5 Total Points (Buffered)",
+        odd: 1.35,
         winProbability: 87,
         marketId: "225",
         outcomeId: "13",
@@ -468,62 +346,45 @@ export function buildCandidateMarketsForMatch(
       {
         marketCategory: "BK_HALF",
         marketName: "1st Half Moneyline",
-        selectionLabel: "1st Half Winner",
-        odd: 1.38,
-        winProbability: 82,
+        selectionLabel: `1st Half - ${favTeam} Moneyline`,
+        odd: Math.round((mlOdd + 0.06) * 100) / 100,
+        winProbability: 81,
         marketId: "60",
-        outcomeId: "1",
+        outcomeId: isHomeFav ? "1" : "2",
         specifier: null,
       }
     );
   } else if (sport === "TABLE_TENNIS") {
+    const mlOdd = Math.max(1.18, Math.min(1.45, Math.round((102 / baseProb) * 100) / 100));
+    const setHcpOdd = Math.max(1.10, Math.min(1.22, Math.round((96 / Math.min(95, baseProb + 14)) * 100) / 100));
+
     options.push(
-      {
-        marketCategory: "TT_WINNER",
-        marketName: "Match Winner",
-        selectionLabel: "Player 1 Win",
-        odd: 1.30,
-        winProbability: 83,
-        marketId: "186",
-        outcomeId: "4",
-        specifier: null,
-      },
-      {
-        marketCategory: "TT_WINNER",
-        marketName: "Match Winner",
-        selectionLabel: "Player 2 Win",
-        odd: 1.34,
-        winProbability: 80,
-        marketId: "186",
-        outcomeId: "5",
-        specifier: null,
-      },
-      {
-        marketCategory: "TT_SETS",
-        marketName: "Total Sets",
-        selectionLabel: "Over 3.5 Sets",
-        odd: 1.32,
-        winProbability: 84,
-        marketId: "199",
-        outcomeId: "12",
-        specifier: "total=3.5",
-      },
       {
         marketCategory: "TT_HANDICAP",
         marketName: "Set Handicap",
-        selectionLabel: "Set Handicap +1.5",
-        odd: 1.30,
-        winProbability: 83,
+        selectionLabel: `${favTeam} +1.5 Sets (Wins 1+ Set)`,
+        odd: setHcpOdd,
+        winProbability: Math.min(94, baseProb + 10),
         marketId: "187",
         outcomeId: "1714",
         specifier: "hcp=1.5",
       },
       {
+        marketCategory: "TT_WINNER",
+        marketName: "Match Winner",
+        selectionLabel: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        winProbability: baseProb,
+        marketId: "186",
+        outcomeId: isHomeFav ? "4" : "5",
+        specifier: null,
+      },
+      {
         marketCategory: "TT_HANDICAP",
         marketName: "Set Handicap",
-        selectionLabel: "Set Handicap +2.5",
-        odd: 1.18,
-        winProbability: 89,
+        selectionLabel: `${favTeam} +2.5 Sets Cushion`,
+        odd: 1.15,
+        winProbability: 92,
         marketId: "187",
         outcomeId: "1714",
         specifier: "hcp=2.5",
@@ -531,61 +392,64 @@ export function buildCandidateMarketsForMatch(
       {
         marketCategory: "TT_POINTS",
         marketName: "Total Points",
-        selectionLabel: "Over 73.5 Points",
-        odd: 1.38,
-        winProbability: 82,
+        selectionLabel: "Over 73.5 Total Points",
+        odd: 1.36,
+        winProbability: 83,
         marketId: "201",
         outcomeId: "12",
         specifier: "total=73.5",
       }
     );
   } else if (sport === "VOLLEYBALL") {
+    const mlOdd = Math.max(1.18, Math.min(1.42, Math.round((102 / baseProb) * 100) / 100));
+    const setHcpOdd = Math.max(1.12, Math.min(1.22, Math.round((96 / Math.min(94, baseProb + 12)) * 100) / 100));
+
     options.push(
       {
-        marketCategory: "VB_WINNER",
-        marketName: "Match Winner",
-        selectionLabel: "Team 1 Win",
-        odd: 1.28,
-        winProbability: 84,
-        marketId: "186",
-        outcomeId: "4",
-        specifier: null,
+        marketCategory: "VB_SETS",
+        marketName: "Set Handicap",
+        selectionLabel: `${favTeam} +1.5 Sets (Wins 2+ Sets)`,
+        odd: setHcpOdd,
+        winProbability: Math.min(92, baseProb + 9),
+        marketId: "187",
+        outcomeId: "1714",
+        specifier: "hcp=1.5",
       },
       {
         marketCategory: "VB_WINNER",
         marketName: "Match Winner",
-        selectionLabel: "Team 2 Win",
-        odd: 1.32,
-        winProbability: 80,
+        selectionLabel: `${favTeam} to Win (Moneyline)`,
+        odd: mlOdd,
+        winProbability: baseProb,
         marketId: "186",
-        outcomeId: "5",
+        outcomeId: isHomeFav ? "4" : "5",
         specifier: null,
       },
       {
         marketCategory: "VB_SETS",
         marketName: "Set Handicap",
-        selectionLabel: "Set Handicap +2.5",
-        odd: 1.20,
-        winProbability: 89,
+        selectionLabel: `${favTeam} +2.5 Sets Cushion`,
+        odd: 1.16,
+        winProbability: 91,
         marketId: "313",
         outcomeId: "1714",
         specifier: "hcp=2.5",
       },
       {
-        marketCategory: "VB_POINTS",
-        marketName: "Total Points",
-        selectionLabel: "Over 175.5 Points",
-        odd: 1.40,
-        winProbability: 83,
-        marketId: "238",
+        marketCategory: "VB_SETS",
+        marketName: "Total Sets",
+        selectionLabel: "Over 3.5 Sets (Competitive)",
+        odd: 1.36,
+        winProbability: 84,
+        marketId: "199",
         outcomeId: "12",
-        specifier: "total=175.5",
+        specifier: "total=3.5",
       },
       {
         marketCategory: "VB_POINTS",
         marketName: "1st Set Points",
-        selectionLabel: "1st Set Over 44.5",
-        odd: 1.42,
+        selectionLabel: "1st Set Over 44.5 Total Points",
+        odd: 1.35,
         winProbability: 82,
         marketId: "315",
         outcomeId: "12",
@@ -596,9 +460,9 @@ export function buildCandidateMarketsForMatch(
     options.push({
       marketCategory: "DOUBLE_CHANCE",
       marketName: "Double Chance",
-      selectionLabel: "1X (Home or Draw)",
+      selectionLabel: `${favTeam} or Draw (1X)`,
       odd: 1.25,
-      winProbability: 85,
+      winProbability: 86,
       marketId: "10",
       outcomeId: "9",
       specifier: null,
@@ -671,11 +535,11 @@ const DAILY_PRESET_CONFIGS: Array<{
   { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.05, minOdds: 2.00, maxOdds: 2.10, tierLock: "FREE", maxLegs: 2, minOddPerLeg: 1.35, maxOddPerLeg: 1.50 },
   { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.10, minOdds: 2.95, maxOdds: 3.25, tierLock: "PRO", maxLegs: 3, minOddPerLeg: 1.35, maxOddPerLeg: 1.52 },
   { type: "DAILY_4X", title: "Tactical Multiplier (5.00x)", target: 5.0, minOdds: 4.80, maxOdds: 5.30, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.35, maxOddPerLeg: 1.55 },
-  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.50, maxOdds: 10.80, tierLock: "PRO", maxLegs: 7, minOddPerLeg: 1.32, maxOddPerLeg: 1.55 },
-  { type: "DAILY_20X", title: "Strategic 20x Multiplier", target: 20.0, minOdds: 19.0, maxOdds: 22.0, tierLock: "PRO", maxLegs: 9, minOddPerLeg: 1.32, maxOddPerLeg: 1.60 },
-  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 48.0, maxOdds: 53.0, tierLock: "PRO", maxLegs: 13, minOddPerLeg: 1.30, maxOddPerLeg: 1.65 },
-  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 95.0, maxOdds: 108.0, tierLock: "PREMIUM", maxLegs: 16, minOddPerLeg: 1.30, maxOddPerLeg: 1.65 },
-  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 190.0, maxOdds: 215.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.30, maxOddPerLeg: 1.68 },
+  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.50, maxOdds: 10.80, tierLock: "PRO", maxLegs: 8, minOddPerLeg: 1.30, maxOddPerLeg: 1.55 },
+  { type: "DAILY_20X", title: "Strategic 20x Multiplier", target: 20.0, minOdds: 19.0, maxOdds: 22.0, tierLock: "PRO", maxLegs: 11, minOddPerLeg: 1.28, maxOddPerLeg: 1.60 },
+  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 48.0, maxOdds: 53.0, tierLock: "PRO", maxLegs: 16, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
+  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 95.0, maxOdds: 108.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
+  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 190.0, maxOdds: 215.0, tierLock: "PREMIUM", maxLegs: 25, minOddPerLeg: 1.28, maxOddPerLeg: 1.68 },
 ];
 
 /**
@@ -882,21 +746,27 @@ export async function generateAndBookDailySlips(): Promise<{
     });
 
     const verifiedLegs = booked.legs_json && booked.legs_json.length > 0 ? booked.legs_json : booked.legs;
+    const finalLegs =
+      verifiedLegs && verifiedLegs.length === selectedLegs.length
+        ? verifiedLegs
+        : selectedLegs;
+    const calculatedOdds =
+      Math.round(finalLegs.reduce((acc, l: any) => acc * Number(l.odd || 1.0), 1.0) * 100) / 100;
 
     const slipRecord: V2DailySlipRecord = {
       slip_type: cfg.type,
       slip_category: cfg.type,
       slip_title: cfg.title,
       target_odds: cfg.target,
-      actual_odds: booked.actual_odds,
-      total_odds: booked.actual_odds,
+      actual_odds: calculatedOdds,
+      total_odds: calculatedOdds,
       sport: "multi",
       sporty_code: booked.sportybet_code,
       sportybet_code: booked.sportybet_code,
       share_url: booked.sporty_url,
       sporty_url: booked.sporty_url,
-      legs: verifiedLegs,
-      legs_json: verifiedLegs,
+      legs: finalLegs,
+      legs_json: finalLegs,
       is_locked_for_tier: cfg.tierLock,
       required_tier: cfg.tierLock,
       created_date: todayStr,
@@ -910,11 +780,11 @@ export async function generateAndBookDailySlips(): Promise<{
       slip_date: todayStr,
       slip_category: cfg.type,
       required_tier: cfg.tierLock,
-      total_odds: booked.actual_odds,
-      match_count: verifiedLegs.length,
+      total_odds: calculatedOdds,
+      match_count: finalLegs.length,
       sportybet_code: booked.sportybet_code,
       bet9ja_code: null,
-      legs_json: verifiedLegs,
+      legs_json: finalLegs,
       slip_result: "PENDING",
     });
   }
@@ -981,21 +851,27 @@ export async function generateAndBookDailySlips(): Promise<{
     over25Booked.legs_json && over25Booked.legs_json.length > 0
       ? over25Booked.legs_json
       : over25Booked.legs;
+  const over25FinalLegs =
+    over25VerifiedLegs && over25VerifiedLegs.length === over25LegsInput.length
+      ? over25VerifiedLegs
+      : over25LegsInput;
+  const over25CalculatedOdds =
+    Math.round(over25FinalLegs.reduce((acc, l: any) => acc * Number(l.odd || 1.85), 1.0) * 100) / 100;
 
   const over25Record: V2DailySlipRecord = {
     slip_type: "OVER_2_5_SPECIAL",
     slip_category: "OVER_2_5_SPECIAL",
     slip_title: "Daily Over 2.5 Goals Arsenal (6–7 Matches)",
     target_odds: 16.0,
-    actual_odds: over25Booked.actual_odds,
-    total_odds: over25Booked.actual_odds,
+    actual_odds: over25CalculatedOdds,
+    total_odds: over25CalculatedOdds,
     sport: "football",
     sporty_code: over25Booked.sportybet_code,
     sportybet_code: over25Booked.sportybet_code,
     share_url: over25Booked.sporty_url,
     sporty_url: over25Booked.sporty_url,
-    legs: over25VerifiedLegs,
-    legs_json: over25VerifiedLegs,
+    legs: over25FinalLegs,
+    legs_json: over25FinalLegs,
     is_locked_for_tier: "PRO",
     required_tier: "PRO",
     created_date: todayStr,
@@ -1009,11 +885,11 @@ export async function generateAndBookDailySlips(): Promise<{
     slip_date: todayStr,
     slip_category: "OVER_2_5_SPECIAL",
     required_tier: "PRO",
-    total_odds: over25Booked.actual_odds,
-    match_count: over25VerifiedLegs.length,
+    total_odds: over25CalculatedOdds,
+    match_count: over25FinalLegs.length,
     sportybet_code: over25Booked.sportybet_code,
     bet9ja_code: null,
-    legs_json: over25VerifiedLegs,
+    legs_json: over25FinalLegs,
     slip_result: "PENDING",
   });
 
@@ -1182,6 +1058,8 @@ function solveSubsetForTarget(
   maxOddPerLeg: number = 1.62
 ): any[] {
   const now = Date.now();
+  const effectiveMaxLegs = Math.max(maxLegs, Math.ceil(Math.log(target) / Math.log(1.28)) + 2);
+
   const validMatches = matches.filter((m) => {
     if (m.kickoff_time) {
       const ko = new Date(m.kickoff_time).getTime();
@@ -1190,7 +1068,7 @@ function solveSubsetForTarget(
     return true;
   });
 
-  const pool = validMatches.length >= maxLegs ? validMatches : matches;
+  const pool = validMatches.length >= effectiveMaxLegs ? validMatches : matches;
 
   // Sort by highest statistical safety
   const sorted = [...pool].sort((a, b) => {
@@ -1218,7 +1096,7 @@ function solveSubsetForTarget(
     if (eligible.length === 0) return null;
 
     // Hard cap on same selection on this ticket (max 25% of legs, minimum 1)
-    const maxSelCap = Math.max(1, Math.ceil(maxLegs * 0.25));
+    const maxSelCap = Math.max(1, Math.ceil(effectiveMaxLegs * 0.25));
 
     const ranked = [...eligible].sort((a, b) => {
       // 1. Never repeat the exact same selection consecutively
@@ -1261,7 +1139,7 @@ function solveSubsetForTarget(
 
     const candidateOdd = opt.odd;
     const wouldExceedMax = currentOdds * candidateOdd > maxOdds;
-    if (picked.length < maxLegs && !wouldExceedMax) {
+    if (picked.length < effectiveMaxLegs && !wouldExceedMax) {
       usedEventIds.add(evId);
       if (matchKey) usedMatchKeys.add(matchKey);
 
@@ -1292,11 +1170,11 @@ function solveSubsetForTarget(
       currentOdds *= candidateOdd;
     }
 
-    if (currentOdds >= minOdds || picked.length >= maxLegs) break;
+    if (currentOdds >= minOdds || picked.length >= effectiveMaxLegs) break;
   }
 
   // If still below minOdds and have capacity, continue picking safe legs within corridor
-  if (currentOdds < minOdds && picked.length < maxLegs) {
+  if (currentOdds < minOdds && picked.length < effectiveMaxLegs) {
     for (const m of sorted) {
       const evId = m.eventId || m.sportybet_selection?.eventId || m.id || m.match_id;
       const matchKey = m.matchKey || getMatchKey(m.home_team, m.away_team, evId);
@@ -1339,7 +1217,61 @@ function solveSubsetForTarget(
         },
       });
       currentOdds *= candidateOdd;
-      if (currentOdds >= minOdds || picked.length >= maxLegs) break;
+      if (currentOdds >= minOdds || picked.length >= effectiveMaxLegs) break;
+    }
+  }
+
+  // Precision closer pass if still below minOdds
+  if (currentOdds < minOdds && picked.length < effectiveMaxLegs) {
+    const needed = target / currentOdds;
+    const remaining = sorted.filter((m) => {
+      const evId = m.eventId || m.sportybet_selection?.eventId || m.id || m.match_id;
+      const matchKey = m.matchKey || getMatchKey(m.home_team, m.away_team, evId);
+      return !usedEventIds.has(evId) && (!matchKey || !usedMatchKeys.has(matchKey));
+    });
+
+    const candidateCloserPairs: Array<{ m: any; opt: DailyCandidateMarketOption }> = [];
+    for (const m of remaining) {
+      const rawOptions: DailyCandidateMarketOption[] =
+        Array.isArray(m.candidate_markets) && m.candidate_markets.length > 0
+          ? m.candidate_markets
+          : buildCandidateMarketsForMatch(m, m.eventId);
+      for (const opt of rawOptions) {
+        if (currentOdds * opt.odd <= maxOdds * 1.05) {
+          candidateCloserPairs.push({ m, opt });
+        }
+      }
+    }
+
+    if (candidateCloserPairs.length > 0) {
+      candidateCloserPairs.sort((a, b) => Math.abs(a.opt.odd - needed) - Math.abs(b.opt.odd - needed));
+      const best = candidateCloserPairs[0];
+      const evId = best.m.eventId || best.m.sportybet_selection?.eventId || best.m.id || best.m.match_id;
+      const matchKey = best.m.matchKey || getMatchKey(best.m.home_team, best.m.away_team, evId);
+      usedEventIds.add(evId);
+      if (matchKey) usedMatchKeys.add(matchKey);
+
+      picked.push({
+        match: `${best.m.home_team} vs ${best.m.away_team}`,
+        home_team: best.m.home_team,
+        away_team: best.m.away_team,
+        league: best.m.league || "Premier Division",
+        market: best.opt.marketName,
+        selection: best.opt.selectionLabel,
+        odd: best.opt.odd,
+        win_probability: best.opt.winProbability || 82,
+        eventId: evId,
+        marketId: best.opt.marketId,
+        outcomeId: best.opt.outcomeId,
+        specifier: best.opt.specifier,
+        sportybet_selection: {
+          eventId: evId,
+          marketId: best.opt.marketId,
+          outcomeId: best.opt.outcomeId,
+          specifier: best.opt.specifier,
+        },
+      });
+      currentOdds *= best.opt.odd;
     }
   }
 

@@ -29,7 +29,8 @@ export type EditSlipMode =
   | "SPLIT_TICKET"
   | "LOWEST_PROBABILITY"
   | "RANDOM_TRIM"
-  | "COMBO_HYBRID";
+  | "COMBO_HYBRID"
+  | "TARGET_ODDS";
 
 export interface EditSlipRequest {
   booking_code: string;
@@ -37,6 +38,7 @@ export interface EditSlipRequest {
   mode: EditSlipMode;
   remove_count?: number; // For Modes 2, 3, 4 (e.g. 2, 3, 5, 10)
   split_parts?: number; // For Mode 1 (e.g. 2, 3, 4, 5)
+  target_odds?: number; // For Mode 5 (e.g. 2.0, 5.0, 10.0, 20.0, 50.0, 100.0)
 }
 
 export interface EditedSlipPayload {
@@ -60,6 +62,108 @@ export interface EditSlipResponse {
   summary_message: string;
 }
 
+/**
+ * MODE 5: TARGET ODDS OPTIMIZER
+ * Solves for the optimal subset of matches from an accumulator ticket that compounds
+ * to match the requested targetOdds, maximizing the collective win probability and safety.
+ */
+export function pruneLegsToTargetOdds(
+  legs: any[],
+  targetOdds: number
+): {
+  surviving: any[];
+  pruned: any[];
+} {
+  const totalLegs = [...legs];
+  if (totalLegs.length <= 2) {
+    return { surviving: totalLegs, pruned: [] };
+  }
+
+  const target = Math.max(1.15, Number(targetOdds) || 5.0);
+  const totalCurrentOdds = totalLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0);
+
+  // If the total ticket odds are already less than or equal to target odds, preserve all
+  if (totalCurrentOdds <= target * 1.05) {
+    return { surviving: totalLegs, pruned: [] };
+  }
+
+  // Score each leg based on implied win probability, odd, and statistical safety
+  const scoredLegs = totalLegs.map((l, idx) => {
+    const odd = Math.max(1.02, Number(l.odd) || 1.30);
+    const prob = Number(l.win_probability) || Math.round((1 / odd) * 92);
+    // Safety score: higher probability per unit of odd
+    const safetyScore = prob / Math.pow(odd, 0.45);
+    return {
+      ...l,
+      _origIndex: idx,
+      _odd: odd,
+      _prob: prob,
+      _safetyScore: safetyScore,
+    };
+  });
+
+  // Sort candidate matches from safest to highest risk
+  const sortedSafestFirst = [...scoredLegs].sort((a, b) => b._safetyScore - a._safetyScore);
+
+  let bestSubset: typeof scoredLegs = [];
+  let bestScore = Infinity;
+
+  // 1. Greedy baseline from safest legs
+  let greedyAccum: typeof scoredLegs = [];
+  let greedyProd = 1.0;
+  for (const leg of sortedSafestFirst) {
+    greedyAccum.push(leg);
+    greedyProd *= leg._odd;
+    if (greedyProd >= target * 0.95 && greedyAccum.length >= 2) {
+      break;
+    }
+  }
+  if (greedyAccum.length >= 2) {
+    bestSubset = greedyAccum;
+    bestScore = Math.abs(greedyProd - target);
+  }
+
+  // 2. Combinatorial exploration: test candidate windows of size k (from 2 up to totalLegs.length - 1)
+  const maxK = Math.min(totalLegs.length - 1, 30);
+  for (let k = 2; k <= maxK; k++) {
+    const candidate = sortedSafestFirst.slice(0, k);
+    const prod = candidate.reduce((acc, l) => acc * l._odd, 1.0);
+    const diff = Math.abs(prod - target);
+
+    if (diff < bestScore) {
+      bestScore = diff;
+      bestSubset = candidate;
+    }
+
+    // Single-leg swap optimization: swap 1 leg with another from candidate pool to get closer
+    if (diff > 0.12 * target && sortedSafestFirst.length > k) {
+      for (let i = 0; i < candidate.length; i++) {
+        const without = prod / candidate[i]._odd;
+        for (let j = k; j < Math.min(sortedSafestFirst.length, k + 8); j++) {
+          const newProd = without * sortedSafestFirst[j]._odd;
+          const newDiff = Math.abs(newProd - target);
+          if (newDiff < bestScore) {
+            bestScore = newDiff;
+            const updated = [...candidate];
+            updated[i] = sortedSafestFirst[j];
+            bestSubset = updated;
+          }
+        }
+      }
+    }
+  }
+
+  if (bestSubset.length < 2) {
+    bestSubset = sortedSafestFirst.slice(0, 2);
+  }
+
+  const survivingIndices = new Set(bestSubset.map((l) => l._origIndex));
+  const surviving = totalLegs.filter((_, idx) => survivingIndices.has(idx));
+  const pruned = totalLegs.filter((_, idx) => !survivingIndices.has(idx));
+
+  return { surviving, pruned };
+}
+
 export async function executeEditSlip(
   req: EditSlipRequest
 ): Promise<EditSlipResponse> {
@@ -68,25 +172,15 @@ export async function executeEditSlip(
     throw new Error("Missing booking_code parameter. Please enter a valid SportyBet booking code.");
   }
 
-  // 1. Decode original booking code using Core Booking Vault first
+  // 1. Decode original booking code using Core Booking Vault
   let decoded = await decodeVaultBookingCode(code, req.bookmaker || "SportyBet");
   
-  // Fallback to Universal Booking Engine if Vault decode was empty
+  // Fast fail without hanging if not found on SportyBet
   if (decoded.status === "error" || !decoded.legs || decoded.legs.length === 0) {
-    const universalDecoded = await decodeAnyBookingCode(code, req.bookmaker || "SportyBet");
-    if (universalDecoded.status === "success" && universalDecoded.legs && universalDecoded.legs.length > 0) {
-      decoded = {
-        status: "success",
-        bookmaker: req.bookmaker || "SportyBet",
-        booking_code: code,
-        total_odds: universalDecoded.total_odds,
-        legs_count: universalDecoded.legs.length,
-        legs: universalDecoded.legs as any,
-        share_url: universalDecoded.share_url,
-      };
-    } else {
-      throw new Error(`Failed to decode booking code: "${code}". Verify that this code exists on SportyBet.`);
-    }
+    throw new Error(
+      decoded.message ||
+      `Booking code "${code}" could not be found or has expired on SportyBet. Please make sure the code is active on SportyBet.`
+    );
   }
 
   const originalLegs = [...decoded.legs];
@@ -199,6 +293,90 @@ export async function executeEditSlip(
       is_split: true,
       slips: outputSlips,
       summary_message: `Successfully split ${originalCount} matches into ${outputSlips.length} balanced tickets with verified SportyBet booking codes.`,
+    };
+  }
+
+  // MODE 5: TARGET_ODDS (Target Odds Optimizer)
+  if (req.mode === "TARGET_ODDS") {
+    const requestedTarget = Number(req.target_odds) || 10.0;
+    const { surviving, pruned } = pruneLegsToTargetOdds(originalLegs, requestedTarget);
+
+    let bookedSurviving = await bookVaultSlip(surviving, {
+      slip_category: "PRUNED_TARGET_ODDS",
+    });
+
+    let sportyCode = bookedSurviving.sportybet_code;
+    let sportyUrl = bookedSurviving.sporty_url;
+
+    if (!sportyCode) {
+      const uBooked = await bookUniversalSlip(surviving, {
+        slip_category: "PRUNED_TARGET_ODDS",
+      });
+      sportyCode = uBooked.sportybet_code;
+      sportyUrl = uBooked.sporty_url;
+    }
+
+    const primaryCode = sportyCode;
+    const shareUrl = sportyUrl;
+    const verifiedLegs =
+      bookedSurviving.legs && bookedSurviving.legs.length > 0
+        ? bookedSurviving.legs
+        : surviving;
+    const verifiedOdds =
+      bookedSurviving.actual_odds ||
+      Math.round(verifiedLegs.reduce((acc, l) => acc * (Number(l.odd) || 1.0), 1.0) * 100) / 100;
+
+    // Database persistence
+    try {
+      const supabase = getSupabaseAdmin();
+      const tId = `target_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      await supabase.from("user_saved_tickets").insert({
+        id: tId,
+        user_email: "guest@oddora.ai",
+        booking_code: primaryCode || "READY",
+        share_code: primaryCode || "READY",
+        total_odds: verifiedOdds,
+        target_odds: requestedTarget,
+        tier: "FREE",
+        title: `Target Odds Slip (${verifiedOdds}x / ${requestedTarget}x Target)`,
+        legs: verifiedLegs,
+        status: "PENDING",
+        source: "EDIT_GAME",
+      });
+
+      await supabase.from("oddora_v2_daily_slips").insert({
+        slip_date: new Date().toISOString().split("T")[0],
+        slip_category: "PRUNED_TARGET_ODDS",
+        required_tier: "FREE",
+        total_odds: verifiedOdds,
+        match_count: verifiedLegs.length,
+        sportybet_code: primaryCode,
+        bet9ja_code: null,
+        legs_json: verifiedLegs,
+        slip_result: "PENDING",
+      });
+    } catch (dbErr) {
+      console.warn("[EditGame] DB persistence notice:", dbErr);
+    }
+
+    return {
+      original_code: code,
+      original_legs_count: originalCount,
+      original_total_odds: originalOdds,
+      mode: "TARGET_ODDS",
+      is_split: false,
+      slips: [
+        {
+          booking_code: primaryCode,
+          sporty_code: sportyCode,
+          share_url: shareUrl,
+          total_odds: verifiedOdds,
+          legs_count: verifiedLegs.length,
+          surviving_legs: verifiedLegs,
+          pruned_legs: pruned,
+        },
+      ],
+      summary_message: `Scaled ticket from ${originalOdds}x (${originalCount} legs) down to ${verifiedOdds}x (${verifiedLegs.length} legs) matching your ${requestedTarget}x target odds. Removed ${pruned.length} riskier legs.`,
     };
   }
 

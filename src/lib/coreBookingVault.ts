@@ -1152,12 +1152,12 @@ export async function decodeVaultBookingCode(
     const res = await fetch(`https://www.sportybet.com/api/ng/orders/share/${cleanCode}`, {
       headers: SPORTYBET_BROWSER_HEADERS,
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (res.ok) {
-      const json = await res.json();
-      if ((json.bizCode === 10000 || json.innerCode === "10000") && Array.isArray(json.data?.outcomes)) {
+      const json = await res.json().catch(() => null);
+      if (json && (json.bizCode === 10000 || json.innerCode === "10000") && Array.isArray(json.data?.outcomes)) {
         const outcomes = json.data.outcomes;
         const decodedLegs: VaultBookedLeg[] = [];
         let totalOdds = 1.0;
@@ -1208,6 +1208,18 @@ export async function decodeVaultBookingCode(
             share_url: `https://www.sportybet.com/ng/?shareCode=${cleanCode}`,
           };
         }
+      } else {
+        const errMsg = json?.message || `Booking code "${cleanCode}" was not found or has expired on SportyBet.`;
+        return {
+          status: "error",
+          bookmaker: bookmaker as any,
+          booking_code: cleanCode,
+          total_odds: 0,
+          legs_count: 0,
+          legs: [],
+          share_url: "",
+          message: errMsg,
+        };
       }
     }
   } catch (liveErr) {

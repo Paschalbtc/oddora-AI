@@ -16,6 +16,7 @@ import {
   ClipboardPaste,
   Zap,
   ShieldCheck,
+  Target,
 } from "lucide-react";
 import { UserTier } from "../Navbar";
 import { useAuth } from "@/context/AuthContext";
@@ -29,7 +30,8 @@ export type EditMode =
   | "SPLIT_TICKET"
   | "LOWEST_PROBABILITY"
   | "RANDOM_TRIM"
-  | "COMBO_HYBRID";
+  | "COMBO_HYBRID"
+  | "TARGET_ODDS";
 
 export const EditGameTab: React.FC<EditGameTabProps> = ({
   currentTier,
@@ -38,9 +40,10 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   const { requireAuth } = useAuth();
   const [bookmaker] = useState<"SportyBet">("SportyBet");
   const [bookingCode, setBookingCode] = useState<string>("");
-  const [selectedMode, setSelectedMode] = useState<EditMode>("LOWEST_PROBABILITY");
+  const [selectedMode, setSelectedMode] = useState<EditMode>("TARGET_ODDS");
   const [removeCount, setRemoveCount] = useState<number>(3);
   const [splitParts, setSplitParts] = useState<number>(2);
+  const [targetOdds, setTargetOdds] = useState<number>(10);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -54,29 +57,36 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
     color: string;
   }> = [
     {
+      id: "TARGET_ODDS",
+      title: "1. Target Odds Optimizer",
+      description: "Prunes risky games to scale your ticket down to an exact target multiplier (e.g. 5x, 10x, 20x).",
+      icon: Target,
+      color: "text-emerald-400 border-emerald-500/30",
+    },
+    {
       id: "SPLIT_TICKET",
-      title: "1. Split Ticket Mode",
+      title: "2. Split Ticket Mode",
       description: "Splits a long accumulator into multiple balanced tickets with individual valid booking codes.",
       icon: Split,
       color: "text-cyan-400 border-cyan-500/30",
     },
     {
       id: "LOWEST_PROBABILITY",
-      title: "2. Remove Lowest Probability",
+      title: "3. Remove Lowest Probability",
       description: "Uses the Sport Brains to strip away the riskiest legs, protecting your win probability.",
       icon: TrendingDown,
       color: "text-emerald-400 border-emerald-500/30",
     },
     {
       id: "RANDOM_TRIM",
-      title: "3. Remove Random Games",
+      title: "4. Remove Random Games",
       description: "Quickly thins out the ticket size randomly while preserving overall odds balance.",
       icon: Shuffle,
       color: "text-amber-400 border-amber-500/30",
     },
     {
       id: "COMBO_HYBRID",
-      title: "4. Combo Mode (Big + Small Odds)",
+      title: "5. Combo Mode (Big + Small Odds)",
       description: "Simultaneously trims high-variance longshots and low-value small odds.",
       icon: Layers,
       color: "text-purple-400 border-purple-500/30",
@@ -115,6 +125,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
     setErrorMsg(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40000);
+
       const res = await fetch("/api/engines/edit-slip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -124,17 +137,37 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
           mode: selectedMode,
           remove_count: removeCount,
           split_parts: splitParts,
+          target_odds: targetOdds,
         }),
+        signal: controller.signal,
       });
 
-      const json = await res.json();
+      clearTimeout(timeoutId);
+
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch (parseErr) {
+        throw new Error(
+          res.status === 504 || res.status === 502
+            ? "Server timeout. SportyBet is experiencing high network latency. Please try again."
+            : `Server returned unexpected response (status ${res.status}). Please try again.`
+        );
+      }
+
       if (!res.ok || json.status === "error") {
         throw new Error(json.message || "Failed to process ticket.");
       }
 
       setResult(json.data);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to edit ticket.");
+      if (err.name === "AbortError") {
+        setErrorMsg("Request timed out after 40 seconds. Please check your connection and retry.");
+      } else if (err.message === "Failed to fetch") {
+        setErrorMsg("Network connection error or request timed out. Please verify your connection and ensure the booking code is active.");
+      } else {
+        setErrorMsg(err.message || "Failed to edit ticket.");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -157,10 +190,10 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
             <span>Ticket Scanner & Pruner • Engine 4</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white">
-            4-Mode Edit Game Engine
+            5-Mode Edit Game Engine & Odds Optimizer
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Split long tickets, prune low-probability legs, or trim risky bets with instant re-booked codes.
+            Scale to target odds, split long accumulators, or strip away risky legs with instant re-booked codes.
           </p>
         </div>
 
@@ -253,7 +286,50 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
         {/* Dynamic Controls based on Mode */}
         <div className="pt-2">
-          {selectedMode === "SPLIT_TICKET" ? (
+          {selectedMode === "TARGET_ODDS" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
+                  Select Target Odds Multiplier:
+                </label>
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  Target: {targetOdds}x Multiplier
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[2, 3, 5, 10, 20, 50, 100].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setTargetOdds(num)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
+                      targetOdds === num
+                        ? "bg-emerald-500 text-black border-emerald-400 font-black shadow-md"
+                        : "bg-white/[0.04] text-slate-300 border-white/10 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    {num}x
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <span className="text-xs text-slate-400 font-mono">Custom Target:</span>
+                <input
+                  type="number"
+                  min={1.2}
+                  max={10000}
+                  step={0.5}
+                  value={targetOdds || ""}
+                  onChange={(e) => setTargetOdds(Math.max(1.1, parseFloat(e.target.value) || 2))}
+                  className="w-28 bg-[#070A0E] border border-white/10 rounded-xl py-1.5 px-3 text-xs font-mono font-bold text-white focus:outline-none focus:border-emerald-500 shadow-inner"
+                  placeholder="e.g. 15.0"
+                />
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Algorithm keeps the safest matches compounding closest to ~{targetOdds}x.
+                </span>
+              </div>
+            </div>
+          ) : selectedMode === "SPLIT_TICKET" ? (
             <div className="space-y-2">
               <label className="text-xs font-mono font-bold uppercase text-slate-300 block">
                 Split Into How Many Independent Tickets?

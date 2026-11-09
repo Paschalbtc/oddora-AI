@@ -46,6 +46,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   const [targetOdds, setTargetOdds] = useState<number>(10);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
+  const [modifiedTicket, setModifiedTicket] = useState<any | null>(null);
+  const [isOddsFrozen, setIsOddsFrozen] = useState<boolean>(true);
+  const [isRefreshingOdds, setIsRefreshingOdds] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -126,9 +129,9 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 40000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const res = await fetch("/api/engines/edit-slip", {
+      const res = await fetch("/api/edit-game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,32 +147,49 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
 
       clearTimeout(timeoutId);
 
-      let json: any = null;
-      try {
-        json = await res.json();
-      } catch (parseErr) {
-        throw new Error(
-          res.status === 504 || res.status === 502
-            ? "Server timeout. SportyBet is experiencing high network latency. Please try again."
-            : `Server returned unexpected response (status ${res.status}). Please try again.`
-        );
-      }
+      const json = await res.json().catch(() => ({}));
 
       if (!res.ok || json.status === "error") {
         throw new Error(json.message || "Failed to process ticket.");
       }
 
-      setResult(json.data);
+      const slipData = json.data || json;
+      // FREEZE THE STATE: Store permanently in local state & prevent any automatic re-fetching
+      setModifiedTicket(slipData);
+      setResult(slipData);
+      setIsOddsFrozen(true);
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setErrorMsg("Request timed out after 40 seconds. Please check your connection and retry.");
-      } else if (err.message === "Failed to fetch") {
-        setErrorMsg("Network connection error or request timed out. Please verify your connection and ensure the booking code is active.");
+        setErrorMsg("Request timed out. Please check your connection and retry.");
       } else {
         setErrorMsg(err.message || "Failed to edit ticket.");
       }
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Explicit manual odds refresh handler (only triggered on user click)
+  const handleManualRefreshOdds = (slipIdx: number) => {
+    if (!modifiedTicket || !modifiedTicket.slips) return;
+    setIsRefreshingOdds(true);
+    try {
+      const targetSlip = modifiedTicket.slips[slipIdx];
+      if (targetSlip && Array.isArray(targetSlip.surviving_legs)) {
+        const reCalcOdds =
+          Math.round(
+            targetSlip.surviving_legs.reduce(
+              (acc: number, l: any) => acc * (Number(l.odd) || 1.0),
+              1.0
+            ) * 100
+          ) / 100;
+        const updated = { ...modifiedTicket };
+        updated.slips[slipIdx].total_odds = reCalcOdds;
+        setModifiedTicket(updated);
+        setResult(updated);
+      }
+    } finally {
+      setTimeout(() => setIsRefreshingOdds(false), 500);
     }
   };
 
@@ -387,7 +407,7 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
             {isProcessing ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Decoding, Pruning & Re-Booking...</span>
+                <span>[🔄 Re-signing & Optimizing Ticket...]</span>
               </>
             ) : (
               <>
@@ -396,22 +416,40 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
               </>
             )}
           </button>
-          {errorMsg && (
+          {isProcessing && (
+            <div className="p-4 mt-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-3 animate-in fade-in">
+              <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin shrink-0" />
+              <div className="text-left">
+                <span className="text-xs font-bold text-white block">
+                  [🔄 Re-signing & Optimizing Ticket...]
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono block">
+                  Reading cached match probabilities from Oddora DB and generating verified SportyBet booking code.
+                </span>
+              </div>
+            </div>
+          )}
+          {errorMsg && !isProcessing && (
             <p className="text-xs text-rose-400 font-mono mt-2 text-center">{errorMsg}</p>
           )}
         </div>
       </div>
 
       {/* Results View */}
-      {result && (
+      {(modifiedTicket || result) && (
         <div className="space-y-5 animate-in fade-in duration-200">
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 font-semibold shadow-md">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{result.summary_message}</span>
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2 text-xs text-emerald-300 font-semibold shadow-md flex-wrap">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{(modifiedTicket || result).summary_message}</span>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/40">
+              <span>🔒 Ticket Odds Frozen</span>
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(result.slips || []).map((slip: any, idx: number) => {
+            {((modifiedTicket || result).slips || []).map((slip: any, idx: number) => {
               const sportyCode =
                 slip.sportybet_code ||
                 slip.sportybetCode ||
@@ -436,14 +474,20 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
                     <div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] font-mono font-black uppercase text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                          {result.is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
+                          {(modifiedTicket || result).is_split ? `Ticket Part #${slip.slip_index}` : "Modified Slip"}
                         </span>
                         <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25">
                           <ShieldCheck className="w-3 h-3 text-cyan-400" />
                           <span>SportyBet Verified</span>
                         </span>
+                        {isOddsFrozen && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>🔒 Odds Locked & Frozen</span>
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-sm font-bold text-white mt-1">
                         {slip.legs_count} Surviving Legs •{" "}
@@ -453,19 +497,32 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
                       </h4>
                     </div>
 
-                    {/* Copy button */}
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(sportyCode)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto shadow-sm active:scale-95"
-                    >
-                      <span>Code: {sportyCode}</span>
-                      {copiedCode === sportyCode ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5 text-emerald-300" />
-                      )}
-                    </button>
+                    {/* Action buttons: Manual Refresh Odds + Copy code */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleManualRefreshOdds(idx)}
+                        disabled={isRefreshingOdds}
+                        className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 hover:text-white font-mono font-bold text-xs flex items-center gap-1.5 transition active:scale-95"
+                        title="Manually recalculate compounded odds"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingOdds ? "animate-spin text-emerald-400" : ""}`} />
+                        <span>[🔄 Refresh Odds]</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(sportyCode)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500/25 transition self-start sm:self-auto shadow-sm active:scale-95"
+                      >
+                        <span>Code: {sportyCode}</span>
+                        {copiedCode === sportyCode ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-emerald-300" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* 1-Click Launchers */}
@@ -533,4 +590,5 @@ export const EditGameTab: React.FC<EditGameTabProps> = ({
   );
 };
 
+export const EditGameModal = EditGameTab;
 export default EditGameTab;

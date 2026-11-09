@@ -823,8 +823,14 @@ export async function bookVaultSlip(
     console.warn("[SportyBet Vault] Primary batch order share network error:", err);
   }
 
-  // 3. Resilient Leg-by-Leg Probe if primary batch failed or zero legs were accepted (only if network is online)
-  if (!networkFailed && !sportyCode && candidateLegs.length >= 1) {
+  // 3. Resilient Leg-by-Leg Probe if primary batch failed or zero legs were accepted (only if network is online and not in fast edit mode)
+  const isEditOrFast = Boolean(
+    options.slip_category?.includes("EDIT") ||
+    options.slip_category?.includes("PRUNED") ||
+    options.slip_category?.includes("SPLIT")
+  );
+
+  if (!isEditOrFast && !networkFailed && !sportyCode && candidateLegs.length >= 1) {
     console.log("[SportyBet Vault] Batch failed or was rejected. Probing legs individually to isolate open matches...");
     try {
       const probeResults = await Promise.allSettled(
@@ -1152,7 +1158,7 @@ export async function decodeVaultBookingCode(
     const res = await fetch(`https://www.sportybet.com/api/ng/orders/share/${cleanCode}`, {
       headers: SPORTYBET_BROWSER_HEADERS,
       cache: "no-store",
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(2000),
     });
 
     if (res.ok) {

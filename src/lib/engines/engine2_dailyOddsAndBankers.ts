@@ -535,11 +535,11 @@ const DAILY_PRESET_CONFIGS: Array<{
   { type: "BANKER_2X", title: "Daily Super Banker (2.00x)", target: 2.05, minOdds: 2.00, maxOdds: 2.10, tierLock: "FREE", maxLegs: 2, minOddPerLeg: 1.35, maxOddPerLeg: 1.50 },
   { type: "DAILY_3X", title: "Daily Value Multiplier (3.00x)", target: 3.10, minOdds: 2.95, maxOdds: 3.25, tierLock: "PRO", maxLegs: 3, minOddPerLeg: 1.35, maxOddPerLeg: 1.52 },
   { type: "DAILY_4X", title: "Tactical Multiplier (5.00x)", target: 5.0, minOdds: 4.80, maxOdds: 5.30, tierLock: "PRO", maxLegs: 4, minOddPerLeg: 1.35, maxOddPerLeg: 1.55 },
-  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.50, maxOdds: 10.80, tierLock: "PRO", maxLegs: 8, minOddPerLeg: 1.30, maxOddPerLeg: 1.55 },
-  { type: "DAILY_20X", title: "Strategic 20x Multiplier", target: 20.0, minOdds: 19.0, maxOdds: 22.0, tierLock: "PRO", maxLegs: 11, minOddPerLeg: 1.28, maxOddPerLeg: 1.60 },
-  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 48.0, maxOdds: 53.0, tierLock: "PRO", maxLegs: 16, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
-  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 95.0, maxOdds: 108.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
-  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 190.0, maxOdds: 215.0, tierLock: "PREMIUM", maxLegs: 25, minOddPerLeg: 1.28, maxOddPerLeg: 1.68 },
+  { type: "DAILY_10X", title: "Tenfold Accelerator (10.00x)", target: 10.0, minOdds: 9.50, maxOdds: 10.80, tierLock: "PRO", maxLegs: 7, minOddPerLeg: 1.30, maxOddPerLeg: 1.55 },
+  { type: "DAILY_20X", title: "Strategic 20x Multiplier", target: 20.0, minOdds: 19.0, maxOdds: 22.0, tierLock: "PRO", maxLegs: 9, minOddPerLeg: 1.28, maxOddPerLeg: 1.60 },
+  { type: "DAILY_50X", title: "High-Yield Multiplier (50.00x)", target: 50.0, minOdds: 48.0, maxOdds: 53.0, tierLock: "PRO", maxLegs: 13, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
+  { type: "DAILY_100X", title: "Centurion Jackpot Slip (100.00x)", target: 100.0, minOdds: 95.0, maxOdds: 108.0, tierLock: "PREMIUM", maxLegs: 16, minOddPerLeg: 1.28, maxOddPerLeg: 1.65 },
+  { type: "DAILY_200X", title: "Titan High-Multiplier (200.00x)", target: 200.0, minOdds: 190.0, maxOdds: 215.0, tierLock: "PREMIUM", maxLegs: 20, minOddPerLeg: 1.28, maxOddPerLeg: 1.68 },
 ];
 
 /**

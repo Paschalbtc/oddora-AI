@@ -28,7 +28,12 @@ export const MIN_GAMES_PER_TICKET = 2;
 
 export type SupportedSport = "FOOTBALL" | "BASKETBALL" | "TENNIS" | "VOLLEYBALL";
 
-export type StrategyCorridor = "BANKERS_ANCHOR" | "SWEET_SPOT" | "AGGRESSIVE_VALUE" | "PURE_BANKER";
+export type StrategyCorridor =
+  | "BANKERS_ANCHOR"
+  | "SWEET_SPOT"
+  | "AGGRESSIVE_VALUE"
+  | "HYBRID_DISPERSION"
+  | "PURE_BANKER";
 
 export type MarketFamily =
   | "FAMILY_1X2"
@@ -617,6 +622,106 @@ export function generateMultiSportCandidatesForFixture(
         oId: "13",
         spec: "total=5.5",
         tierNeeded: "VIP",
+      },
+      {
+        cat: "OVER_UNDER",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "2nd Half Over 0.5 Goals",
+        odd: 1.28,
+        mId: "70",
+        oId: "12",
+        spec: "total=0.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "1ST_HALF_GOALS",
+        fam: "FAMILY_GOALS_POINTS",
+        label: "1st Half Over 0.5 Goals",
+        odd: 1.35,
+        mId: "68",
+        oId: "12",
+        spec: "total=0.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "COMBO_SPECIALS",
+        fam: "FAMILY_BTTS_DNB",
+        label: `${favTeam} or Both Teams to Score (GG)`,
+        odd: 1.38,
+        mId: "202",
+        oId: isHomeFav ? "74" : "75",
+        spec: null,
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "CORNERS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: "Over 6.5 Total Corners",
+        odd: 1.26,
+        mId: "166",
+        oId: "12",
+        spec: "total=6.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "CORNERS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: "Over 7.5 Total Corners",
+        odd: 1.36,
+        mId: "166",
+        oId: "12",
+        spec: "total=7.5",
+        tierNeeded: "PRO",
+      },
+      {
+        cat: "CORNERS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: `${favTeam} +1.5 Corner Handicap`,
+        odd: 1.44,
+        mId: "167",
+        oId: "1",
+        spec: "hcp=1.5",
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "CARDS",
+        fam: "FAMILY_CARDS_CORNERS",
+        label: "Under 4.5 Total Cards",
+        odd: 1.42,
+        mId: "170",
+        oId: "13",
+        spec: "total=4.5",
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "ASIAN_HANDICAP",
+        fam: "FAMILY_HANDICAPS",
+        label: `${favTeam} +1.5 Goal Cushion`,
+        odd: 1.34,
+        mId: "16",
+        oId: "1714",
+        spec: "hcp=1.5",
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "SPECIALS",
+        fam: "FAMILY_TEAM_SPECIALS",
+        label: "Goal Scored by Substitution (Yes)",
+        odd: 1.62,
+        mId: "156",
+        oId: "74",
+        spec: null,
+        tierNeeded: "VIP",
+      },
+      {
+        cat: "SPECIALS",
+        fam: "FAMILY_TEAM_SPECIALS",
+        label: "Over 22.5 Total Match Fouls",
+        odd: 1.48,
+        mId: "173",
+        oId: "12",
+        spec: "total=22.5",
+        tierNeeded: "VIP",
       }
     );
   } else if (sport === "BASKETBALL") {
@@ -1022,13 +1127,18 @@ export function solveRevisedCorridorPortfolio(
   const normStrategy = (strategy || "SWEET_SPOT").toUpperCase();
   const isBanker = normStrategy === "BANKERS_ANCHOR" || normStrategy === "PURE_BANKER";
   const isAggressive = normStrategy === "AGGRESSIVE_VALUE" || normStrategy === "VALUE";
+  const isHybrid = normStrategy === "HYBRID_DISPERSION" || (exactCount >= 25 && !isBanker);
 
   // 1. Establish Strategy Decimal Odds Range
   let minLegOdd = 1.12;
   let maxLegOdd = 1.55;
   let targetAvgOdd = 1.32;
 
-  if (isBanker) {
+  if (isHybrid) {
+    minLegOdd = 1.30;
+    maxLegOdd = 2.05;
+    targetAvgOdd = 1.42;
+  } else if (isBanker) {
     minLegOdd = 1.12;
     maxLegOdd = 1.35;
     targetAvgOdd = 1.25;
@@ -1078,6 +1188,8 @@ export function solveRevisedCorridorPortfolio(
       ? Math.max(40, Math.min(90, minProbabilityParam))
       : isBanker
       ? 75
+      : isHybrid
+      ? 55
       : isAggressive
       ? 50
       : 60;
@@ -1205,6 +1317,17 @@ export function solveRevisedCorridorPortfolio(
   const familyCounts = new Map<MarketFamily, number>();
   const sportCounts = new Map<SupportedSport, number>();
 
+  // Bell-curve odds distribution targets for Hybrid Dispersion & Mega-Leg Accumulators
+  const coreTarget = isHybrid ? Math.round(N * 0.65) : N;
+  const midTarget = isHybrid ? Math.round(N * 0.25) : N;
+  const anchorTarget = isHybrid ? Math.max(1, Math.min(Math.round(N * 0.10), N - coreTarget - midTarget)) : N;
+
+  const distributionCounts = {
+    core: 0,   // 1.30 - 1.45
+    mid: 0,    // 1.46 - 1.75
+    anchor: 0, // 1.76 - 2.05
+  };
+
   let accumulatedOdds = 1.0;
 
   // Round-robin selection across requested sports and market families
@@ -1231,11 +1354,33 @@ export function solveRevisedCorridorPortfolio(
         const evId = item.option.eventId;
         const mKey = item.matchKey;
         const fam = item.family;
+        const oddVal = item.option.oddValue;
 
         if (usedEventIds.has(evId) || (mKey && usedMatchKeys.has(mKey))) continue;
 
         // Enforce market family quota (Max 20%) when All Markets is active
         if (isAllMarkets && (familyCounts.get(fam) || 0) >= maxPerFamily) continue;
+
+        // Weighted Bell-Curve Odds Distribution for Hybrid Strategy (65% Core, 25% Mid, 10% Anchor)
+        const isCoreOdd = oddVal >= 1.30 && oddVal <= 1.45;
+        const isMidOdd = oddVal > 1.45 && oddVal <= 1.75;
+        const isAnchorOdd = oddVal > 1.75 && oddVal <= 2.05;
+
+        if (isHybrid && picked.length < N - 2) {
+          if (isAnchorOdd && distributionCounts.anchor >= anchorTarget) {
+            continue; // Strictly cap high-yield anchors at 10%
+          }
+          if (isCoreOdd && distributionCounts.core >= coreTarget && (distributionCounts.mid < midTarget || distributionCounts.anchor < anchorTarget)) {
+            // Check if there are unpicked mid/anchor options waiting
+            const hasPendingOther = bucket.some(
+              (b) =>
+                !usedEventIds.has(b.option.eventId) &&
+                ((b.option.oddValue > 1.45 && b.option.oddValue <= 1.75 && distributionCounts.mid < midTarget) ||
+                 (b.option.oddValue > 1.75 && b.option.oddValue <= 2.05 && distributionCounts.anchor < anchorTarget))
+            );
+            if (hasPendingOther) continue;
+          }
+        }
 
         // Avoid overshooting upper bound
         const testOdds = accumulatedOdds * item.option.oddValue;
@@ -1243,11 +1388,15 @@ export function solveRevisedCorridorPortfolio(
           continue;
         }
 
-        // Accept leg
+        // Accept leg (Zero-Correlation: single fixture can NEVER be picked more than once)
         usedEventIds.add(evId);
         if (mKey) usedMatchKeys.add(mKey);
         familyCounts.set(fam, (familyCounts.get(fam) || 0) + 1);
         sportCounts.set(sport, (sportCounts.get(sport) || 0) + 1);
+
+        if (isCoreOdd) distributionCounts.core++;
+        else if (isMidOdd) distributionCounts.mid++;
+        else if (isAnchorOdd) distributionCounts.anchor++;
 
         accumulatedOdds = testOdds;
         addedInRound++;
@@ -1573,7 +1722,9 @@ export async function buildCustomSlip(
   // Strategy corridor normalization
   const rawStrategy = String(req.strategy_mode || "SWEET_SPOT").toUpperCase();
   const strategy: StrategyCorridor =
-    rawStrategy.includes("BANKER")
+    rawStrategy.includes("HYBRID") || rawStrategy.includes("DISPERS")
+      ? "HYBRID_DISPERSION"
+      : rawStrategy.includes("BANKER")
       ? "BANKERS_ANCHOR"
       : rawStrategy.includes("AGGRESSIVE") || rawStrategy.includes("VALUE")
       ? "AGGRESSIVE_VALUE"
@@ -1819,7 +1970,13 @@ export async function buildCustomSlip(
 
   let safetyGrade = "A High Value";
   let safetyGradeDesc = "Optimized Multiplier";
-  if (avgLegProb >= 85) {
+  if (
+    strategy === "HYBRID_DISPERSION" ||
+    (exactCount >= 25 && strategy !== "BANKERS_ANCHOR")
+  ) {
+    safetyGrade = "⚡ Hybrid Dispersed Mega Accumulator";
+    safetyGradeDesc = "65% Core (1.30–1.45) / 25% Mid (1.46–1.75) / 10% Anchor (1.76–2.05)";
+  } else if (avgLegProb >= 85) {
     safetyGrade = "A+ Banker Anchor";
     safetyGradeDesc = "Ultra High Probability Buffer (85%+ Avg Win Rate)";
   } else if (avgLegProb >= 78) {
@@ -1873,10 +2030,13 @@ export async function solveAccumulator(params: {
   minProbability?: number;
   userTier?: "FREE" | "PRO" | "PREMIUM" | "VIP";
 }): Promise<CustomBuilderResult> {
-  const strategy =
-    params.mode === "banker" || params.mode === "BANKERS_ANCHOR"
+  const rawMode = String(params.mode || "").toUpperCase();
+  const strategy: StrategyCorridor =
+    rawMode.includes("HYBRID") || rawMode.includes("DISPERS")
+      ? "HYBRID_DISPERSION"
+      : rawMode === "BANKER" || rawMode === "BANKERS_ANCHOR" || rawMode === "PURE_BANKER"
       ? "BANKERS_ANCHOR"
-      : params.mode === "aggressive" || params.mode === "AGGRESSIVE_VALUE"
+      : rawMode === "AGGRESSIVE" || rawMode === "AGGRESSIVE_VALUE" || rawMode === "VALUE"
       ? "AGGRESSIVE_VALUE"
       : "SWEET_SPOT";
 

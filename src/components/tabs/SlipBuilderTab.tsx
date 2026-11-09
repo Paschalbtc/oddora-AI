@@ -62,9 +62,9 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
     "volleyball",
   ]);
 
-  // Step 2: Revised Strategy Corridors (Bankers Anchor, Sweet-Spot, Aggressive Value)
+  // Step 2: Revised Strategy Corridors (Bankers Anchor, Sweet-Spot, Aggressive Value, Hybrid Dispersion)
   const [strategyMode, setStrategyMode] = useState<
-    "BANKERS_ANCHOR" | "SWEET_SPOT" | "AGGRESSIVE_VALUE"
+    "BANKERS_ANCHOR" | "SWEET_SPOT" | "AGGRESSIVE_VALUE" | "HYBRID_DISPERSION"
   >("SWEET_SPOT");
 
   // Step 3: Target Multiplier
@@ -527,11 +527,13 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 ? "🛡️ Bankers Anchor (1.12 – 1.35)"
                 : strategyMode === "SWEET_SPOT"
                 ? "⚡ Optimal Sweet-Spot (1.12 – 1.55)"
+                : strategyMode === "HYBRID_DISPERSION"
+                ? "⚡ Hybrid Dispersion (1.30 – 2.05)"
                 : "🚀 Aggressive Value (1.20 – 1.70+)"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Card 1: Ultra-Safe Bankers Anchor */}
             <button
               type="button"
@@ -607,6 +609,32 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
               </div>
               <p className="text-xs text-slate-300">
                 High-yield multi-leg compounding. Compounds 1.20–1.70+ odds per leg (up to 2.05 for mega multipliers) to scale slips up to 200,000x.
+              </p>
+            </button>
+
+            {/* Card 4: Hybrid Multi-Market Dispersion */}
+            <button
+              type="button"
+              onClick={() => {
+                setStrategyMode("HYBRID_DISPERSION");
+                setMinProbability(55);
+              }}
+              className={`p-4 rounded-2xl border text-left transition relative ${
+                strategyMode === "HYBRID_DISPERSION"
+                  ? "bg-cyan-500/10 border-cyan-500/50 ring-1 ring-cyan-500/40 shadow-lg"
+                  : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04] text-slate-400"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-black text-white flex items-center gap-2">
+                  <span>⚡ Hybrid Dispersion</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  1.30 – 2.05 ODDS
+                </span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Specialist market dispersion (2nd Half Goals, Corners, Spreads) with bell-curve odds (65% Core, 25% Mid, 10% Anchor). Engineered for 25–30 game mega accumulators.
               </p>
             </button>
           </div>
@@ -815,18 +843,23 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
           {matchCountMode === "CUSTOM" && (
             <div className="space-y-2 pt-2 animate-in fade-in">
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                {[3, 5, 10, 15, 25, 35, 40].map((cnt) => (
+                {[3, 5, 10, 15, 20, 25, 28, 30, 35, 40].map((cnt) => (
                   <button
                     key={cnt}
                     type="button"
                     onClick={() => setCustomMatchCount(cnt)}
-                    className={`flex-1 min-w-[42px] py-1.5 rounded-lg text-xs font-mono font-bold border ${
+                    className={`flex-1 min-w-[44px] py-1.5 rounded-lg text-xs font-mono font-bold border relative ${
                       customMatchCount === cnt
-                        ? "bg-emerald-500 text-black border-emerald-400 font-black"
+                        ? "bg-emerald-500 text-black border-emerald-400 font-black shadow-sm"
                         : "bg-white/[0.03] text-slate-400 border-white/5 hover:text-white"
                     }`}
                   >
                     {cnt}
+                    {(cnt === 25 || cnt === 28 || cnt === 30) && (
+                      <span className="absolute -top-1.5 -right-1 text-[8px] bg-cyan-500 text-black px-1 rounded-full font-black uppercase tracking-tighter">
+                        MEGA
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -834,7 +867,7 @@ export const SlipBuilderTab: React.FC<SlipBuilderTabProps> = ({
                 <input
                   type="range"
                   min="2"
-                  max="45"
+                  max="50"
                   step="1"
                   value={customMatchCount}
                   onChange={(e) => setCustomMatchCount(Number(e.target.value))}
